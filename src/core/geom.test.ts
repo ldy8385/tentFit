@@ -414,3 +414,17 @@ describe('cm 고리 보조 함수', () => {
     expect(pointInRing(p, U_RING)).toBe(expected)
   })
 })
+
+describe('리뷰 회귀: pieces()가 음수 넓이 최상위 노드를 구멍으로 붙임', () => {
+  it('사다리꼴 − 기울어진 이너: 조각 넓이 합 = area(V), 조각 1개', async () => {
+    const { shapeFromTemplate } = await import('./templates')
+    const outer = shapeRing(shapeFromTemplate({ kind: 'trapezoid', front: 500, back: 200, depth: 260, offset: -40 }))
+    const O = region(outer)
+    const I = intersect(region(worldRing({ shape: { kind: 'rect', w: 84.8, h: 69.4 }, x: -178.9, y: 51, rotation: 292.93 })), O)
+    const V = subtract(O, I)
+    const ps = pieces(V)
+    const sum = ps.reduce((s, p) => s + p.area, 0)
+    expect(Math.abs(sum - area(V))).toBeLessThan(1)
+    expect(ps).toHaveLength(1)
+  })
+})

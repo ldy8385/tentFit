@@ -265,18 +265,56 @@ function makePiece(paths: Paths64): Piece {
   return { region: paths, area: nz(Math.max(0, units / AREA_DIV)), centroid: centroidOf(paths) }
 }
 
-function collectPieces(node: PolyPath64, out: Piece[]): void {
+function collectPieces(node: PolyPath64, out: Paths64[], orphans: Path64[]): void {
   for (let i = 0; i < node.count; i++) {
     const child = node.child(i)
     if (!child.isHole && child.polygon) {
-      const paths: Paths64 = [child.polygon]
-      for (let j = 0; j < child.count; j++) {
-        const hole = child.child(j).polygon
-        if (hole) paths.push(hole)
+      // clipper2-ts는 외곽 경계에 거의 붙은 구멍을 가끔 구멍이 아닌 노드(음수 넓이)로 돌려준다.
+      // 그런 노드는 조각이 아니라 "품은 조각의 구멍"이므로 따로 모았다가 붙인다(리뷰 Critical 1).
+      if (clipperArea(child.polygon) < 0) {
+        orphans.push(child.polygon)
+      } else {
+        const paths: Paths64 = [child.polygon]
+        for (let j = 0; j < child.count; j++) {
+          const hole = child.child(j).polygon
+          if (hole) paths.push(hole)
+        }
+        out.push(paths)
       }
-      out.push(makePiece(paths))
     }
-    collectPieces(child, out)
+    collectPieces(child, out, orphans)
+  }
+}
+
+/** 정수 좌표 경로 안에 점(정수 단위)이 있는지(짝홀 규칙). */
+function pathContains(path: Path64, x: number, y: number): boolean {
+  let inside = false
+  for (let i = 0, j = path.length - 1; i < path.length; j = i++) {
+    const a = path[i] as Point64
+    const b = path[j] as Point64
+    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside
+  }
+  return inside
+}
+
+/** 고아 구멍을, 그 무게중심을 품은 가장 작은 조각의 구멍으로 붙인다. 품은 조각이 없으면 버린다. */
+function attachOrphans(pieceList: Paths64[], orphans: Path64[]): void {
+  for (const hole of orphans) {
+    const [cx, cy] = centroidOf([hole])
+    const x = Math.round(cx * SCALE)
+    const y = Math.round(cy * SCALE)
+    let best: Paths64 | null = null
+    let bestArea = Infinity
+    for (const p of pieceList) {
+      const outerPath = p[0] as Path64
+      if (!pathContains(outerPath, x, y)) continue
+      const a = Math.abs(clipperArea(outerPath))
+      if (a < bestArea) {
+        bestArea = a
+        best = p
+      }
+    }
+    if (best) best.push(hole)
   }
 }
 
@@ -290,8 +328,11 @@ export function pieces(r: Region): Piece[] {
   if (pr.length === 0) return []
   const tree = new PolyTree64()
   booleanOpWithPolyTree(ClipType.Union, pr, null, tree, FillRule.NonZero)
-  const out: Piece[] = []
-  collectPieces(tree, out)
+  const pathsList: Paths64[] = []
+  const orphans: Path64[] = []
+  collectPieces(tree, pathsList, orphans)
+  attachOrphans(pathsList, orphans)
+  const out: Piece[] = pathsList.map(makePiece)
   out.sort((a, b) => {
     if (Math.abs(a.area - b.area) > EPS_AREA) return b.area - a.area
     if (a.centroid[1] !== b.centroid[1]) return a.centroid[1] - b.centroid[1]

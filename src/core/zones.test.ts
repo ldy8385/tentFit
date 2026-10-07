@@ -329,3 +329,21 @@ describe('buildZones — 기울어진 벽 회귀', () => {
     near(z.pieces[0]?.area, z.outerArea - innerArea, 2)
   })
 })
+
+describe('리뷰 회귀: 기울어진 벽에 붙인 이너(PolyTree 음수 최상위 노드)', () => {
+  it('사다리꼴 외곽 + 292.93° 이너에서 전실은 한 조각이고 조각 넓이 합 = floorArea', async () => {
+    const { shapeFromTemplate } = await import('./templates')
+    const tpl = { kind: 'trapezoid', front: 500, back: 200, depth: 260, offset: -40 } as const
+    const tent: Tent = {
+      name: 't',
+      outer: shapeFromTemplate(tpl),
+      outerTemplate: tpl,
+      inners: [{ id: 'a', name: '이너 1', shape: rect(84.8, 69.4), x: -178.9, y: 51, rotation: 292.93 }],
+    }
+    const z = buildZones(tent)
+    const sum = z.pieces.reduce((s, p) => s + p.area, 0)
+    expect(z.pieces).toHaveLength(1)
+    expect(Math.abs(sum - z.floorArea)).toBeLessThan(1)
+    expect(z.pieces[0]!.area).toBeLessThan(z.outerArea)
+  })
+})
