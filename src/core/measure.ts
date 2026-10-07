@@ -1,5 +1,5 @@
 import { EPS_AREA, type Item, type Layout, type Pt } from './model'
-import { area, circleRing, intersect, labelPoint, outerRing, pointInRing, region, worldRing } from './geom'
+import { area, intersect, labelPoint, outerRing, pointInRing, region, worldRing } from './geom'
 
 // ── 타입(계약) ─────────────────────────────────────────────────────────
 /**
@@ -224,9 +224,12 @@ function ordered(x: Geo, y: Geo): Raw {
       return { d, p, q: d === 0 ? copy(p) : at(y.c, dir, -y.r), overlap: false }
     }
     if (y.t === 'poly') {
-      const inter = intersect(region(circleRing(x.r, x.c[0], x.c[1])), region(y.ring))
-      if (area(inter) > EPS_AREA) {
-        const m = labelPoint(inter)
+      // §6.7 공식: 근사 다각형(circleRing)은 꼭짓점이 원 밖으로 약 0.07cm 나가 정확한 맞닿음도
+      // 교집합 > ε이 되므로, 겹침은 해석적으로 판정한다(리뷰 Important).
+      const near = pointRing(x.c, y.ring)
+      const inside = pointInRing(x.c, y.ring)
+      if (inside || x.r - near.d > TOUCH_CM) {
+        const m: Pt = inside ? copy(x.c) : [(x.c[0] + near.q[0]) / 2, (x.c[1] + near.q[1]) / 2]
         return { d: 0, p: m, q: copy(m), overlap: true }
       }
       return diskToBoundary(x.c, x.r, y.ring)

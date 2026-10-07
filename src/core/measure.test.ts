@@ -345,3 +345,32 @@ describe('pickTarget — 꼭짓점 > 품은 물건 > 가장 가까운 변 > 테�
     expect(pickTarget(stacked, [-230, 0], R)).toEqual({ kind: 'item', id: 'under' })
   })
 })
+
+describe('리뷰 회귀: 원 물건과 다각형 물건이 정확히 맞닿으면 겹침이 아니다(§6.7 공식)', () => {
+  const box: Shape = { kind: 'rect', w: 100, h: 100 }
+  const sides: Array<[string, (r: number) => Pt]> = [
+    ['오른쪽', (r) => [-150 + 50 + r, 0]],
+    ['왼쪽', (r) => [-150 - 50 - r, 0]],
+    ['아래', (r) => [-150, 50 + r]],
+    ['위', (r) => [-150, -50 - r]],
+  ]
+  for (const d of [30, 40, 60, 100]) {
+    for (const [name, pos] of sides) {
+      it(`지름 ${d} 원이 ${name}에서 맞닿음 → 0cm(맞닿음)`, () => {
+        const [x, y] = pos(d / 2)
+        const l = layoutOf([item('box', box, -150, 0), item('stool', { kind: 'circle', d }, x, y)])
+        const res = measure(l, { kind: 'item', id: 'box' }, { kind: 'item', id: 'stool' })
+        expect(res.relation).toBe('touch')
+        expect(res.label).toBe('0cm(맞닿음)')
+      })
+    }
+  }
+  it('1cm 파고들면 겹침', () => {
+    const l = layoutOf([item('box', box, -150, 0), item('stool', { kind: 'circle', d: 40 }, -150 + 50 + 20 - 1, 0)])
+    expect(measure(l, { kind: 'item', id: 'box' }, { kind: 'item', id: 'stool' }).relation).toBe('overlap')
+  })
+  it('원 중심이 다각형 안이면 겹침', () => {
+    const l = layoutOf([item('box', box, -150, 0), item('stool', { kind: 'circle', d: 300 }, -150, 0)])
+    expect(measure(l, { kind: 'item', id: 'box' }, { kind: 'item', id: 'stool' }).relation).toBe('overlap')
+  })
+})
