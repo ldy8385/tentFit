@@ -486,3 +486,29 @@ describe('selectionPivot', () => {
     expect(selectionPivot(layoutOf([mat('a', 5, 5)]), ['zz'])).toEqual([0, 0])
   })
 })
+
+describe('리뷰 회귀: 다각형 물건을 극단적으로 줄여도 배치가 유효하다(§5.3-3)', () => {
+  const hex: Pt[] = [[40, 0], [20, 34.6], [-20, 34.6], [-40, 0], [-20, -34.6], [20, -34.6]]
+  const withHex = (): Layout => {
+    const l = createLayout(goldenTent(), { name: 'x', id: 'L', now: NOW })
+    l.items.push(mat('h', -100, 0, { name: '육각 테이블', shape: { kind: 'polygon', points: hex } }))
+    return l
+  }
+  const ok = async (l: Layout) => (await import('../validate')).validateLayout(l).ok
+
+  it.each([
+    [0.01, 0.01],
+    [1, 0.001],
+    [0.001, 0.001],
+  ])('applyTransform scale %s×%s 뒤에도 validateLayout ok', async (sx, sy) => {
+    const next = produce(withHex(), (d) => applyTransform(d, 'h', { x: -90, y: 5, rotation: 30, scaleX: sx, scaleY: sy }))
+    expect(await ok(next)).toBe(true)
+    const it = next.items[0]!
+    expect([it.x, it.y, it.rotation]).toEqual([-90, 5, 30])
+  })
+
+  it('resizeItem {w:1,h:1} 뒤에도 validateLayout ok', async () => {
+    const next = produce(withHex(), (d) => resizeItem(d, 'h', { w: 1, h: 1 }))
+    expect(await ok(next)).toBe(true)
+  })
+})

@@ -3,6 +3,7 @@
 // 값을 돌려주는 레시피(duplicateItems)는 화살표 함수 본문을 중괄호로 감싸야 합니다(immer는 반환값을 새 상태로 봄).
 import {
   COLOR_KEYS,
+  LIMITS,
   newId,
   normAngle,
   type ColorKey,
@@ -14,6 +15,7 @@ import {
   type Shape,
 } from '../model'
 import { labelPoint, outerRing, pointInRing, ringBBox, worldRing } from '../geom'
+import { ringIssue } from '../validate'
 import type { Zones } from '../zones'
 import { groupBlocks, normalizeGroups } from './groups'
 import { clampCoord, clampLen, itemList, normalizeShape, rotateAround, setItemOrder } from './util'
@@ -176,6 +178,25 @@ function scalePolygon(points: Pt[], sx: number, sy: number): Pt[] {
   return points.map((p) => [clampCoord(p[0] * sx), clampCoord(p[1] * sy)])
 }
 
+/**
+ * 다각형을 축별로 늘리거나 줄인 결과를 돌려줍니다. 사각형·원과 같이 축마다 결과 폭이 최소 길이(1cm)
+ * 아래로 내려가지 않게 배율을 제한하고, 그래도 §5.3-3(꼭짓점 3개 이상·자기교차 없음·넓이 1cm² 초과)을
+ * 깨면 null을 돌려줍니다(호출한 쪽은 도형을 그대로 둡니다). 리뷰 Critical 2.
+ */
+function safeScalePolygon(points: Pt[], sx: number, sy: number): Pt[] | null {
+  const b = ringBBox(points)
+  const bw = b.maxX - b.minX
+  const bh = b.maxY - b.minY
+  const minLen = LIMITS.length[0]
+  const limit = (s: number, size: number) => {
+    if (size <= 0 || !Number.isFinite(s)) return 1
+    const mag = Math.max(Math.abs(s), minLen / size)
+    return s < 0 ? -mag : mag
+  }
+  const next = scalePolygon(points, limit(sx, bw), limit(sy, bh))
+  return ringIssue(next) === null ? next : null
+}
+
 /** 숫자 입력으로 치수를 바꿉니다. 사각형은 w·h, 원은 d, 다각형은 로컬 바운딩 박스 가로·세로에 맞춰 원점 기준 축별 비례. */
 export function resizeItem(d: Layout, id: string, dims: { w?: number; h?: number; d?: number }): void {
   const it = findItem(d, id)
@@ -193,7 +214,8 @@ export function resizeItem(d: Layout, id: string, dims: { w?: number; h?: number
     const sx = dims.w !== undefined && bw > 0 ? clampLen(dims.w) / bw : 1
     const sy = dims.h !== undefined && bh > 0 ? clampLen(dims.h) / bh : 1
     if (sx === 1 && sy === 1) return
-    it.shape = { kind: 'polygon', points: scalePolygon(s.points, sx, sy) }
+    const next = safeScalePolygon(s.points, sx, sy)
+    if (next) it.shape = { kind: 'polygon', points: next }
   }
 }
 
@@ -223,7 +245,8 @@ export function applyTransform(
     const k = Math.abs(ax - 1) >= Math.abs(ay - 1) ? ax : ay
     s.d = clampLen(s.d * k)
   } else if (t.scaleX !== 1 || t.scaleY !== 1) {
-    it.shape = { kind: 'polygon', points: scalePolygon(s.points, t.scaleX, t.scaleY) }
+    const next = safeScalePolygon(s.points, t.scaleX, t.scaleY)
+    if (next) it.shape = { kind: 'polygon', points: next }
   }
 }
 
