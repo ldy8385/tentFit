@@ -18,6 +18,7 @@ import {
   selectionPivot,
   setItemProps,
   uniqueItemName,
+  uniqueName,
 } from './items'
 
 const NOW = '2026-10-07T00:00:00.000Z'
@@ -137,11 +138,11 @@ describe('uniqueItemName (OD-10)', () => {
     expect(uniqueItemName(l, '캠핑의자 2')).toBe('캠핑의자 2')
   })
 
-  it('겹치면 기본 이름 뒤에 가장 큰 번호 + 1을 붙인다(번호 없는 이름은 1로 셈)', () => {
+  it('겹치면 기본 이름 뒤에 비어 있는 가장 작은 번호(2부터)를 붙인다(스펙 §4.7-7)', () => {
     expect(uniqueItemName(layoutOf([named('a', '캠핑의자')]), '캠핑의자')).toBe('캠핑의자 2')
     const l = layoutOf([named('a', '캠핑의자'), named('b', '캠핑의자 4'), named('c', '캠핑의자 2')])
-    expect(uniqueItemName(l, '캠핑의자')).toBe('캠핑의자 5')
-    expect(uniqueItemName(l, '캠핑의자 2')).toBe('캠핑의자 5')
+    expect(uniqueItemName(l, '캠핑의자')).toBe('캠핑의자 3')
+    expect(uniqueItemName(l, '캠핑의자 2')).toBe('캠핑의자 3')
     // 끝이 " 숫자"가 아니면 이름 전체가 기본 이름
     expect(uniqueItemName(layoutOf([named('a', '매트 200×60')]), '매트 200×60')).toBe('매트 200×60 2')
   })
@@ -510,5 +511,14 @@ describe('리뷰 회귀: 다각형 물건을 극단적으로 줄여도 배치가
   it('resizeItem {w:1,h:1} 뒤에도 validateLayout ok', async () => {
     const next = produce(withHex(), (d) => resizeItem(d, 'h', { w: 1, h: 1 }))
     expect(await ok(next)).toBe(true)
+  })
+})
+
+describe('uniqueName — 배치·물건·텐트 이름 공용 번호 규칙(스펙 §4.7-7)', () => {
+  it('없으면 그대로, 있으면 2부터 비어 있는 가장 작은 번호', () => {
+    expect(uniqueName([], '터널 4인 배치')).toBe('터널 4인 배치')
+    expect(uniqueName(['터널 4인 배치'], '터널 4인 배치')).toBe('터널 4인 배치 2')
+    expect(uniqueName(['a', 'a 2', 'a 3', 'a 5'], 'a')).toBe('a 4')
+    expect(uniqueName(['a', 'a 3'], 'a 3')).toBe('a 2')
   })
 })

@@ -72,29 +72,31 @@ function splitNumbered(name: string): { base: string; n: number } {
   return { base: name, n: 1 }
 }
 
-/** names에 없으면 name 그대로, 있으면 `기본 이름 <같은 기본 이름의 가장 큰 번호 + 1>`. */
-function numberedName(names: readonly string[], name: string): string {
+/**
+ * 배치·물건·텐트 이름 공용 번호 규칙(스펙 §4.7-7). names에 없으면 name 그대로, 있으면 끝의 ' <n>'을 뗀
+ * 기준 이름 b에 대해 `b 2`, `b 3`, … 중 names에 없는 가장 작은 것을 돌려줍니다.
+ */
+export function uniqueName(names: readonly string[], name: string): string {
   if (!names.includes(name)) return name
   const { base } = splitNumbered(name)
-  let max = 1
-  for (const other of names) {
-    const s = splitNumbered(other)
-    if (s.base === base && s.n > max) max = s.n
+  const taken = new Set(names)
+  for (let k = 2; ; k++) {
+    const candidate = `${base} ${k}`
+    if (!taken.has(candidate)) return candidate
   }
-  return `${base} ${max + 1}`
 }
 
 /**
  * 배치 안에서 겹치지 않는 물건 이름(OD-10, §4.7-7과 같은 규칙).
  * 다른 물건(excludeId 제외)이 같은 이름을 쓰지 않으면 그대로, 쓰고 있으면
- * 끝의 ' <n>'을 뗀 기본 이름에 "기본 이름 / 기본 이름 <n>" 중 가장 큰 번호 + 1을 붙입니다(번호 없는 이름은 1).
+ * uniqueName 규칙(끝의 ' <n>'을 뗀 기준 이름에 2부터 비어 있는 가장 작은 번호)을 씁니다.
  * 예: '캠핑의자'만 있을 때 '캠핑의자' → '캠핑의자 2', '캠핑의자'·'캠핑의자 2'가 있을 때 '캠핑의자 2' → '캠핑의자 3'.
  */
 export function uniqueItemName(layout: Layout, name: string, excludeId?: string): string {
   const names = itemList(layout)
     .filter((it) => it.id !== excludeId)
     .map((it) => it.name)
-  return numberedName(names, name)
+  return uniqueName(names, name)
 }
 
 /**
@@ -281,7 +283,7 @@ export function duplicateItems(d: Layout, ids: string[], scopeGroupId?: string):
   const created: string[] = []
   const names = items.map((it) => it.name)
   const copyName = (src: Item): string => {
-    const name = numberedName(names, src.name)
+    const name = uniqueName(names, src.name)
     names.push(name)
     return name
   }
