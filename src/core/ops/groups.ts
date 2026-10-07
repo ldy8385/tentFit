@@ -1,5 +1,6 @@
-// 그룹 규칙(스펙 §4.9·§5.3-1·2). Task 7에서는 normalizeGroups와 groupBlocks만 둡니다(Task 8에서 전체를 다시 씀).
-import type { Item, Layout } from '../model'
+// 그룹 규칙(스펙 §4.9·§5.3-1·2). 그룹은 한 단계까지만이고 위치·회전값이 없습니다(D9).
+// 바꾸는 함수는 immer draft를 직접 고치는 레시피입니다. groupItems는 값을 돌려주므로 produce 본문을 중괄호로 감쌉니다.
+import { newId, type Item, type Layout } from '../model'
 import { itemList, setItemOrder } from './util'
 
 export type GroupBlock = { groupId: string | null; ids: string[] }
@@ -20,6 +21,25 @@ export function groupBlocks(layout: Layout): GroupBlock[] {
   return blocks
 }
 
+/**
+ * 선택을 그룹 단위로 넓힙니다(§4.9-1). 결과는 배열 순서이고 중복·없는 id는 빠집니다.
+ * scopeGroupId(그룹 안 편집)가 있으면 넓히지 않고, 그 그룹 멤버인 id만 남깁니다.
+ */
+export function expandSelection(layout: Layout, ids: string[], scopeGroupId?: string): string[] {
+  const set = new Set(ids)
+  const items = itemList(layout)
+  if (scopeGroupId !== undefined) {
+    return items.filter((it) => it.groupId === scopeGroupId && set.has(it.id)).map((it) => it.id)
+  }
+  const groups = new Set<string>()
+  for (const it of items) {
+    if (set.has(it.id) && it.groupId !== undefined) groups.add(it.groupId)
+  }
+  return items
+    .filter((it) => set.has(it.id) || (it.groupId !== undefined && groups.has(it.groupId)))
+    .map((it) => it.id)
+}
+
 /** 그룹마다 멤버를 가장 위(배열 뒤쪽) 멤버 자리로 모읍니다. 상대 순서와 다른 물건의 순서는 그대로입니다. */
 function gatherGroups(d: Layout): void {
   const items = itemList(d)
@@ -38,6 +58,43 @@ function gatherGroups(d: Layout): void {
     else if (top.get(it.groupId) === i) next.push(...(members.get(it.groupId) ?? []))
   })
   setItemOrder(d, next)
+}
+
+/**
+ * 묶기(§4.9-2). 고른 물건이 속한 기존 그룹은 통째로 흡수해 새 그룹 1개로 만들고,
+ * 멤버를 가장 위 멤버 자리로 모읍니다(상대 순서 유지). 새 group id를 돌려줍니다.
+ * 넓힌 뒤 물건이 2개 미만이면 아무것도 바꾸지 않고 ''를 돌려줍니다.
+ */
+export function groupItems(d: Layout, ids: string[]): string {
+  const members = new Set(expandSelection(d, ids))
+  if (members.size < 2) return ''
+  const chosen = itemList(d).filter((it) => members.has(it.id))
+  const already = chosen[0]?.groupId
+  if (already !== undefined && chosen.every((it) => it.groupId === already)) return already // 이미 그 그룹 하나
+  const absorbed = new Set<string>()
+  const gid = newId()
+  for (const it of itemList(d)) {
+    if (!members.has(it.id)) continue
+    if (it.groupId !== undefined) absorbed.add(it.groupId)
+    it.groupId = gid
+  }
+  for (let i = d.groups.length - 1; i >= 0; i--) {
+    const g = d.groups[i]
+    if (g !== undefined && absorbed.has(g.id)) d.groups.splice(i, 1)
+  }
+  d.groups.push({ id: gid })
+  gatherGroups(d)
+  return gid
+}
+
+/** 그룹 해제. 멤버의 배열 위치는 그대로입니다. */
+export function ungroup(d: Layout, groupId: string): void {
+  for (const it of itemList(d)) {
+    if (it.groupId === groupId) delete it.groupId
+  }
+  for (let i = d.groups.length - 1; i >= 0; i--) {
+    if (d.groups[i]?.id === groupId) d.groups.splice(i, 1)
+  }
 }
 
 /**
