@@ -1,0 +1,32 @@
+# Cloudflare Pages 빌드(pnpm ci:all)와 같은 검사를 push·PR마다 돌립니다.
+name: CI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # pnpm 버전은 package.json의 packageManager(pnpm@10.8.1)를 따릅니다. version 입력을 넣지 않습니다.
+      - uses: pnpm/action-setup@v6
+
+      # Cloudflare Pages의 NODE_VERSION(22.12.0)과 같은 버전입니다.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm ci:all
