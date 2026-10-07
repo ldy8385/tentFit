@@ -91,7 +91,9 @@ export function computeStats(layout: Layout, zones: Zones = buildZones(layout.te
   const filled = unionAll(occupiedRegions)
   const occupiedIn = (z: Region): number => area(intersect(filled, z))
 
-  const inners = zones.inners.map((z) => row(z.innerId, z.name, z.area, occupiedIn(z.region)))
+  // 이너 넓이(z.area)는 rest 차감으로 센 값이라, 기울어진 벽에서 area(F ∩ region)과 수 cm² 어긋날 수 있다.
+  // 남은 넓이를 직접 구하고 점유 = 넓이 − 남은 넓이로 두어 꽉 채우면 100%가 되게 한다(리뷰 Important).
+  const inners = zones.inners.map((z) => row(z.innerId, z.name, z.area, z.area - area(subtract(z.region, filled))))
   const pieces = zones.pieces.map((p) => row(p.key, p.name, p.area, occupiedIn(p.region)))
   // 이너 구역들은 서로 겹치지 않으므로 합이 곧 합집합이다.
   const totalInner = row(

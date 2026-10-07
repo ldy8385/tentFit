@@ -498,3 +498,32 @@ describe('computeStats — 성질(fast-check)', () => {
     )
   })
 })
+
+describe('리뷰 회귀: 기울어진 벽에 붙인 이너를 꽉 채우면 100%', () => {
+  const pts: Pt[] = [[-200, 150], [200, 150], [150, -150], [-150, -150]]
+  const [A, B] = [pts[1]!, pts[2]!]
+  const ux = B[0] - A[0]
+  const uy = B[1] - A[1]
+  const len = Math.hypot(ux, uy)
+  const nIn: Pt = [-uy / len, ux / len]
+  const sign = (0 - A[0]) * nIn[0] + (0 - A[1]) * nIn[1] > 0 ? 1 : -1
+  const n: Pt = [nIn[0] * sign, nIn[1] * sign]
+  const rot = Math.round((Math.atan2(uy, ux) * 18000) / Math.PI) / 100
+  const r1 = (v: number) => Math.round(v * 10) / 10
+  for (const gap of [-0.05, -0.03, -0.01, 0.01, 0.03, 0.05]) {
+    it(`벽과 간격 ${gap}cm`, () => {
+      const cx = r1(A[0] + ux * 0.5 + n[0] * (50 + gap))
+      const cy = r1(A[1] + uy * 0.5 + n[1] * (50 + gap))
+      const tent: Tent = {
+        name: 't',
+        outer: { kind: 'polygon', points: pts },
+        inners: [{ id: 'a', name: '이너 1', shape: { kind: 'rect', w: 150, h: 100 }, x: cx, y: cy, rotation: rot }],
+      }
+      const layout = createLayout(tent, { name: 'x', id: 'L', now: '2026-10-07T00:00:00.000Z' })
+      layout.items.push({ id: 'm', name: '매트', shape: { kind: 'rect', w: 150, h: 100 }, x: cx, y: cy, rotation: rot, color: 'blue', category: 'MAT', countsArea: true })
+      const s = computeStats(layout)
+      expect(s.inners[0]!.percent).toBe(100)
+      expect(s.inners[0]!.occupied + s.inners[0]!.free).toBeCloseTo(s.inners[0]!.area, 6)
+    })
+  }
+})
