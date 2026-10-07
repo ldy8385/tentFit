@@ -55,7 +55,8 @@ export class FrameWindow {
         if (dragging && this.lastDragging) {
           this.drag.push(dt)
           this.dragSum += dt
-          while (this.dragSum > this.windowMs && this.drag.length > 0) this.dragSum -= this.drag.shift() ?? 0
+          // 가장 오래된 표본을 빼도 창(10초) 이상이 남을 때만 뺀다. 그래야 계속 끌면 판정 기준(10초)에 닿는다.
+          while (this.drag.length > 0 && this.dragSum - (this.drag[0] ?? 0) >= this.windowMs) this.dragSum -= this.drag.shift() ?? 0
         }
       }
     }

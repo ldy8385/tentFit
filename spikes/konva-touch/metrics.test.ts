@@ -120,6 +120,19 @@ describe('판정과 보고서', () => {
     expect(verdictPerf({ ...base, dragP95: 16, dragSeconds: 9.9 })).toBe('측정 부족')
   })
 
+  it('10초 넘게 계속 끌면 창이 10초 이상을 유지해 판정이 나온다(fold7 실측 회귀)', () => {
+    const w = new FrameWindow()
+    let t = 0
+    for (let i = 0; i < 700; i++) {
+      t += 16.7
+      w.tick(t, true)
+    }
+    const s = w.stats()
+    expect(s.dragSeconds).toBeGreaterThanOrEqual(10)
+    expect(s.dragSeconds).toBeLessThan(10.02)
+    expect(verdictPerf(s)).toBe('통과')
+  })
+
   it('formatReport는 붙여 넣을 마크다운 절을 만든다', () => {
     const attempts = Array.from({ length: 20 }, (_, i) => record(i + 1))
     attempts[1] = record(2, { kind: 'transform', itemId: 'r3' })
