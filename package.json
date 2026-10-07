@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "ci:all": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+    "ci:all": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "spike:touch": "vite --config vite.spike.config.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -23,9 +24,11 @@
   },
   "dependencies": {
     "clipper2-ts": "2.0.1-18",
+    "konva": "10.7.1",
     "polylabel": "2.1.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-konva": "19.3.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -34,6 +37,7 @@
     "@types/polylabel": "2.0.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-basic-ssl": "2.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "eslint": "10.12.0",
     "eslint-plugin-react-hooks": "7.1.1",
