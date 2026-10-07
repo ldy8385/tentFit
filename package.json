@@ -14,8 +14,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "ci:all": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
-    "spike:touch": "vite --config vite.spike.config.ts"
+    "ci:all": "pnpm typecheck && pnpm lint && pnpm gen:schemas && git diff --exit-code presets/ && pnpm validate-presets && pnpm test && pnpm build",
+    "spike:touch": "vite --config vite.spike.config.ts",
+    "gen:schemas": "tsx scripts/gen-schemas.ts",
+    "validate-presets": "tsx scripts/validate-presets.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

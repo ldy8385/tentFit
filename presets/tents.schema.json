@@ -1,0 +1,490 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tentFit 텐트 프리셋 파일",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "presets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "brand": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tent": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "outer": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "rect"
+                      },
+                      "w": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "h": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "w",
+                      "h"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "circle"
+                      },
+                      "d": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "d"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "polygon"
+                      },
+                      "points": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number",
+                              "minimum": -10000,
+                              "maximum": 10000
+                            },
+                            {
+                              "type": "number",
+                              "minimum": -10000,
+                              "maximum": 10000
+                            }
+                          ],
+                          "items": false,
+                          "minItems": 2,
+                          "maxItems": 2
+                        }
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "points"
+                    ]
+                  }
+                ]
+              },
+              "outerTemplate": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "rect"
+                      },
+                      "w": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "h": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "square": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "w",
+                      "h"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "trapezoid"
+                      },
+                      "front": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "back": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "depth": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "offset": {
+                        "type": "number",
+                        "minimum": -5000,
+                        "maximum": 5000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "front",
+                      "back",
+                      "depth",
+                      "offset"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "ngon"
+                      },
+                      "n": {
+                        "type": "integer",
+                        "minimum": 5,
+                        "maximum": 12
+                      },
+                      "sizeBy": {
+                        "type": "string",
+                        "enum": [
+                          "diameter",
+                          "side"
+                        ]
+                      },
+                      "size": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "n",
+                      "sizeBy",
+                      "size"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "circle"
+                      },
+                      "d": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "d"
+                    ]
+                  }
+                ]
+              },
+              "inners": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "shape": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "rect"
+                            },
+                            "w": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "h": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "w",
+                            "h"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "circle"
+                            },
+                            "d": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "d"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "polygon"
+                            },
+                            "points": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "number",
+                                    "minimum": -10000,
+                                    "maximum": 10000
+                                  },
+                                  {
+                                    "type": "number",
+                                    "minimum": -10000,
+                                    "maximum": 10000
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              }
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "points"
+                          ]
+                        }
+                      ]
+                    },
+                    "x": {
+                      "type": "number",
+                      "minimum": -10000,
+                      "maximum": 10000
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": -10000,
+                      "maximum": 10000
+                    },
+                    "rotation": {
+                      "type": "number"
+                    },
+                    "template": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "rect"
+                            },
+                            "w": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "h": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "square": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "w",
+                            "h"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "trapezoid"
+                            },
+                            "front": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "back": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "depth": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "offset": {
+                              "type": "number",
+                              "minimum": -5000,
+                              "maximum": 5000
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "front",
+                            "back",
+                            "depth",
+                            "offset"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "ngon"
+                            },
+                            "n": {
+                              "type": "integer",
+                              "minimum": 5,
+                              "maximum": 12
+                            },
+                            "sizeBy": {
+                              "type": "string",
+                              "enum": [
+                                "diameter",
+                                "side"
+                              ]
+                            },
+                            "size": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "n",
+                            "sizeBy",
+                            "size"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "circle"
+                            },
+                            "d": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "d"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "x",
+                    "y",
+                    "rotation"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "name",
+              "inners"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "model",
+          "tent"
+        ]
+      }
+    }
+  },
+  "required": [
+    "presets"
+  ]
+}

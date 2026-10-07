@@ -1,0 +1,91 @@
+{
+  "$schema": "../tents.schema.json",
+  "presets": [
+    {
+      "id": "generic/dome-2p",
+      "model": "돔 2인",
+      "note": "외곽 210×210, 뒤쪽 이너 210×130, 앞쪽 전실 깊이 80cm",
+      "tent": {
+        "name": "돔 2인 예시",
+        "outerTemplate": { "kind": "rect", "w": 210, "h": 210, "square": true },
+        "inners": [
+          {
+            "id": "8ed636c1-dcfd-44c0-ae0e-48c562ce4677",
+            "name": "이너 1",
+            "x": 0,
+            "y": -40,
+            "rotation": 0,
+            "template": { "kind": "rect", "w": 210, "h": 130 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "generic/tunnel-4p",
+      "model": "터널 4인",
+      "note": "외곽 620×320, 왼쪽 끝 이너 220×300, 오른쪽이 넓은 전실",
+      "tent": {
+        "name": "터널 4인 예시",
+        "outerTemplate": { "kind": "rect", "w": 620, "h": 320 },
+        "inners": [
+          {
+            "id": "a1b65fd8-94f1-4e36-a83c-d38dd422e6f0",
+            "name": "이너 1",
+            "x": -200,
+            "y": 0,
+            "rotation": 0,
+            "template": { "kind": "rect", "w": 220, "h": 300 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "generic/living-shell",
+      "model": "리빙쉘",
+      "note": "외곽 500×400, 뒤쪽 가운데 이너 300×220, 이너 둘레를 전실이 감쌈",
+      "tent": {
+        "name": "리빙쉘 예시",
+        "outerTemplate": { "kind": "rect", "w": 500, "h": 400 },
+        "inners": [
+          {
+            "id": "ade30e89-5b72-457a-b57d-c9a3d4958f3f",
+            "name": "이너 1",
+            "x": 0,
+            "y": -80,
+            "rotation": 0,
+            "template": { "kind": "rect", "w": 300, "h": 220 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "generic/bell-4m",
+      "model": "벨텐트 4m",
+      "note": "지름 400 원형 바닥, 뒤편 이너 260×150",
+      "tent": {
+        "name": "벨텐트 4m 예시",
+        "outerTemplate": { "kind": "circle", "d": 400 },
+        "inners": [
+          {
+            "id": "fc2f7579-10aa-4ee2-b134-93f1843060a5",
+            "name": "이너 1",
+            "x": 0,
+            "y": -50,
+            "rotation": 0,
+            "template": { "kind": "rect", "w": 260, "h": 150 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "generic/tipi-hex",
+      "model": "티피 6각",
+      "note": "외접원 지름 400 정육각형 바닥, 이너 없음",
+      "tent": {
+        "name": "티피 6각 예시",
+        "outerTemplate": { "kind": "ngon", "n": 6, "sizeBy": "diameter", "size": 400 },
+        "inners": []
+      }
+    }
+  ]
+}
