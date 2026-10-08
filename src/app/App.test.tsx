@@ -61,7 +61,7 @@ describe('App', () => {
     expect(screen.getByTestId('mock-board')).toBeTruthy()
   })
 
-  it('뷰포트가 768px 미만이면 모바일 셸, 창을 넓히면 PC 셸로 바뀐다', async () => {
+  it('PC 기준(DESKTOP_QUERY)에 안 맞으면 모바일 셸, 창을 넓히면 PC 셸로 바뀐다', async () => {
     media.set(DESKTOP_QUERY, false)
     render(<App />)
     await waitFor(() => expect(screen.getByTestId('mobile-shell')).toBeTruthy())
@@ -121,6 +121,17 @@ describe('App', () => {
     })
     await waitFor(() => expect((screen.getByLabelText('배치 이름') as HTMLInputElement).value).toBe('첫 배치'))
     expect(listMemoryLayouts()).toHaveLength(2)
+  })
+
+  it('리뷰 회귀: 캔버스 밖(시트·버튼)을 눌러도 마지막 포인터 종류를 기억한다', async () => {
+    const view = render(<App />)
+    await waitFor(() => expect(hook()).toBeDefined())
+    expect(hook()!.getUi().pointer).toBe('mouse')
+    fireEvent.pointerDown(document.body, { pointerType: 'touch' })
+    expect(hook()!.getUi().pointer).toBe('touch')
+    fireEvent.pointerDown(document.body, { pointerType: 'pen' })
+    expect(hook()!.getUi().pointer).toBe('pen')
+    view.unmount()
   })
 
   it('테스트 모드에서는 window.__tentfit을 설치하고, 언마운트하면 지운다', async () => {

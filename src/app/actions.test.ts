@@ -50,6 +50,23 @@ describe('addPresetItem', () => {
     expect(selection()).toEqual([id2])
   })
 
+  it('리뷰 회귀: 라이브러리 시트(insets.bottom 684)가 열려 있어도 시트를 빼지 않은 화면 가운데에 놓는다', () => {
+    // 휴대폰 캔버스 390×730, 4배 확대. 시트를 빼면 위 46px 띠의 가운데(월드 y −85.5)에 놓이던 문제
+    const ui = stores.ui.getState()
+    ui.setSize({ width: 390, height: 730 })
+    ui.setInsets({ top: 0, bottom: 684 })
+    ui.setView({ zoom: 4, panX: 195, panY: 365 })
+    addPresetItem(stores, MAT)
+    expect(layout().items[0]).toMatchObject({ x: 0, y: 0 })
+  })
+
+  it('위 배너(insets.top)는 빼고 가운데를 잡는다', () => {
+    const ui = stores.ui.getState()
+    ui.setInsets({ top: 40, bottom: 300 })
+    addPresetItem(stores, MAT)
+    expect(layout().items[0]).toMatchObject({ x: 0, y: 20 })
+  })
+
   it('화면 가운데가 외곽 밖이면 외곽 안에 놓는다', () => {
     stores.ui.getState().setView({ zoom: 1, panX: -5000, panY: -5000 })
     addPresetItem(stores, MAT)

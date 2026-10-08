@@ -186,3 +186,91 @@ test('입력칸 글자는 16px 이상이다(iOS 포커스 확대 방지)', async
   expect(sizes.length).toBeGreaterThanOrEqual(3)
   for (const size of sizes) expect(size).toBeGreaterThanOrEqual(16)
 })
+
+// ── 최종 리뷰 회귀(2026-10-08) ────────────────────────────────────────────
+
+/** 먼저 빈 곳을 터치해 pointer='touch'로 만들고(첫 터치 문제와 분리), 매트를 추가한 뒤 선택을 풉니다. */
+async function addMatDeselected(page: Page): Promise<Item> {
+  const s = await pickOpenPoint(page, { margin: 100 })
+  await touchDrag(page, s, { x: s.x + 1, y: s.y + 20 })
+  const item = await addMatFromSheet(page)
+  await selectionSheet(page).getByRole('button', { name: '닫기' }).tap()
+  await expect(selectionSheet(page)).toBeHidden()
+  await nextFrames(page, 3)
+  return item
+}
+
+test('리뷰 Critical: 화면 아래쪽의 선택 안 된 물건을 눌러 바로 끌면 끈 만큼만 움직인다', async ({ page }) => {
+  const item = await addMatDeselected(page)
+  // 매트가 캔버스 아래쪽(시트에 가려질 자리)에 오도록 화면을 옮깁니다.
+  let c = await worldToClient(page, item.x, item.y)
+  const box = (await page.locator('.konvajs-content').boundingBox())!
+  const targetY = box.y + box.height - 60
+  const s = await pickOpenPoint(page, { avoid: [c], minDist: 80, margin: 100 })
+  await touchDrag(page, s, { x: s.x, y: s.y + (targetY - c.y) }, 12)
+  await nextFrames(page, 3)
+  c = await worldToClient(page, item.x, item.y)
+  expect(await isCanvasAt(page, c)).toBe(true)
+  const zoom = (await getUi(page)).view.zoom
+
+  await touchDrag(page, c, { x: c.x + 20, y: c.y }, 6)
+  await page.waitForTimeout(300)
+  const after = (await itemById(page, item.id))!
+  expect(Math.abs(after.y - item.y)).toBeLessThan(1)
+  expect(Math.abs(after.x - item.x - 20 / zoom)).toBeLessThan(2)
+})
+
+test('리뷰 Important: 시트로 추가한 물건을 첫 터치로 중심 밖에서 끌면 크기가 아니라 위치가 바뀐다', async ({ page }) => {
+  const item = await addMatFromSheet(page)
+  await nextFrames(page, 3)
+  const c = await worldToClient(page, item.x, item.y)
+  const start = { x: c.x, y: c.y - 9 }
+  await touchDrag(page, start, { x: start.x, y: start.y - 40 })
+  await page.waitForTimeout(200)
+  const after = (await itemById(page, item.id))!
+  expect(after.shape).toEqual(item.shape)
+  expect(after.y).toBeLessThan(item.y - 5)
+  expect((await getUi(page)).pointer).toBe('touch')
+})
+
+test('리뷰 Important: 선택 안 된 물건 위에서 핀치를 시작해도 선택이 바뀌지 않는다', async ({ page }) => {
+  const item = await addMatDeselected(page)
+  const c = await worldToClient(page, item.x, item.y)
+  const second = await pickOpenPoint(page, { avoid: [c], minDist: 120, margin: 60 })
+  const z0 = (await getUi(page)).view.zoom
+  const f = await Fingers.open(page)
+  await f.down(1, c)
+  await f.down(2, second)
+  await f.move({ 1: { x: c.x - 40, y: c.y - 40 }, 2: { x: second.x + 40, y: second.y + 40 } }, 8)
+  await f.up(2)
+  await f.up(1)
+  await f.detach()
+  await page.waitForTimeout(300)
+  const ui = await getUi(page)
+  expect(ui.view.zoom).not.toBe(z0)
+  expect(ui.selection).toEqual([])
+  expect(ui.mobileSheet).toBe('none')
+  expect((await getDoc(page)).canUndo).toBe(true) // 매트 추가 1칸뿐(핀치는 기록 없음)
+})
+
+test('리뷰 Important: 확대한 상태에서 라이브러리로 추가하면 화면 가운데(시트를 빼지 않은)에 놓인다', async ({ page }) => {
+  const box = (await page.locator('.konvajs-content').boundingBox())!
+  const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  const f = await Fingers.open(page)
+  const a = { x: center.x - 20, y: center.y - 20 }
+  const b = { x: center.x + 20, y: center.y + 20 }
+  await f.down(1, a)
+  await f.down(2, b)
+  await f.move({ 1: { x: a.x - 100, y: a.y - 100 }, 2: { x: b.x + 100, y: b.y + 100 } }, 12)
+  await f.up(2)
+  await f.up(1)
+  await f.detach()
+  await page.waitForTimeout(200)
+  const ui0 = await getUi(page)
+  const v = ui0.view
+  const cw = [(ui0.size.width / 2 - v.panX) / v.zoom, (ui0.size.height / 2 - v.panY) / v.zoom]
+
+  const item = await addMatFromSheet(page)
+  expect(Math.abs(item.x - cw[0]!)).toBeLessThan(1)
+  expect(Math.abs(item.y - cw[1]!)).toBeLessThan(1)
+})

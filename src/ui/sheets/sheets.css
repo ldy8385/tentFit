@@ -14,8 +14,12 @@
   will-change: transform;
 }
 
+/*
+ * 펼쳐도 캔버스가 176px(요약 칩 56 + 선택 물건이 보일 영역 88 + 위아래 여백 32) 남게 합니다.
+ * 캔버스 높이 = 100dvh − 상단 바·툴바 114px − 위아래 안전 영역. 낮은 화면(가로 휴대폰)에서는 접힌 높이보다 작아지지 않게.
+ */
 .tf-sheet[data-expanded='true'] {
-  max-height: calc(100dvh - 160px);
+  max-height: max(45dvh, calc(100dvh - 290px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
 }
 
 .tf-sheet__grabber {

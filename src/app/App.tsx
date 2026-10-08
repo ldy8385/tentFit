@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLayout, type Layout } from '../core/model'
 import { uniqueName } from '../core/ops/items'
+import { toPointerKind } from '../store/ui'
 import { DesktopShell } from '../ui/shell/DesktopShell'
 import { MobileShell } from '../ui/shell/MobileShell'
 import { useIsDesktop } from '../ui/shell/useIsDesktop'
@@ -51,6 +52,13 @@ function Editor(p: { layout: Layout }) {
 
   // 문서가 바뀔 때마다 메모리 보관본을 최신으로(같은 탭에서 해시를 오가도 이어서 편집)
   useEffect(() => stores.doc.subscribe((s) => putMemoryLayout(s.layout)), [stores])
+
+  // 시트·버튼(DOM)을 눌러도 마지막 포인터 종류를 기억합니다. 캔버스를 누르기 전에도 핸들 모양이 입력에 맞게.
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => stores.ui.getState().setPointer(toPointerKind(e.pointerType))
+    window.addEventListener('pointerdown', onDown, true)
+    return () => window.removeEventListener('pointerdown', onDown, true)
+  }, [stores])
 
   useEffect(() => {
     if (import.meta.env.MODE !== 'test') return

@@ -65,12 +65,15 @@ function cleanBBox(b: BBox): BBox {
   return { minX: Math.min(x0, x1), maxX: Math.max(x0, x1), minY: Math.min(y0, y1), maxY: Math.max(y0, y1) }
 }
 
-/** 시트·배너를 뺀 보이는 영역의 위·아래 경계(px). insets가 캔버스를 다 덮으면 insets를 무시합니다. */
+/** 시트·배너를 빼고 남는 띠가 이보다 좁으면 insets를 무시합니다(여백 2배가 띠를 넘어 배율이 0.1로 무너지지 않게). */
+export const MIN_VISIBLE_BAND_PX = 120
+
+/** 시트·배너를 뺀 보이는 영역의 위·아래 경계(px). 남는 띠가 MIN_VISIBLE_BAND_PX보다 좁으면 insets를 무시합니다. */
 function visibleBand(size: Size, insets: Insets): { top: number; height: number } {
   const h = Math.max(0, finiteOr(size.height, 0))
   const top = Math.max(0, finiteOr(insets.top, 0))
   const bottom = Math.max(0, finiteOr(insets.bottom, 0))
-  if (top + bottom >= h) return { top: 0, height: h }
+  if (h - top - bottom < MIN_VISIBLE_BAND_PX) return { top: 0, height: h }
   return { top, height: h - top - bottom }
 }
 

@@ -12,11 +12,11 @@ afterEach(() => {
 })
 
 describe('useIsDesktop', () => {
-  it("질의는 '(min-width: 768px)'이다", () => {
-    expect(DESKTOP_QUERY).toBe('(min-width: 768px)')
+  it("리뷰 회귀: 질의는 폭 768px 이상이면서 높이 560px 이상이다(가로로 돌린 휴대폰은 모바일 셸, 스펙 D8)", () => {
+    expect(DESKTOP_QUERY).toBe('(min-width: 768px) and (min-height: 560px)')
   })
 
-  it('768px 이상이면 true, 창을 줄이면 false로 바뀐다', () => {
+  it('질의에 맞으면 true, 창을 줄이면 false로 바뀐다', () => {
     media = installFakeMatchMedia({ [DESKTOP_QUERY]: true })
     const { result } = renderHook(() => useIsDesktop())
     expect(result.current).toBe(true)

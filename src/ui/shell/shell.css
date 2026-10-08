@@ -1,7 +1,7 @@
 /* 앱 셸: PC 3단·모바일 세로 배치, 상단 바, 하단 툴바, 메뉴, 캔버스 위 컨트롤.
    색·간격·반경은 tokens.css 변수만 씁니다. 누름 영역 44px, 입력칸 글자 16px(Plan 3 Global Constraints). */
 
-/* ── PC 3단(768px 이상) ─────────────────────────────────────────── */
+/* ── PC 3단(폭 768px·높이 560px 이상, useIsDesktop) ───────────── */
 .shell-desktop {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -70,7 +70,7 @@
   inset: 0;
 }
 
-/* ── 모바일(768px 미만) ─────────────────────────────────────────── */
+/* ── 모바일(그 밖, 가로로 돌린 휴대폰 포함) ──────────────────── */
 .shell-mobile {
   display: flex;
   flex-direction: column;

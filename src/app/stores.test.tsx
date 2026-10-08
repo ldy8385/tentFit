@@ -4,8 +4,9 @@ import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { createLayout, type Item, type Layout } from '../core/model'
 import { addItem, deleteItems, moveItems } from '../core/ops/items'
+import { installFakeMatchMedia } from '../ui/shell/fakeMatchMedia'
 import { useStats, useZones } from './derived'
-import { createStores, StoresProvider, useDoc, useStores, useUi, type Stores } from './stores'
+import { createStores, initialPointer, StoresProvider, useDoc, useStores, useUi, type Stores } from './stores'
 
 const NOW = '2026-10-08T00:00:00.000Z'
 
@@ -84,6 +85,28 @@ describe('useDoc·useUi', () => {
     expect(screen.getByText('터널 4인 예시 배치')).toBeTruthy()
     act(() => stores.doc.getState().rename('캠핑 첫날'))
     expect(screen.getByText('캠핑 첫날')).toBeTruthy()
+  })
+})
+
+describe('리뷰 회귀: 첫 포인터 추정(initialPointer)', () => {
+  it('주 입력이 터치(pointer: coarse)면 touch, 아니면 mouse', () => {
+    const media = installFakeMatchMedia({ '(pointer: coarse)': true })
+    try {
+      expect(initialPointer()).toBe('touch')
+      media.set('(pointer: coarse)', false)
+      expect(initialPointer()).toBe('mouse')
+    } finally {
+      media.restore()
+    }
+  })
+
+  it('createStores는 첫 포인터를 기기에 맞춰 둔다(시트로 추가한 물건에 마우스용 핸들이 붙지 않게)', () => {
+    const media = installFakeMatchMedia({ '(pointer: coarse)': true })
+    try {
+      expect(createStores(tunnelLayout()).ui.getState().pointer).toBe('touch')
+    } finally {
+      media.restore()
+    }
   })
 })
 

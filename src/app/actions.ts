@@ -16,11 +16,14 @@ import { viewCenterWorld } from '../view/viewport'
 import { getZones } from './derived'
 import type { Stores } from './stores'
 
-/** 새 물건을 놓을 자리(§4.7-3): 보이는 영역 가운데, 외곽 밖이면 외곽 polylabel, 겹치면 (+20,+20)씩. */
+/**
+ * 새 물건을 놓을 자리(§4.7-3): 보이는 영역 가운데, 외곽 밖이면 외곽 polylabel, 겹치면 (+20,+20)씩.
+ * 아래 시트는 빼지 않습니다. 추가하면 라이브러리 시트는 닫히고, 선택 시트 위로 보이게 하는 일은 셸이 맡습니다.
+ */
 function placementPoint(stores: Stores): Pt {
   const layout = stores.doc.getState().layout
   const { view, size, insets } = stores.ui.getState()
-  return newItemPosition(layout, getZones(layout), viewCenterWorld(view, size, insets))
+  return newItemPosition(layout, getZones(layout), viewCenterWorld(view, size, { top: insets.top, bottom: 0 }))
 }
 
 /** addItem이 같은 이름이면 uniqueItemName으로 번호를 붙여 저장합니다(D28). 새 물건만 선택합니다(D35). */

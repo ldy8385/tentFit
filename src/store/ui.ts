@@ -5,6 +5,11 @@ import type { Layout, Pt } from '../core/model'
 import { clampZoom, fitView, zoomAt as zoomViewAt, type BBox, type Insets, type Size, type View } from '../view/viewport'
 
 export type PointerKind = 'mouse' | 'pen' | 'touch'
+
+/** PointerEvent.pointerType → PointerKind(알 수 없는 값은 마우스로) */
+export function toPointerKind(t: string): PointerKind {
+  return t === 'touch' || t === 'pen' ? t : 'mouse'
+}
 export type Mode = 'place' | 'tent'
 export type MobileSheet = 'none' | 'selection' | 'library' | 'newShape' | 'area' | 'warnings'
 export type DesktopPanel = 'auto' | 'newShape' | 'warnings' // auto = 선택 있으면 속성, 없으면 빈 안내
@@ -20,6 +25,7 @@ export type UiState = {
   snapEnabled: boolean
   gridVisible: boolean
   pointer: PointerKind // 마지막 pointerdown의 pointerType
+  canvasPressed: boolean // 캔버스를 누르고 있는 동안 true(이때는 시트를 따라 화면을 옮기지 않음)
   mobileSheet: MobileSheet
   desktopPanel: DesktopPanel
   areaExpanded: boolean
@@ -34,6 +40,7 @@ export type UiState = {
   panBy(dx: number, dy: number): void
   fitTo(bbox: BBox): void
   setPointer(p: PointerKind): void
+  setCanvasPressed(pressed: boolean): void
   patch(
     p: Partial<
       Pick<
@@ -83,7 +90,7 @@ function len(v: number): number {
 }
 
 export function createUiStore(
-  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'view' | 'size'>>,
+  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'view' | 'size' | 'pointer'>>,
 ): UiStore {
   return createStore<UiState>()((set, get) => {
     const setViewIfChanged = (next: View): void => {
@@ -101,7 +108,8 @@ export function createUiStore(
       insets: { top: 0, bottom: 0 },
       snapEnabled: init?.snapEnabled ?? true,
       gridVisible: init?.gridVisible ?? true,
-      pointer: 'mouse',
+      pointer: init?.pointer ?? 'mouse',
+      canvasPressed: false,
       mobileSheet: 'none',
       desktopPanel: 'auto',
       areaExpanded: false,
@@ -151,6 +159,9 @@ export function createUiStore(
       },
       setPointer(p) {
         if (get().pointer !== p) set({ pointer: p })
+      },
+      setCanvasPressed(pressed) {
+        if (get().canvasPressed !== pressed) set({ canvasPressed: pressed })
       },
       patch(p) {
         const cur = get()

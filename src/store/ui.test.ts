@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createLayout, type Item, type Layout } from '../core/model'
 import { fitView, ZOOM_MAX } from '../view/viewport'
-import { createUiStore } from './ui'
+import { createUiStore, toPointerKind } from './ui'
 
 const NOW = '2026-10-08T00:00:00.000Z'
 
@@ -45,6 +45,7 @@ describe('createUiStore 기본값', () => {
     expect(s.snapEnabled).toBe(true)
     expect(s.gridVisible).toBe(true)
     expect(s.pointer).toBe('mouse')
+    expect(s.canvasPressed).toBe(false)
     expect(s.mobileSheet).toBe('none')
     expect(s.desktopPanel).toBe('auto')
     expect(s.areaExpanded).toBe(false)
@@ -63,6 +64,10 @@ describe('createUiStore 기본값', () => {
     expect(s.gridVisible).toBe(false)
     expect(s.view).toEqual({ zoom: ZOOM_MAX, panX: 5, panY: 6 })
     expect(s.size).toEqual({ width: 390, height: 844 })
+  })
+
+  it('리뷰 회귀: init으로 첫 포인터 종류를 정할 수 있다(터치 기기의 첫 조작)', () => {
+    expect(createUiStore({ pointer: 'touch' }).getState().pointer).toBe('touch')
   })
 })
 
@@ -182,6 +187,25 @@ describe('setPointer·patch', () => {
     const ui = createUiStore()
     ui.getState().setPointer('touch')
     expect(ui.getState().pointer).toBe('touch')
+  })
+
+  it('toPointerKind는 pointerType을 PointerKind로 바꾸고 모르는 값은 마우스로 본다', () => {
+    expect(toPointerKind('touch')).toBe('touch')
+    expect(toPointerKind('pen')).toBe('pen')
+    expect(toPointerKind('mouse')).toBe('mouse')
+    expect(toPointerKind('')).toBe('mouse')
+  })
+
+  it('setCanvasPressed는 누름 상태를 바꾸고, 같은 값이면 알리지 않는다', () => {
+    const ui = createUiStore()
+    const listener = vi.fn()
+    ui.subscribe(listener)
+    ui.getState().setCanvasPressed(true)
+    expect(ui.getState().canvasPressed).toBe(true)
+    ui.getState().setCanvasPressed(true)
+    expect(listener).toHaveBeenCalledTimes(1)
+    ui.getState().setCanvasPressed(false)
+    expect(ui.getState().canvasPressed).toBe(false)
   })
 
   it('patch는 준 키만 바꾸고 undefined 값은 건너뛴다', () => {

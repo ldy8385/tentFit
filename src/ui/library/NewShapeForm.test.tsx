@@ -124,6 +124,40 @@ describe('NewShapeForm', () => {
     expect(onCancel).not.toHaveBeenCalled()
   })
 
+  it('리뷰 회귀: 입력칸의 Enter는 추가하지 않고 다음 칸으로, 마지막 칸이면 키보드를 내린다', () => {
+    const { onDone } = renderForm()
+    input('이름').focus()
+    // fireEvent는 preventDefault되면 false(브라우저의 암시적 제출이 일어나지 않음)
+    expect(fireEvent.keyDown(input('이름'), { key: 'Enter' })).toBe(false)
+    expect(document.activeElement).toBe(input('가로'))
+    expect(fireEvent.keyDown(input('가로'), { key: 'Enter' })).toBe(false)
+    expect(document.activeElement).toBe(input('세로'))
+    expect(fireEvent.keyDown(input('세로'), { key: 'Enter' })).toBe(false)
+    expect(document.activeElement).not.toBe(input('세로'))
+    expect(onDone).not.toHaveBeenCalled()
+    expect(stores.doc.getState().layout.items).toEqual([])
+    expect(input('이름').getAttribute('enterkeyhint')).toBe('next')
+    expect(input('가로').getAttribute('enterkeyhint')).toBe('next')
+    expect(input('세로').getAttribute('enterkeyhint')).toBe('done')
+  })
+
+  it('리뷰 회귀: 원이면 지름 칸이 마지막 칸이다', () => {
+    renderForm()
+    fireEvent.click(screen.getByRole('button', { name: '원' }))
+    input('이름').focus()
+    fireEvent.keyDown(input('이름'), { key: 'Enter' })
+    expect(document.activeElement).toBe(input('지름'))
+    expect(input('지름').getAttribute('enterkeyhint')).toBe('done')
+  })
+
+  it('리뷰 회귀: 한글 조합을 끝내는 Enter는 칸을 옮기지 않고, 제출도 하지 않는다', () => {
+    const { onDone } = renderForm()
+    input('이름').focus()
+    expect(fireEvent.keyDown(input('이름'), { key: 'Enter', isComposing: true })).toBe(false)
+    expect(document.activeElement).toBe(input('이름'))
+    expect(onDone).not.toHaveBeenCalled()
+  })
+
   it('원으로 추가하면 circle 물건이 된다', () => {
     renderForm()
     fireEvent.click(screen.getByRole('button', { name: '원' }))

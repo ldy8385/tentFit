@@ -3,7 +3,7 @@ import { createContext, useContext, type JSX, type ReactNode } from 'react'
 import { useStore } from 'zustand'
 import type { Layout } from '../core/model'
 import { createDocStore, type DocState, type DocStore } from '../store/doc'
-import { createUiStore, type UiState, type UiStore } from '../store/ui'
+import { createUiStore, type PointerKind, type UiState, type UiStore } from '../store/ui'
 
 export type Stores = { doc: DocStore; ui: UiStore }
 
@@ -32,13 +32,19 @@ export function useUi<T>(selector: (s: UiState) => T): T {
   return useStore(useStores().ui, selector)
 }
 
+/** 첫 입력 전의 포인터 추정: 터치가 주 입력인 기기면 'touch'(첫 조작에 마우스용 핸들이 붙지 않게) */
+export function initialPointer(): PointerKind {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'mouse'
+  return window.matchMedia('(pointer: coarse)').matches ? 'touch' : 'mouse'
+}
+
 /**
  * 배치 하나의 스토어 묶음. 문서가 바뀔 때마다(실행 취소·다시 실행·load 포함) 선택에서 없는 id를 뺍니다(§8).
  * 구독은 스토어와 수명이 같아서 따로 풀지 않습니다(배치를 바꾸면 묶음을 새로 만듦).
  */
 export function createStores(layout: Layout): Stores {
   const doc = createDocStore(layout)
-  const ui = createUiStore()
+  const ui = createUiStore({ pointer: initialPointer() })
   doc.subscribe((state, prev) => {
     if (state.layout !== prev.layout) ui.getState().pruneSelection(state.layout)
   })

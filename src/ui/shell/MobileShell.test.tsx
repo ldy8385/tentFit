@@ -171,6 +171,35 @@ describe('MobileShell', () => {
     expect(stores.ui.getState().view.panY).toBe(300)
   })
 
+  it('리뷰 회귀: 캔버스를 누르고 있는 동안 열린 시트로는 화면을 옮기지 않고, 손을 떼면 옮긴다', () => {
+    const { stores, ids } = renderShell()
+    // 선택 안 된 물건을 누르는 순간 선택 시트가 열립니다. 이때 화면이 옮겨지면 그 이동량이 끌기에 섞입니다.
+    act(() => stores.ui.getState().setCanvasPressed(true))
+    act(() => stores.ui.getState().setSelection([ids[1]!]))
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
+    expect(stores.ui.getState().view.panY).toBe(300)
+    act(() => stores.ui.getState().setCanvasPressed(false))
+    expect(stores.ui.getState().view.panY + 125).toBe(650 - 300 - 16)
+  })
+
+  it('리뷰 회귀: 시트 높이가 그대로면 손을 뗄 때 화면을 다시 옮기지 않는다(사용자가 옮긴 화면 유지)', () => {
+    const { stores, ids } = renderShell()
+    act(() => stores.ui.getState().setSelection([ids[1]!]))
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
+    act(() => stores.ui.getState().setCanvasPressed(true))
+    act(() => stores.ui.getState().setView({ zoom: 1, panX: 195, panY: 300 }))
+    act(() => stores.ui.getState().setCanvasPressed(false))
+    expect(stores.ui.getState().view.panY).toBe(300)
+  })
+
+  it('리뷰 회귀: 시트 위에 요약 칩까지 뺀 영역이 남지 않으면 칩 영역을 빼지 않고 보인다', () => {
+    const { stores, ids } = renderShell()
+    // 시트 570px → 칩까지 빼면 72~64(없음). 칩을 빼지 않으면 16~64(48px)라 의자(50px)를 가운데에 맞춥니다.
+    act(() => stores.ui.getState().setSelection([ids[1]!]))
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 570))
+    expect(stores.ui.getState().view.panY + 100).toBe((16 + 64) / 2)
+  })
+
   it('끌기 중(제스처)에는 화면을 옮기지 않는다', () => {
     const { stores, ids } = renderShell()
     act(() => stores.doc.getState().beginGesture())

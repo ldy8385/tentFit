@@ -16,7 +16,7 @@ import { BottomSheet } from '../sheets/BottomSheet'
 import { SelectionSheet } from '../sheets/SelectionSheet'
 import { CanvasOverlay } from './CanvasOverlay'
 import { MobileTopBar } from './MobileTopBar'
-import { revealView, selectionBBox } from './revealSelection'
+import { REVEAL_MARGIN_PX, revealView, selectionBBox } from './revealSelection'
 import { Toolbar } from './Toolbar'
 import './shell.css'
 
@@ -72,19 +72,26 @@ export const SUMMARY_CHIP_ZONE_PX = 56
 /**
  * 선택 시트가 열리거나 높이가 바뀌면(insets.bottom 변화) 선택한 물건이 시트 위·요약 칩 아래 영역에 보이게 옮깁니다(§4.2).
  * 다른 시트(라이브러리 등)의 높이로는 옮기지 않고, 제스처 중에도 건드리지 않습니다.
+ * 캔버스를 누르고 있는 동안 바뀐 높이는 손을 뗀 뒤에 반영합니다(누르는 순간 열린 시트로 화면이 옮겨지면 그 이동량이 끌기에 섞임).
+ * 시트가 높아 요약 칩 아래가 남지 않으면 칩 영역을 빼지 않고 계산합니다.
  */
 function useRevealSelection() {
   const stores = useStores()
   const insetBottom = useUi((s) => s.insets.bottom)
+  const pressed = useUi((s) => s.canvasPressed)
+  const handledBottom = useRef<number | null>(null)
   useEffect(() => {
+    if (pressed || handledBottom.current === insetBottom) return
+    handledBottom.current = insetBottom
     const ui = stores.ui.getState()
     if (ui.mobileSheet !== 'selection' || ui.selection.length === 0 || stores.doc.getState().inGesture) return
     const box = selectionBBox(stores.doc.getState().layout, ui.selection)
     if (box === null) return
     const area = { top: ui.insets.top + SUMMARY_CHIP_ZONE_PX, bottom: ui.insets.bottom }
+    if (ui.size.height - area.bottom - area.top <= 2 * REVEAL_MARGIN_PX) area.top = ui.insets.top
     const next = revealView(ui.view, ui.size, area, box)
     if (next !== null) ui.setView(next)
-  }, [insetBottom, stores])
+  }, [insetBottom, pressed, stores])
 }
 
 function SheetFor(p: { sheet: MobileSheet }): ReactNode {

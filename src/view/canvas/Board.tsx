@@ -13,7 +13,7 @@ import { useDoc, useStores, useUi, type Stores } from '../../app/stores'
 import { LIMITS, normAngle, round1, type Item, type Pt, type Shape } from '../../core/model'
 import { expandSelection } from '../../core/ops/groups'
 import { applyTransform, moveItems } from '../../core/ops/items'
-import type { PointerKind } from '../../store/ui'
+import { toPointerKind, type PointerKind } from '../../store/ui'
 import { blurActiveInput } from '../../ui/fields/blurActive'
 import { THEME } from '../../ui/theme'
 import { GestureArbiter, TAP_SLOP, type GestureOutput } from '../gestures'
@@ -38,10 +38,6 @@ type Overlay = {
 }
 
 type Session = { kind: 'drag'; leadId: string; ids: string[] } | { kind: 'transform'; ids: string[] }
-
-function toPointerKind(t: string): PointerKind {
-  return t === 'touch' || t === 'pen' ? t : 'mouse'
-}
 
 function isEditable(el: Element | EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false
@@ -104,6 +100,8 @@ class BoardController {
   private gestureOpen = false
   /** 이번 누름이 선택에 넣은 물건(토글 모드의 탭이 바로 빼지 않게) */
   private pressAdded = false
+  /** 이번 누름이 선택을 바꾸기 직전의 선택. 핀치·취소로 누름이 무효가 되면 이것으로 되돌립니다. */
+  private pressPrevSelection: string[] | null = null
   private pressId: string | null = null
   private marqueeAdd = false
   /** 마지막 자동 맞춤 보기. 사용자가 보기를 바꾸지 않았으면 크기가 바뀔 때 다시 맞춥니다. */
@@ -159,7 +157,10 @@ class BoardController {
     const panOverride = this.space || e.button === 1
     let onNode = false
     if (this.arbiter.pointerCount === 0) {
+      // 누르는 동안 시트가 열려도 화면을 옮기지 않게 알립니다(옮기면 그 이동량이 끌기에 섞임).
+      ui.setCanvasPressed(true)
       this.pressAdded = false
+      this.pressPrevSelection = null
       this.pressId = null
       this.marqueeAdd = e.shiftKey
       const hit = panOverride ? null : this.hitAt(p)
@@ -178,6 +179,8 @@ class BoardController {
       ),
     )
     if (this.arbiter.pointerCount >= 2) this.lock()
+    // 판정하지 않는 버튼(펜 지우개 등)은 누름으로 치지 않습니다(떼기 처리가 오지 않음).
+    if (this.arbiter.pointerCount === 0) ui.setCanvasPressed(false)
   }
 
   readonly onPointerMove = (e: PointerEvent): void => {
@@ -255,6 +258,7 @@ class BoardController {
     window.setTimeout(() => {
       this.suppress = false
       this.unlock()
+      this.stores.ui.getState().setCanvasPressed(false)
     }, 0)
   }
 
@@ -303,6 +307,7 @@ class BoardController {
     const layout = this.stores.doc.getState().layout
     const expanded = expandSelection(layout, [id], ui.scopeGroupId ?? undefined)
     this.pressAdded = true
+    this.pressPrevSelection = [...ui.selection]
     const toggle = shift || ui.selectToggle
     this.select(toggle ? [...new Set([...ui.selection, ...expanded])] : expanded)
   }
@@ -422,6 +427,13 @@ class BoardController {
     this.restoreNodes(this.nodes.keys())
     tr?.forceUpdate()
     this.endSession()
+    // 누르는 순간 바꾼 선택도 되돌립니다(물건 위에서 시작한 핀치가 선택을 바꾸지 않게).
+    if (this.pressAdded && this.pressPrevSelection !== null) {
+      const prev = this.pressPrevSelection
+      this.pressAdded = false
+      this.pressPrevSelection = null
+      this.select(prev)
+    }
   }
 
   // ── Konva 끌기·변형 → 커밋 ─────────────────────────────────────────────
