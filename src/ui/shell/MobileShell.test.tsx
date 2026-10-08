@@ -267,6 +267,39 @@ describe('MobileShell', () => {
     expect(stores.ui.getState().insets.bottom).toBe(150)
   })
 
+  it('3차 재검증: 라이브러리·면적 시트가 열린 채 단축키로 복제해도 바뀌기 전 시트 높이로 화면을 옮기지 않는다', () => {
+    for (const other of ['library', 'area'] as const) {
+      const { stores, ids, unmount } = renderShell()
+      const host = screen.getByTestId('sheet-host')
+      act(() => stores.ui.getState().setSelection([ids[0]!]))
+      act(() => stores.ui.getState().patch({ mobileSheet: other }))
+      act(() => FakeResizeObserver.resize(host, 473))
+      const before = stores.ui.getState().view
+      host.getBoundingClientRect = () => ({ height: 150 }) as DOMRect
+      act(() => {
+        duplicateSelected(stores)
+      })
+      act(() => FakeResizeObserver.resize(host, 150))
+      expect(stores.ui.getState().mobileSheet).toBe('selection')
+      expect(stores.ui.getState().view).toEqual(before)
+      unmount()
+    }
+  })
+
+  it('3차 재검증: 면적 시트에서 선택 시트로 돌아오면(높이가 같아도) 시트에 가린 선택 물건을 다시 보이게 옮긴다', () => {
+    const { stores, ids } = renderShell()
+    const host = screen.getByTestId('sheet-host')
+    // 두 시트 모두 300px(레이아웃 효과가 재는 값)
+    host.getBoundingClientRect = () => ({ height: 300 }) as DOMRect
+    act(() => stores.ui.getState().setSelection([ids[1]!]))
+    act(() => FakeResizeObserver.resize(host, 300))
+    act(() => stores.ui.getState().patch({ mobileSheet: 'area' }))
+    // 면적 시트를 보는 동안 의자(화면 y 375~425)를 시트 밑으로 옮겨 둡니다.
+    act(() => stores.ui.getState().setView({ zoom: 1, panX: 195, panY: 300 }))
+    act(() => stores.ui.getState().patch({ mobileSheet: 'selection' }))
+    expect(stores.ui.getState().view.panY + 125).toBe(650 - 300 - 16)
+  })
+
   it('끌기 중(제스처)에는 화면을 옮기지 않는다', () => {
     const { stores, ids } = renderShell()
     act(() => stores.doc.getState().beginGesture())

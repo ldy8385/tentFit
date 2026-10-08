@@ -91,12 +91,20 @@ function useRevealSelection() {
   const insetBottom = useUi((s) => s.insets.bottom)
   const revealRequest = useUi((s) => s.revealRequest)
   const pressed = useUi((s) => s.canvasPressed)
+  const renderedSheet = useUi((s) => s.mobileSheet)
   const handled = useRef<string | null>(null)
   useEffect(() => {
+    // 선택 시트가 그려진 커밋에서만 계산합니다. 다른 시트에서 바뀌는 중이면(단축키 복제 등) 레이아웃 효과가
+    // 새 시트 높이를 잰 다음 커밋으로 미룹니다. 다른 시트일 때 기록을 지워, 선택 시트가 열릴 때마다 한 번은 계산합니다.
+    if (renderedSheet !== 'selection') {
+      handled.current = null
+      return
+    }
+    if (pressed) return
     const ui = stores.ui.getState()
     // 키와 계산 모두 스토어의 지금 값으로(같은 커밋의 레이아웃 효과가 방금 잰 시트 높이를 씀)
     const key = `${ui.insets.bottom}|${ui.revealRequest}`
-    if (pressed || handled.current === key) return
+    if (handled.current === key) return
     handled.current = key
     if (ui.mobileSheet !== 'selection' || ui.selection.length === 0 || stores.doc.getState().inGesture) return
     const box = selectionBBox(stores.doc.getState().layout, ui.selection)
@@ -105,7 +113,7 @@ function useRevealSelection() {
     if (ui.size.height - area.bottom - area.top <= 2 * REVEAL_MARGIN_PX) area.top = ui.insets.top
     const next = revealView(ui.view, ui.size, area, box)
     if (next !== null) ui.setView(next)
-  }, [insetBottom, revealRequest, pressed, stores])
+  }, [insetBottom, revealRequest, pressed, renderedSheet, stores])
 }
 
 function SheetFor(p: { sheet: MobileSheet }): ReactNode {
