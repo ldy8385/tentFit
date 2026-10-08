@@ -3,7 +3,6 @@
 import { normAngle, type Item } from '../../core/model'
 import {
   deleteItems,
-  duplicateItems,
   resizeItem,
   rotateItems,
   selectionPivot,
@@ -45,17 +44,8 @@ export function rotateBy90(stores: Stores, ids: string[]): void {
   stores.doc.getState().commit((d) => rotateItems(d, ids, selectionPivot(d, ids), 90))
 }
 
-/** [복제]: 복제본을 (+20,+20)에 놓고 새 물건들을 선택합니다. 그룹 안 편집 중이면 그 그룹 안에서 복제합니다. */
-export function duplicateAndSelect(stores: Stores, ids: string[]): string[] {
-  if (ids.length === 0) return []
-  const scope = stores.ui.getState().scopeGroupId ?? undefined
-  let created: string[] = []
-  stores.doc.getState().commit((d) => {
-    created = duplicateItems(d, ids, scope)
-  })
-  if (created.length > 0) stores.ui.getState().setSelection(created)
-  return created
-}
+/** [복제]: 단축키(Ctrl/Cmd+D)와 같은 구현을 씁니다(app/actions). */
+export { duplicateAndSelect } from '../../app/actions'
 
 /** [삭제]: 지우고 선택을 비웁니다. */
 export function deleteAndDeselect(stores: Stores, ids: string[]): void {

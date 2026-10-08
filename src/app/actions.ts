@@ -59,15 +59,24 @@ export function deleteSelected(stores: Stores): void {
 
 /** 복제(§4.7-4·§4.9-4). 그룹 안 편집 중이면 그 그룹 안에서 복제합니다. 새 id(배열 순서)를 선택하고 돌려줍니다. */
 export function duplicateSelected(stores: Stores): string[] {
-  const { selection, scopeGroupId } = stores.ui.getState()
-  if (selection.length === 0) return []
+  return duplicateAndSelect(stores, stores.ui.getState().selection)
+}
+
+/**
+ * [복제](선택 시트·속성 패널)와 Ctrl/Cmd+D가 함께 씁니다. 복제본을 (+20,+20)에 놓고 새 물건들을 선택합니다.
+ * 그룹 안 편집 중이면 그 그룹 안에서 복제합니다. 시트 높이가 그대로여도 복제본이 시트 위에 보이게 요청합니다.
+ */
+export function duplicateAndSelect(stores: Stores, ids: readonly string[]): string[] {
+  if (ids.length === 0) return []
+  const scope = stores.ui.getState().scopeGroupId ?? undefined
   let created: string[] = []
   stores.doc.getState().commit((d) => {
-    created = duplicateItems(d, selection, scopeGroupId ?? undefined)
+    created = duplicateItems(d, [...ids], scope)
   })
   if (created.length > 0) {
-    stores.ui.getState().setSelection(created)
-    stores.ui.getState().requestReveal()
+    const ui = stores.ui.getState()
+    ui.setSelection(created)
+    ui.requestReveal()
   }
   return created
 }

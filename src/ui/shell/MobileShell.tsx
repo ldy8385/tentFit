@@ -2,8 +2,8 @@
 // - 선택이 있고 다른 시트가 없으면 선택 시트, 선택이 비면 선택 시트를 닫습니다.
 // - 시트 높이를 ui.insets.bottom에 반영하고(맞춤 보기·시트 위 영역 계산), 선택한 물건이 시트 위에 보이게 옮깁니다.
 // - 선택·라이브러리 시트는 스스로 BottomSheet를 쓰고, 새 도형·면적·경고는 여기서 BottomSheet로 감쌉니다(inSheet: 제목·×는 시트가 그림).
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
-import { useStores, useUi } from '../../app/stores'
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react'
+import { useStores, useUi, type Stores } from '../../app/stores'
 import { CANVAS_HOST_TEST_ID } from '../../app/testHook'
 import type { MobileSheet } from '../../store/ui'
 import { Board } from '../../view/canvas/Board'
@@ -41,16 +41,26 @@ function useSelectionSheet() {
   }, [selectionKey, stores])
 }
 
-/** 시트 자리의 높이를 insets.bottom으로. 셸이 사라지면 0으로 돌립니다. */
-function useSheetInsets(hostRef: RefObject<HTMLDivElement | null>) {
+/** insets.bottom만 바꿉니다(같은 값이면 그대로). */
+function setInsetBottom(stores: Stores, bottom: number): void {
+  const cur = stores.ui.getState().insets
+  if (cur.bottom !== bottom) stores.ui.getState().setInsets({ top: cur.top, bottom })
+}
+
+/**
+ * 시트 자리의 높이를 insets.bottom으로. 셸이 사라지면 0으로 돌립니다.
+ * 시트 종류가 바뀐 커밋에서는 새 시트 높이를 바로 잽니다. ResizeObserver는 그다음에 알려 주므로, 그 사이에 도는
+ * reveal(새 물건 보이기)이 바뀌기 전 시트(펼친 라이브러리 등) 높이로 계산해 화면을 튀게 하지 않도록.
+ */
+function useSheetInsets(hostRef: RefObject<HTMLDivElement | null>, sheet: MobileSheet) {
   const stores = useStores()
+  useLayoutEffect(() => {
+    const host = hostRef.current
+    if (host !== null) setInsetBottom(stores, Math.max(0, Math.round(host.getBoundingClientRect().height)))
+  }, [hostRef, sheet, stores])
   useEffect(() => {
     const host = hostRef.current
-    const ui = stores.ui
-    const setBottom = (bottom: number) => {
-      const cur = ui.getState().insets
-      if (cur.bottom !== bottom) ui.getState().setInsets({ top: cur.top, bottom })
-    }
+    const setBottom = (bottom: number) => setInsetBottom(stores, bottom)
     let observer: ResizeObserver | null = null
     if (host !== null && typeof ResizeObserver !== 'undefined') {
       observer = new ResizeObserver((entries) => {
@@ -83,10 +93,11 @@ function useRevealSelection() {
   const pressed = useUi((s) => s.canvasPressed)
   const handled = useRef<string | null>(null)
   useEffect(() => {
-    const key = `${insetBottom}|${revealRequest}`
+    const ui = stores.ui.getState()
+    // 키와 계산 모두 스토어의 지금 값으로(같은 커밋의 레이아웃 효과가 방금 잰 시트 높이를 씀)
+    const key = `${ui.insets.bottom}|${ui.revealRequest}`
     if (pressed || handled.current === key) return
     handled.current = key
-    const ui = stores.ui.getState()
     if (ui.mobileSheet !== 'selection' || ui.selection.length === 0 || stores.doc.getState().inGesture) return
     const box = selectionBBox(stores.doc.getState().layout, ui.selection)
     if (box === null) return
@@ -133,7 +144,7 @@ export function MobileShell() {
   const insetTop = useUi((s) => s.insets.top)
   const sheetHostRef = useRef<HTMLDivElement>(null)
   useSelectionSheet()
-  useSheetInsets(sheetHostRef)
+  useSheetInsets(sheetHostRef, sheet)
   useRevealSelection()
 
   return (

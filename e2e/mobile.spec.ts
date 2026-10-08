@@ -246,3 +246,12 @@ test('리뷰 Important: 확대한 상태에서 라이브러리로 추가하면 �
   expect(Math.abs(item.x - cw[0]!)).toBeLessThan(1)
   expect(Math.abs(item.y - cw[1]!)).toBeLessThan(1)
 })
+
+test('재검증 회귀: 펼친 라이브러리 시트에서 추가해도, 가운데에 잘 보이는 새 물건 때문에 화면이 튀지 않는다', async ({ page }) => {
+  const before = (await getUi(page)).view
+  const item = await addMatFromSheet(page)
+  await expect.poll(async () => (await getUi(page)).insets.bottom).toBeGreaterThan(0)
+  await nextFrames(page, 3)
+  expect(await isCanvasAt(page, await worldToClient(page, item.x, item.y))).toBe(true)
+  expect((await getUi(page)).view).toEqual(before)
+})

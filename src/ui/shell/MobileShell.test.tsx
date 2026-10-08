@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { addPresetItem, duplicateSelected } from '../../app/actions'
+import { duplicateAndSelect } from '../panels/commands'
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
 import { createLayout, type Tent } from '../../core/model'
 import { addItem, makeItem } from '../../core/ops/items'
@@ -233,6 +234,37 @@ describe('MobileShell', () => {
     const ui = stores.ui.getState()
     const box = selectionBBox(stores.doc.getState().layout, ui.selection)!
     expect(worldToScreen(ui.view, [box.maxX, box.maxY])[1]).toBeLessThanOrEqual(650 - 300 - 16 + 1e-9)
+  })
+
+  it('재검증 회귀: 선택 시트의 [복제] 경로(duplicateAndSelect)도 복제본을 시트 위로 옮긴다', () => {
+    const { stores, ids } = renderShell()
+    act(() => stores.ui.getState().setSelection([ids[1]!]))
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
+    act(() => stores.ui.getState().setView({ zoom: 1, panX: 195, panY: 650 - 300 - 16 - 125 }))
+    act(() => {
+      duplicateAndSelect(stores, [ids[1]!])
+    })
+    const ui = stores.ui.getState()
+    const box = selectionBBox(stores.doc.getState().layout, ui.selection)!
+    expect(worldToScreen(ui.view, [box.maxX, box.maxY])[1]).toBeLessThanOrEqual(650 - 300 - 16 + 1e-9)
+  })
+
+  it('재검증 회귀: 펼친 라이브러리 시트(473)에서 추가해도 바뀌기 전 시트 높이로 화면을 옮기지 않는다', () => {
+    const { stores } = renderShell()
+    const host = screen.getByTestId('sheet-host')
+    act(() => stores.ui.getState().patch({ mobileSheet: 'library' }))
+    act(() => FakeResizeObserver.resize(host, 473))
+    const before = stores.ui.getState().view
+    // 선택 시트로 바뀐 커밋에서 잰 새 높이(ResizeObserver는 그다음에 알림)
+    host.getBoundingClientRect = () => ({ height: 150 }) as DOMRect
+    act(() => {
+      addPresetItem(stores, STOOL)
+      stores.ui.getState().patch({ mobileSheet: 'selection' })
+    })
+    act(() => FakeResizeObserver.resize(host, 150))
+    // 새 물건은 캔버스 가운데 근처라 선택 시트(150) 위에 이미 보입니다.
+    expect(stores.ui.getState().view).toEqual(before)
+    expect(stores.ui.getState().insets.bottom).toBe(150)
   })
 
   it('끌기 중(제스처)에는 화면을 옮기지 않는다', () => {
