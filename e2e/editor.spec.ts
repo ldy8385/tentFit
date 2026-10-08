@@ -177,7 +177,21 @@ for (const name of ['수납 박스', '원형 스툴']) {
   })
 }
 
-test('리뷰 회귀: 새 도형 폼의 입력칸에서 Enter를 눌러도 물건이 생기지 않고 다음 칸으로 간다', async ({ page }) => {
+test('재검증 회귀: 조금 축소한 매트(짧은 변 72px 미만)도 오른쪽 가운데 핸들로 길이만 바꾼다(D31)', async ({ page }) => {
+  const item = await addMatFromLibrary(page)
+  // 매트 200×60 → 배율 1.1 이하면 화면 높이 66px 이하(축별 기준 48px 이상이라 좌·우 핸들은 남아야 함)
+  const zoom = await zoomOutTo(page, await worldToClient(page, item.x, item.y), 1.1)
+  expect(60 * zoom).toBeGreaterThanOrEqual(48)
+  const right = await worldToClient(page, item.x + 100, item.y)
+  await dragBetween(page, right, { x: right.x + 40, y: right.y })
+  await expect.poll(async () => (await itemById(page, item.id))?.shape).not.toEqual(item.shape)
+  const after = (await itemById(page, item.id))!
+  if (after.shape.kind !== 'rect') throw new Error('사각형이어야 합니다')
+  expect(after.shape.h).toBe(60)
+  expect(Math.abs(after.shape.w - (200 + 40 / zoom))).toBeLessThan(2)
+})
+
+test('리뷰 회귀: 새 도형 폼의 입력칸·스위치·select에서 Enter를 눌러도 물건이 생기지 않고, 입력칸은 다음 칸으로 간다', async ({ page }) => {
   await library(page).getByRole('button', { name: '+ 새 도형' }).click()
   const form = page.getByRole('form', { name: '새 도형 만들기' })
   await form.getByLabel('이름').fill('접이식 테이블')
@@ -185,6 +199,9 @@ test('리뷰 회귀: 새 도형 폼의 입력칸에서 Enter를 눌러도 물건
   await expect(form.getByLabel('가로')).toBeFocused()
   await form.getByLabel('세로').press('Enter')
   await expect(form.getByLabel('세로')).not.toBeFocused()
+  // 재검증: 스위치·select에 포커스가 있을 때의 Enter도 제출하지 않습니다.
+  await form.getByRole('switch', { name: '점유 면적에 포함' }).press('Enter')
+  await form.getByLabel('카테고리').press('Enter')
   await nextFrames(page)
   expect((await getDoc(page)).layout.items).toEqual([])
   await expect(form).toBeVisible()

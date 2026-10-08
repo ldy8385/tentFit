@@ -1,8 +1,9 @@
 // 가로로 돌린 휴대폰(844×390, 터치). playwright.config.ts의 mobile-landscape 프로젝트만 이 파일을 돌립니다.
 // 폭은 768px 이상이지만 높이가 낮아 PC 3단이 아니라 모바일 셸이어야 합니다(스펙 D8, 최종 리뷰 Important).
 import { expect, test } from '@playwright/test'
-import { isCanvasAt, waitReady, worldToClient } from './helpers'
-import { addMatFromSheet } from './mobileFlows'
+import { layoutBBox } from '../src/view/viewport'
+import { fitView, getDoc, getUi, isCanvasAt, waitReady, worldToClient } from './helpers'
+import { addMatFromSheet, selectionSheet } from './mobileFlows'
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
@@ -14,4 +15,17 @@ test('가로로 돌린 휴대폰은 모바일 셸이고, 시트로 추가한 물
   await expect(page.getByTestId('desktop-shell')).toHaveCount(0)
   const item = await addMatFromSheet(page)
   await expect.poll(async () => isCanvasAt(page, await worldToClient(page, item.x, item.y))).toBe(true)
+})
+
+test('재검증 회귀: 선택 시트가 열린 채 맞춤 보기를 하면 텐트 전체가 시트 위에 보인다(띠 111px)', async ({ page }) => {
+  await addMatFromSheet(page)
+  await expect.poll(async () => (await getUi(page)).insets.bottom).toBeGreaterThan(0)
+  await fitView(page)
+  const b = layoutBBox((await getDoc(page)).layout)
+  const top = await worldToClient(page, b.minX, b.minY)
+  const bottom = await worldToClient(page, b.maxX, b.maxY)
+  const canvas = (await page.locator('.konvajs-content').boundingBox())!
+  const sheetTop = (await selectionSheet(page).boundingBox())!.y
+  expect(top.y).toBeGreaterThanOrEqual(canvas.y)
+  expect(bottom.y).toBeLessThanOrEqual(sheetTop)
 })

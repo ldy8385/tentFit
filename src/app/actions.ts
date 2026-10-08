@@ -26,12 +26,17 @@ function placementPoint(stores: Stores): Pt {
   return newItemPosition(layout, getZones(layout), viewCenterWorld(view, size, { top: insets.top, bottom: 0 }))
 }
 
-/** addItem이 같은 이름이면 uniqueItemName으로 번호를 붙여 저장합니다(D28). 새 물건만 선택합니다(D35). */
+/**
+ * addItem이 같은 이름이면 uniqueItemName으로 번호를 붙여 저장합니다(D28). 새 물건만 선택합니다(D35).
+ * 시트 높이가 그대로여도(낮은 화면에서 라이브러리·선택 시트가 같은 높이로 잘림) 새 물건이 시트 위에 보이게 요청합니다.
+ */
 function insertItem(stores: Stores, item: Item): string {
   stores.doc.getState().commit((d) => {
     addItem(d, item)
   })
-  stores.ui.getState().setSelection([item.id])
+  const ui = stores.ui.getState()
+  ui.setSelection([item.id])
+  ui.requestReveal()
   return item.id
 }
 
@@ -60,7 +65,10 @@ export function duplicateSelected(stores: Stores): string[] {
   stores.doc.getState().commit((d) => {
     created = duplicateItems(d, selection, scopeGroupId ?? undefined)
   })
-  if (created.length > 0) stores.ui.getState().setSelection(created)
+  if (created.length > 0) {
+    stores.ui.getState().setSelection(created)
+    stores.ui.getState().requestReveal()
+  }
   return created
 }
 

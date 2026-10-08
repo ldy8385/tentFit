@@ -120,14 +120,20 @@ export function NewShapeForm(p: { onDone(): void; onCancel(): void; inSheet?: bo
   }
 
   /**
-   * 입력칸의 Enter는 폼을 제출하지 않고(암시적 제출로 물건이 생기지 않게, D35) 다음 입력칸으로 옮깁니다.
-   * 마지막 칸이면 포커스를 풀어 키보드를 내립니다. 한글 조합을 끝내는 Enter는 칸을 옮기지 않습니다.
+   * 입력칸·select·스위치의 Enter는 폼을 제출하지 않습니다(암시적 제출로 물건이 생기지 않게, D35).
+   * 확정은 [캔버스에 추가] 버튼으로만 합니다. 글자 입력칸이면 다음 입력칸으로 옮기고, 마지막 칸이면 포커스를 풀어
+   * 키보드를 내립니다. 한글 조합을 끝내는 Enter는 칸을 옮기지 않습니다.
    */
   const onKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
     if (e.key !== 'Enter') return
     const target = e.target
-    if (!(target instanceof HTMLInputElement) || target.type !== 'text') return
+    if (target instanceof HTMLSelectElement) {
+      e.preventDefault()
+      return
+    }
+    if (!(target instanceof HTMLInputElement)) return
     e.preventDefault()
+    if (target.type !== 'text') return
     if (e.nativeEvent.isComposing) return
     const fields = [...e.currentTarget.querySelectorAll<HTMLInputElement>('input[type="text"]')]
     const next = fields[fields.indexOf(target) + 1]

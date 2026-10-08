@@ -67,6 +67,12 @@ describe('addPresetItem', () => {
     expect(layout().items[0]).toMatchObject({ x: 0, y: 20 })
   })
 
+  it('재검증 회귀: 추가하면 새 물건을 보이게 해 달라고 요청한다(revealRequest)', () => {
+    const before = stores.ui.getState().revealRequest
+    addPresetItem(stores, MAT)
+    expect(stores.ui.getState().revealRequest).toBe(before + 1)
+  })
+
   it('화면 가운데가 외곽 밖이면 외곽 안에 놓는다', () => {
     stores.ui.getState().setView({ zoom: 1, panX: -5000, panY: -5000 })
     addPresetItem(stores, MAT)
@@ -136,6 +142,16 @@ describe('duplicateSelected', () => {
     expect(layout().items.map((it) => it.name)).toEqual(['캠핑 매트 1인', '캠핑 매트 1인 2'])
     expect(layout().items[1]).toMatchObject({ id: created[0], x: 20, y: 20 })
     expect(selection()).toEqual(created)
+  })
+
+  it('재검증 회귀: 복제하면 복제본을 보이게 해 달라고 요청하고, 선택이 없으면 요청하지 않는다', () => {
+    addPresetItem(stores, MAT)
+    const before = stores.ui.getState().revealRequest
+    duplicateSelected(stores)
+    expect(stores.ui.getState().revealRequest).toBe(before + 1)
+    stores.ui.getState().setSelection([])
+    duplicateSelected(stores)
+    expect(stores.ui.getState().revealRequest).toBe(before + 1)
   })
 
   it('선택이 없으면 빈 배열이고 문서는 그대로다', () => {

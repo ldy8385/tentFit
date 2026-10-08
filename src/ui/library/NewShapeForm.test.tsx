@@ -141,6 +141,19 @@ describe('NewShapeForm', () => {
     expect(input('세로').getAttribute('enterkeyhint')).toBe('done')
   })
 
+  it('재검증 회귀: 카테고리 select·점유 면적 스위치에서 Enter를 눌러도 제출하지 않는다', () => {
+    const { onDone } = renderForm()
+    const category = screen.getByLabelText('카테고리') as HTMLSelectElement
+    category.focus()
+    expect(fireEvent.keyDown(category, { key: 'Enter' })).toBe(false)
+    countsSwitch().focus()
+    expect(fireEvent.keyDown(countsSwitch(), { key: 'Enter' })).toBe(false)
+    expect(document.activeElement).toBe(countsSwitch())
+    expect(onDone).not.toHaveBeenCalled()
+    // [캔버스에 추가] 버튼의 Enter는 그대로 둡니다(명시적 확정).
+    expect(fireEvent.keyDown(submit(), { key: 'Enter' })).toBe(true)
+  })
+
   it('리뷰 회귀: 원이면 지름 칸이 마지막 칸이다', () => {
     renderForm()
     fireEvent.click(screen.getByRole('button', { name: '원' }))

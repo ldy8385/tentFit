@@ -161,17 +161,24 @@ describe('fitView', () => {
     expect(cy).toBeCloseTo(40 + 560 / 2, 9)
   })
 
-  it('리뷰 회귀: 보이는 띠가 120px보다 좁으면(펼친 시트 위 46px) insets를 무시한다(배율이 0.1로 무너지지 않게)', () => {
+  it('리뷰 회귀: 띠에서 여백을 빼고 40px도 안 남으면(펼친 시트 위 46px) insets를 무시한다(배율이 0.1로 무너지지 않게)', () => {
     const size = { width: 390, height: 730 }
     const v = fitView(RECT_600x300, size, { top: 0, bottom: 684 })
     expect(v).toEqual(fitView(RECT_600x300, size, { top: 0, bottom: 0 }))
     expect(v.zoom).toBeGreaterThan(0.5)
   })
 
-  it('보이는 띠가 120px 이상이면(펼친 시트 위 176px) insets를 쓴다', () => {
+  it('펼친 시트 위 176px 띠면 insets를 쓴다', () => {
     const v = fitView(RECT_600x300, { width: 390, height: 730 }, { top: 0, bottom: 554 })
     const [, cy] = worldToScreen(v, [300, 150])
     expect(cy).toBeCloseTo(176 / 2, 9)
+  })
+
+  it('재검증 회귀: 가로 휴대폰처럼 띠가 111px이어도 여백을 빼고 40px 넘게 남으면 insets를 쓴다(텐트가 시트 뒤로 가지 않게)', () => {
+    // 캔버스 844×276, 선택 시트 165 → 띠 111, 여백 30×2 → 남는 높이 51
+    const v = fitView(RECT_600x300, { width: 844, height: 276 }, { top: 0, bottom: 165 })
+    expect(worldToScreen(v, [0, 0])[1]).toBeGreaterThanOrEqual(30 - 1e-9)
+    expect(worldToScreen(v, [600, 300])[1]).toBeLessThanOrEqual(111 - 30 + 1e-9)
   })
 
   it('insets가 캔버스를 다 덮으면 insets를 무시한다', () => {
@@ -259,8 +266,12 @@ describe('viewCenterWorld', () => {
     expect(viewCenterWorld(v, { width: 800, height: 600 }, { top: 100, bottom: 100 })).toEqual([150, 125])
   })
 
-  it('리뷰 회귀: 남는 띠가 120px보다 좁으면 캔버스 가운데', () => {
-    expect(viewCenterWorld(v, { width: 800, height: 600 }, { top: 0, bottom: 500 })).toEqual([150, 125])
+  it('재검증 회귀: 띠가 좁아도(100px) 남아 있으면 띠 가운데(경고 행으로 옮긴 대상이 시트 뒤로 가지 않게)', () => {
+    expect(viewCenterWorld(v, { width: 800, height: 600 }, { top: 0, bottom: 500 })).toEqual([150, 0])
+  })
+
+  it('insets가 캔버스를 다 덮으면 캔버스 가운데', () => {
+    expect(viewCenterWorld(v, { width: 800, height: 600 }, { top: 0, bottom: 600 })).toEqual([150, 125])
   })
 })
 

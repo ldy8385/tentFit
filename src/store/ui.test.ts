@@ -46,6 +46,7 @@ describe('createUiStore 기본값', () => {
     expect(s.gridVisible).toBe(true)
     expect(s.pointer).toBe('mouse')
     expect(s.canvasPressed).toBe(false)
+    expect(s.revealRequest).toBe(0)
     expect(s.mobileSheet).toBe('none')
     expect(s.desktopPanel).toBe('auto')
     expect(s.areaExpanded).toBe(false)
@@ -194,6 +195,13 @@ describe('setPointer·patch', () => {
     expect(toPointerKind('pen')).toBe('pen')
     expect(toPointerKind('mouse')).toBe('mouse')
     expect(toPointerKind('')).toBe('mouse')
+  })
+
+  it('requestReveal은 부를 때마다 요청 번호를 올린다', () => {
+    const ui = createUiStore()
+    ui.getState().requestReveal()
+    ui.getState().requestReveal()
+    expect(ui.getState().revealRequest).toBe(2)
   })
 
   it('setCanvasPressed는 누름 상태를 바꾸고, 같은 값이면 알리지 않는다', () => {

@@ -65,29 +65,41 @@ function cleanBBox(b: BBox): BBox {
   return { minX: Math.min(x0, x1), maxX: Math.max(x0, x1), minY: Math.min(y0, y1), maxY: Math.max(y0, y1) }
 }
 
-/** 시트·배너를 빼고 남는 띠가 이보다 좁으면 insets를 무시합니다(여백 2배가 띠를 넘어 배율이 0.1로 무너지지 않게). */
-export const MIN_VISIBLE_BAND_PX = 120
+/**
+ * 맞춤 보기에서 띠 높이 − 여백 2배가 이보다 작으면 insets를 무시하고 캔버스 전체에 맞춥니다.
+ * 여백 2배가 띠를 넘으면 배율이 0.1로 무너지기 때문입니다(펼친 시트 위 46px 띠 등).
+ */
+export const MIN_FIT_USABLE_PX = 40
 
-/** 시트·배너를 뺀 보이는 영역의 위·아래 경계(px). 남는 띠가 MIN_VISIBLE_BAND_PX보다 좁으면 insets를 무시합니다. */
+/** 시트·배너를 뺀 보이는 영역의 위·아래 경계(px). insets가 캔버스를 다 덮으면 insets를 무시합니다. */
 function visibleBand(size: Size, insets: Insets): { top: number; height: number } {
   const h = Math.max(0, finiteOr(size.height, 0))
   const top = Math.max(0, finiteOr(insets.top, 0))
   const bottom = Math.max(0, finiteOr(insets.bottom, 0))
-  if (h - top - bottom < MIN_VISIBLE_BAND_PX) return { top: 0, height: h }
+  if (top + bottom >= h) return { top: 0, height: h }
   return { top, height: h - top - bottom }
+}
+
+function fitMargin(width: number, bandHeight: number, handlePx: number): number {
+  return Math.max(FIT_MARGIN_RATIO * Math.min(width, bandHeight), Math.max(0, finiteOr(handlePx, 14)) + FIT_EXTRA_PX)
 }
 
 /**
  * bbox(월드 cm)를 보이는 영역(캔버스 − insets) 가운데에 맞추는 보기(§4.6 맞춤 보기).
  * 여백 = max(보이는 영역 짧은 변의 5%, handlePx + 16). 배율은 0.1~20으로 자릅니다.
+ * 여백을 빼고 MIN_FIT_USABLE_PX도 안 남는 띠면 insets를 무시합니다.
  * 캔버스 크기가 0(숨김)이거나 유한하지 않으면 { zoom: 1, panX: 0, panY: 0 }.
  */
 export function fitView(bbox: BBox, size: Size, insets: Insets, handlePx = 14): View {
   const w = finiteOr(size.width, 0)
   const h = finiteOr(size.height, 0)
   if (!(w > 0) || !(h > 0)) return { zoom: 1, panX: 0, panY: 0 }
-  const band = visibleBand(size, insets)
-  const margin = Math.max(FIT_MARGIN_RATIO * Math.min(w, band.height), Math.max(0, finiteOr(handlePx, 14)) + FIT_EXTRA_PX)
+  let band = visibleBand(size, insets)
+  let margin = fitMargin(w, band.height, handlePx)
+  if (band.height - 2 * margin < MIN_FIT_USABLE_PX) {
+    band = { top: 0, height: h }
+    margin = fitMargin(w, h, handlePx)
+  }
   const usableW = Math.max(1, w - 2 * margin)
   const usableH = Math.max(1, band.height - 2 * margin)
   const b = cleanBBox(bbox)

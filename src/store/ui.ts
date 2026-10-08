@@ -26,6 +26,7 @@ export type UiState = {
   gridVisible: boolean
   pointer: PointerKind // 마지막 pointerdown의 pointerType
   canvasPressed: boolean // 캔버스를 누르고 있는 동안 true(이때는 시트를 따라 화면을 옮기지 않음)
+  revealRequest: number // 새로 만든 물건을 보이게 해 달라는 요청 번호(셸이 바뀔 때마다 선택을 시트 위로 옮김)
   mobileSheet: MobileSheet
   desktopPanel: DesktopPanel
   areaExpanded: boolean
@@ -41,6 +42,7 @@ export type UiState = {
   fitTo(bbox: BBox): void
   setPointer(p: PointerKind): void
   setCanvasPressed(pressed: boolean): void
+  requestReveal(): void
   patch(
     p: Partial<
       Pick<
@@ -110,6 +112,7 @@ export function createUiStore(
       gridVisible: init?.gridVisible ?? true,
       pointer: init?.pointer ?? 'mouse',
       canvasPressed: false,
+      revealRequest: 0,
       mobileSheet: 'none',
       desktopPanel: 'auto',
       areaExpanded: false,
@@ -162,6 +165,9 @@ export function createUiStore(
       },
       setCanvasPressed(pressed) {
         if (get().canvasPressed !== pressed) set({ canvasPressed: pressed })
+      },
+      requestReveal() {
+        set({ revealRequest: get().revealRequest + 1 })
       },
       patch(p) {
         const cur = get()

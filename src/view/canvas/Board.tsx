@@ -48,13 +48,17 @@ function sameView(a: View, b: View): boolean {
   return a.zoom === b.zoom && a.panX === b.panX && a.panY === b.panY
 }
 
-/** 물건의 로컬 짧은 변(cm): 사각형 min(w,h), 원 d, 다각형 bbox의 짧은 쪽 */
-function localShortSide(shape: Shape): number {
-  if (shape.kind === 'rect') return Math.min(shape.w, shape.h)
-  if (shape.kind === 'circle') return shape.d
+/** 물건의 로컬 축 너비·높이(cm): 사각형 w·h, 원 d·d, 다각형 bbox(Transformer 상자와 같음) */
+function localSize(shape: Shape): { w: number; h: number } {
+  if (shape.kind === 'rect') return { w: shape.w, h: shape.h }
+  if (shape.kind === 'circle') return { w: shape.d, h: shape.d }
   const xs = shape.points.map((p) => p[0])
   const ys = shape.points.map((p) => p[1])
-  return Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
+  return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+}
+
+function scaleSize(s: { w: number; h: number }, k: number): { w: number; h: number } {
+  return { w: s.w * k, h: s.h * k }
 }
 
 function fmt(v: number): string {
@@ -639,7 +643,7 @@ export function Board(): JSX.Element {
   const cfg = transformerConfig(
     { count: attached.length, singleIsCircle: single?.shape.kind === 'circle' },
     pointer,
-    single ? localShortSide(single.shape) * zoom : 0,
+    single ? scaleSize(localSize(single.shape), zoom) : { w: 0, h: 0 },
   )
   const anchorHit = cfg.anchorHitPx
   const anchorSize = cfg.anchorSize

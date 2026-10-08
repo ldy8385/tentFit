@@ -2,10 +2,13 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { addPresetItem, duplicateSelected } from '../../app/actions'
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
 import { createLayout, type Tent } from '../../core/model'
 import { addItem, makeItem } from '../../core/ops/items'
 import { MobileShell, SUMMARY_CHIP_ZONE_PX } from './MobileShell'
+import { selectionBBox } from './revealSelection'
+import { worldToScreen } from '../../view/viewport'
 
 vi.mock('../../view/canvas/Board', () => ({ Board: () => <div data-testid="mock-board" /> }))
 vi.mock('../sheets/SelectionSheet', () => ({ SelectionSheet: () => <div data-testid="mock-selection-sheet" /> }))
@@ -54,6 +57,8 @@ class FakeResizeObserver {
     }
   }
 }
+
+const STOOL = { id: 'items/stool', name: '스툴', category: 'CHAIR', shape: { kind: 'circle', d: 40 }, color: 'sky', countsArea: true } as const
 
 const TENT: Tent = { name: '시험 텐트', outer: { kind: 'rect', w: 400, h: 300 }, inners: [] }
 
@@ -198,6 +203,36 @@ describe('MobileShell', () => {
     act(() => stores.ui.getState().setSelection([ids[1]!]))
     act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 570))
     expect(stores.ui.getState().view.panY + 100).toBe((16 + 64) / 2)
+  })
+
+  it('재검증 회귀: 라이브러리 시트와 선택 시트 높이가 같아도(낮은 화면에서 둘 다 45dvh) 추가한 물건을 시트 위로 옮긴다', () => {
+    const { stores } = renderShell()
+    const host = screen.getByTestId('sheet-host')
+    act(() => stores.ui.getState().patch({ mobileSheet: 'library' }))
+    act(() => FakeResizeObserver.resize(host, 400))
+    // 카드를 누른 것처럼: 추가(가운데에 놓음) + 선택 시트로 바꿈. 시트 높이는 400 그대로
+    act(() => {
+      addPresetItem(stores, STOOL)
+      stores.ui.getState().patch({ mobileSheet: 'selection' })
+    })
+    act(() => FakeResizeObserver.resize(host, 400))
+    const ui = stores.ui.getState()
+    const box = selectionBBox(stores.doc.getState().layout, ui.selection)!
+    expect(worldToScreen(ui.view, [box.maxX, box.maxY])[1]).toBeLessThanOrEqual(650 - 400 - 16 + 1e-9)
+  })
+
+  it('재검증 회귀: 복제한 물건도 시트 높이가 그대로면 시트 위로 옮긴다', () => {
+    const { stores, ids } = renderShell()
+    act(() => stores.ui.getState().setSelection([ids[1]!]))
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
+    // 의자를 시트 위 끝에 붙여 두고 복제하면 복제본(+20,+20)이 시트 뒤로 갑니다.
+    act(() => stores.ui.getState().setView({ zoom: 1, panX: 195, panY: 650 - 300 - 16 - 125 }))
+    act(() => {
+      duplicateSelected(stores)
+    })
+    const ui = stores.ui.getState()
+    const box = selectionBBox(stores.doc.getState().layout, ui.selection)!
+    expect(worldToScreen(ui.view, [box.maxX, box.maxY])[1]).toBeLessThanOrEqual(650 - 300 - 16 + 1e-9)
   })
 
   it('끌기 중(제스처)에는 화면을 옮기지 않는다', () => {
