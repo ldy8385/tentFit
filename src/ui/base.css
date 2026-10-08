@@ -1,0 +1,66 @@
+/*
+ * 전역 기본 스타일. 스펙 §4.5 "브라우저 기본 제스처 차단"을 CSS로 옮긴 것입니다.
+ * tokens.css 뒤에 import합니다(src/main.tsx). 규칙을 바꾸면 base.test.ts도 같이 고칩니다.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* 문서 자체가 스크롤·당겨서 새로고침·바운스되지 않게 높이를 100dvh로 고정합니다. */
+html,
+body {
+  margin: 0;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* 핀치 확대·두 번 탭 확대 금지. 자손의 실제 touch-action은 조상 값과의 교집합이라 UI 전체에 적용됩니다. */
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  /* 입력칸 밖에서는 글자 선택·길게 누르기 메뉴를 막습니다. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#root {
+  height: 100%;
+}
+
+/* 입력칸은 선택·복사·붙여넣기가 되어야 합니다(iOS는 user-select: none이면 입력도 막힘). */
+input,
+textarea,
+[contenteditable],
+[contenteditable] * {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* 폼 요소도 앱 글꼴을 쓰고, 입력칸 글자는 16px 이상(iOS 포커스 확대 방지, 스펙 §4.2). */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* 캔버스 컨테이너(Konva Stage를 감싸는 요소)는 브라우저 제스처를 모두 끕니다. 이동·확대는 앱이 처리합니다. */
+.canvas-host {
+  touch-action: none;
+}

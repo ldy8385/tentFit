@@ -1,0 +1,69 @@
+/*
+ * 디자인 토큰(라이트). 시안 docs/design/handoff-2026-10-07/tokens.css의 :root를 옮긴 것입니다.
+ * - 물건 색 obj-1~8 → obj-<ColorKey>(blue, teal, green, purple, pink, gray, sky, brown 순서, 스펙 §4·D20)
+ * - 글꼴은 Pretendard 우선 스택(웹폰트 파일은 Plan 8). 숫자도 같은 글꼴에 tabular-nums(JetBrains Mono 안 씀)
+ * - 다크 테마([data-theme="dark"])는 v1에서 쓰지 않아 옮기지 않았습니다(D21).
+ * 값을 바꾸면 src/ui/theme.ts의 THEME도 같이 바꿉니다(theme.test.ts가 비교).
+ */
+:root {
+  --bg-app: #F6F5F1;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #EFEEE8;
+  --bg-sunken: #E8E7E0;
+  --border: #E3E1D9;
+  --border-strong: #C6C3B8;
+  --text-primary: #1B1E1A;
+  --text-secondary: #5C6159;
+  --text-tertiary: #8E9389;
+  --text-inverse: #FFFFFF;
+  --accent: #36704A;
+  --accent-hover: #2B5C3C;
+  --accent-soft: #E7F0E8;
+  --accent-border: #B7D2BD;
+  --sand: #B99A57;
+  --sand-soft: #F6F0E2;
+  --danger: #C62F23;
+  --danger-soft: #FBEAE8;
+  --warn: #D4790F;
+  --warn-soft: #FBF0E2;
+  --info: #2E6E8E;
+  --canvas-bg: #FBFAF6;
+  --grid-fine: #E8E6DC;
+  --grid-mid: #D4D1C3;
+  --grid-strong: #BBB7A6;
+  --tent-outline: #23261F;
+  --inner-stroke: #2E6E8E;
+  --inner-fill: #2E6E8E1F;
+  --vest-fill: #B99A5726;
+  --vest-stroke: #B99A5799;
+  --select: #1F6FEB;
+  --obj-blue: #4A7FD0;
+  --obj-teal: #159C92;
+  --obj-green: #6F9636;
+  --obj-purple: #8A6AD4;
+  --obj-pink: #C2559E;
+  --obj-gray: #5B7386;
+  --obj-sky: #2BA3C7;
+  --obj-brown: #9A8449;
+  --font-sans: "Pretendard", -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --font-num: "Pretendard", -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-full: 999px;
+  --obj-blue-fill: #4A7FD03D;
+  --obj-teal-fill: #159C923D;
+  --obj-green-fill: #6F96363D;
+  --obj-purple-fill: #8A6AD43D;
+  --obj-pink-fill: #C2559E3D;
+  --obj-gray-fill: #5B73863D;
+  --obj-sky-fill: #2BA3C73D;
+  --obj-brown-fill: #9A84493D;
+}

@@ -15,13 +15,18 @@ Node 22.12 이상과 pnpm 10.8.1(`package.json`의 `packageManager`)을 씁니�
 | `pnpm test` | Vitest 전체 1회 실행 |
 | `pnpm vitest run <파일>` | 테스트 파일 하나만 실행 |
 | `pnpm build` | `dist/`로 빌드 |
-| `pnpm ci:all` | GitHub Actions·Cloudflare Pages와 같은 전체 검사 |
+| `pnpm gen:schemas` | 프리셋 JSON 스키마(`presets/*.schema.json`)를 zod 스키마에서 다시 만들기 |
+| `pnpm validate-presets` | 기본 프리셋(`presets/`) 검사 |
+| `pnpm ci:all` | GitHub Actions·Cloudflare 배포 빌드와 같은 전체 검사 |
+
+기본 프리셋 파일을 고치는 규칙은 [presets/README.md](presets/README.md)에 있습니다.
 
 ## 코드 규칙
 
 - `src/core/`는 순수 TypeScript입니다. 상대 경로로 core 밖을 import하지 않고, React·Konva·IndexedDB·스토어 패키지도 쓰지 않습니다. ESLint가 막습니다.
 - `clipper2-ts`는 `src/core/geom.ts`만 import합니다.
 - `konva`, `react-konva`, `react`, `react-dom`, `clipper2-ts`는 정확한 버전으로 고정하고, 앞의 넷은 함께만 올립니다.
+- 테스트는 모듈 옆에 둡니다. 순수 TS는 `*.test.ts`(node 환경), React 컴포넌트는 `*.test.tsx`이고 파일 첫 줄에 `// @vitest-environment happy-dom`을 씁니다. Testing Library 화면 정리는 `src/test/setup.ts`가 테스트마다 합니다.
 - 커밋 메시지는 `feat: …`, `fix: …`, `chore: …`, `test: …` 형식의 한국어입니다.
 
 ## 문서
