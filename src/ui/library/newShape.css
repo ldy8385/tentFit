@@ -1,0 +1,133 @@
+/* 새 도형 폼의 틀(제목 줄·모양 고르기·미리보기·하단 고정 버튼). 입력칸·견본·선택·토글은 Task 6·7 스타일(fields.css·panels.css)을 씁니다. */
+.tf-ns {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-surface);
+}
+
+.tf-ns__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4) 0;
+}
+
+.tf-ns__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.tf-ns__close {
+  width: 44px;
+  height: 44px;
+  margin-right: calc(-1 * var(--sp-3));
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.tf-ns__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+/* 시트 안에서는 시트가 좌우 여백을 줍니다. */
+.tf-sheet .tf-ns__body,
+.tf-sheet .tf-ns__footer {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.tf-ns__seg {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.tf-ns__segbtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-height: 56px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tf-ns__segbtn[aria-pressed='true'] {
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tf-ns__preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.tf-ns__preview-empty {
+  display: grid;
+  place-items: center;
+  height: 96px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.tf-ns__caption {
+  display: flex;
+  gap: var(--sp-2);
+  font-size: 13px;
+}
+
+.tf-ns__caption-dims {
+  color: var(--text-tertiary);
+}
+
+.tf-ns__footer {
+  position: sticky;
+  bottom: 0;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-surface);
+}
+
+.tf-ns__submit {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--text-inverse);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tf-ns__submit:disabled {
+  background: var(--bg-sunken);
+  color: var(--text-tertiary);
+  cursor: default;
+}

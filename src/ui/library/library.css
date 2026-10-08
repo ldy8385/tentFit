@@ -1,0 +1,194 @@
+/* 라이브러리(PC 왼쪽 패널·모바일 시트). 색·간격·반경은 tokens.css 변수만 씁니다. */
+
+/* ── 카테고리 칩: 보이는 높이 32px, 누름 영역은 ::after로 44px ── */
+.tf-lib-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+}
+.tf-lib-chip {
+  position: relative;
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tf-lib-chip::after {
+  content: '';
+  position: absolute;
+  inset: -6px 0;
+}
+.tf-lib-chip[aria-pressed='true'] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.tf-lib-chip:disabled {
+  cursor: default;
+}
+
+/* ── PC 왼쪽 패널 ── */
+.tf-lib {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  height: 100%;
+  min-height: 0;
+  padding: var(--sp-3);
+  box-sizing: border-box;
+  background: var(--bg-surface);
+}
+.tf-lib[data-locked='true'] {
+  opacity: 0.45;
+}
+.tf-lib__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.tf-lib__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.tf-lib__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tf-lib__row:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+.tf-lib__row:disabled {
+  cursor: default;
+}
+.tf-lib__thumb {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+}
+.tf-lib__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tf-lib__name {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tf-lib__dims,
+.tf-libsheet__dims {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.tf-lib__plus {
+  flex: 0 0 auto;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-secondary);
+}
+.tf-lib__footer {
+  flex: 0 0 auto;
+}
+.tf-lib__new {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ── 모바일 시트 ── */
+.tf-libsheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.tf-libsheet__grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+.tf-libsheet__card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+.tf-libsheet__thumb {
+  display: grid;
+  place-items: center;
+  height: 80px;
+  margin-bottom: var(--sp-2);
+  background: var(--bg-subtle);
+}
+.tf-libsheet__name {
+  padding: 0 var(--sp-3);
+  font-size: 14px;
+}
+.tf-libsheet__dims {
+  padding: 0 var(--sp-3);
+}
+.tf-libsheet__footer {
+  position: sticky;
+  bottom: 0;
+  padding: var(--sp-3) 0;
+  background: var(--bg-surface);
+}
+.tf-libsheet__new {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--text-inverse);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
