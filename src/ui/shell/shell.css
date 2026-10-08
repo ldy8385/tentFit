@@ -1,0 +1,525 @@
+/* 앱 셸: PC 3단·모바일 세로 배치, 상단 바, 하단 툴바, 메뉴, 캔버스 위 컨트롤.
+   색·간격·반경은 tokens.css 변수만 씁니다. 누름 영역 44px, 입력칸 글자 16px(Plan 3 Global Constraints). */
+
+/* ── PC 3단(768px 이상) ─────────────────────────────────────────── */
+.shell-desktop {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  grid-template-areas:
+    'top top top'
+    'left center right';
+  height: 100dvh;
+  background: var(--bg-app);
+}
+
+@media (max-width: 1023.98px) {
+  .shell-desktop {
+    grid-template-columns: 200px minmax(0, 1fr) 280px;
+  }
+}
+
+.shell-desktop > .shell-topbar {
+  grid-area: top;
+}
+
+.shell-desktop__left {
+  grid-area: left;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+}
+
+.shell-desktop__center {
+  grid-area: center;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--canvas-bg);
+}
+
+.shell-desktop__right {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+}
+
+.shell-desktop__panel {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.shell-desktop__area {
+  flex: 0 0 auto;
+  max-height: 60%;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg-app);
+}
+
+/* ── 캔버스 자리 ─────────────────────────────────────────────────── */
+.shell-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── 모바일(768px 미만) ─────────────────────────────────────────── */
+.shell-mobile {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--canvas-bg);
+}
+
+.shell-mobile__canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shell-mobile__chip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.shell-mobile__chip > * {
+  pointer-events: auto;
+}
+
+.shell-mobile__sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+}
+
+/* ── 상단 바 ─────────────────────────────────────────────────────── */
+.shell-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 56px;
+  padding: env(safe-area-inset-top) var(--sp-3) 0;
+  box-sizing: content-box;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+
+.shell-mtopbar {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 56px;
+  padding: env(safe-area-inset-top) var(--sp-2) 0;
+  box-sizing: content-box;
+  background: var(--bg-app);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+
+.shell-logo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-right: var(--sp-2);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.shell-spacer {
+  flex: 1 1 auto;
+}
+
+.shell-name {
+  box-sizing: border-box;
+  min-width: 0;
+  height: 44px;
+  padding: 0 var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+  text-overflow: ellipsis;
+}
+
+.shell-name:hover {
+  border-color: var(--border-strong);
+}
+
+.shell-name:focus {
+  outline: none;
+  border-color: var(--select);
+  background: var(--bg-surface);
+}
+
+.shell-name--desktop {
+  width: 240px;
+}
+
+.shell-name--mobile {
+  width: 100%;
+  background: transparent;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* ── 버튼 ───────────────────────────────────────────────────────── */
+.shell-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.shell-icon-btn:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.shell-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.shell-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.shell-btn:hover {
+  background: var(--bg-subtle);
+}
+
+.shell-btn[aria-pressed='true'] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.shell-icon-btn:focus-visible,
+.shell-btn:focus-visible,
+.shell-tool:focus-visible,
+.shell-menu__item:focus-visible,
+.shell-zoom__btn:focus-visible,
+.shell-modechip:focus-visible,
+.shell-empty__btn:focus-visible {
+  outline: 2px solid var(--select);
+  outline-offset: 2px;
+}
+
+/* ── 메뉴 ───────────────────────────────────────────────────────── */
+.shell-menu {
+  position: relative;
+}
+
+.shell-menu__list {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  padding: var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  z-index: 40;
+}
+
+.shell-menu__list[data-align='left'] {
+  left: 0;
+  right: auto;
+}
+
+.shell-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--sp-3) 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shell-menu__item:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+
+.shell-menu__item:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.shell-menu__check {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  color: var(--accent);
+}
+
+/* ── 모바일 하단 툴바(시트가 열려도 늘 보임, D29) ───────────────── */
+.shell-toolbar {
+  display: flex;
+  height: 56px;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: content-box;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  z-index: 25;
+}
+
+.shell-tool {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.shell-tool[aria-pressed='true'],
+.shell-tool[aria-expanded='true'] {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ── 캔버스 위 컨트롤(화면에만, PNG 제외) ───────────────────────── */
+.shell-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  font-variant-numeric: tabular-nums;
+}
+
+.shell-overlay button {
+  pointer-events: auto;
+}
+
+.shell-modechip {
+  position: absolute;
+  top: calc(var(--overlay-top, 0px) + 16px);
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: rgb(255 255 255 / 0.94);
+  color: var(--text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.shell-modechip--mobile {
+  top: calc(var(--overlay-top, 0px) + 62px);
+  left: 12px;
+  max-width: calc(100% - 24px);
+}
+
+.shell-modechip--collapsed {
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.shell-zoom {
+  position: absolute;
+  right: 16px;
+  bottom: calc(var(--overlay-bottom, 0px) + 16px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+}
+
+.shell-zoom__btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.shell-zoom__btn + .shell-zoom__btn {
+  border-top: 1px solid var(--border);
+}
+
+.shell-zoom__btn:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+
+.shell-zoom__btn:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.shell-scalebar {
+  position: absolute;
+  left: 16px;
+  bottom: calc(var(--overlay-bottom, 0px) + 16px);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.shell-scalebar__bar {
+  display: flex;
+  height: 6px;
+  outline: 1px solid var(--text-secondary);
+  outline-offset: -0.5px;
+}
+
+.shell-scalebar__seg {
+  flex: 1 1 0;
+}
+
+.shell-scalebar__seg:first-child {
+  background: var(--text-secondary);
+}
+
+.shell-scalebar__seg:last-child {
+  background: var(--bg-surface);
+}
+
+.shell-scalebar__ticks {
+  position: relative;
+  height: 15px;
+  margin-top: 3px;
+}
+
+.shell-scalebar__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.shell-scalebar__tick:first-child {
+  transform: none;
+}
+
+.shell-empty {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--overlay-top, 0px) + (100% - var(--overlay-top, 0px) - var(--overlay-bottom, 0px)) / 2);
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(340px, calc(100% - 32px));
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.1);
+  text-align: center;
+}
+
+.shell-empty__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.shell-empty__title {
+  margin: var(--sp-3) 0 var(--sp-1);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.shell-empty__body {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.shell-empty__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 48px;
+  margin-top: var(--sp-4);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--text-inverse);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.shell-start {
+  display: grid;
+  place-items: center;
+  height: 100dvh;
+  color: var(--text-secondary);
+}
