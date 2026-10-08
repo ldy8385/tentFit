@@ -15,5 +15,5 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "scripts", "spikes", "*.ts"]
+  "include": ["src", "scripts", "spikes", "e2e", "*.ts"]
 }

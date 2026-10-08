@@ -4,6 +4,10 @@ dist/
 coverage/
 .vite/
 
+# Playwright 결과(pnpm e2e)
+test-results/
+playwright-report/
+
 # 로컬 전용 파일
 *.local
 .env

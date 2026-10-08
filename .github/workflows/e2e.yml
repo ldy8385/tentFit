@@ -1,0 +1,45 @@
+# Playwright 화면 테스트(desktop 1440×900 · mobile 390×844). PR과 수동 실행에서만 돌고,
+# 배포 관문(pnpm ci:all, Cloudflare 빌드)에는 넣지 않습니다(스펙 §12: 배포를 막지 않음).
+name: E2E
+
+on: [pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright (desktop · mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # pnpm 버전은 package.json의 packageManager(pnpm@10.8.1)를 따릅니다. version 입력을 넣지 않습니다.
+      - uses: pnpm/action-setup@v6
+
+      # ci.yml·Cloudflare NODE_VERSION과 같은 버전입니다.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # 설치된 @playwright/test 버전에 맞는 chromium과 리눅스 시스템 라이브러리(apt)를 받습니다.
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # CI=true라 playwright.config.ts가 개발 서버를 새로 띄우고(reuseExistingServer false) 실패 시 1번 다시 돌립니다.
+      - run: pnpm e2e
+
+      - name: 실패한 실행의 보고서 올리기
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

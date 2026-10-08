@@ -57,7 +57,8 @@ const coreBoundary = [0, 1, 2, 3].map((depth) => ({
 }))
 
 export default defineConfig([
-  globalIgnores(['dist/', 'coverage/', 'spikes/', 'docs/']),
+  // playwright-report/·test-results/는 pnpm e2e 결과물입니다(trace 뷰어 JS 번들이 들어 있어 검사하면 오류 수천 건).
+  globalIgnores(['dist/', 'coverage/', 'spikes/', 'docs/', 'playwright-report/', 'test-results/']),
   {
     name: 'tentfit/base',
     files: ['**/*.{js,ts,tsx}'],
