@@ -11,6 +11,7 @@ import {
   statRowPattern,
   waitReady,
   worldToClient,
+  type ClientPt,
 } from './helpers'
 
 /** presets/items.json의 items/mat-single-200x60 */
@@ -25,10 +26,10 @@ const library = (page: Page) => page.getByRole('complementary', { name: '라이�
 const properties = (page: Page) => page.getByTestId('properties-panel')
 const areaSummary = (page: Page) => page.getByRole('region', { name: '면적 현황' })
 
-/** 왼쪽 라이브러리에서 매트를 눌러 추가하고, 추가된 물건을 돌려줍니다. */
-async function addMatFromLibrary(page: Page): Promise<Item> {
+/** 왼쪽 라이브러리에서 물건(기본은 매트)을 눌러 추가하고, 추가된 물건을 돌려줍니다. */
+async function addMatFromLibrary(page: Page, name = MAT): Promise<Item> {
   const before = (await getDoc(page)).layout.items.length
-  await library(page).getByText(MAT, { exact: true }).click()
+  await library(page).getByText(name, { exact: true }).click()
   await expect.poll(async () => (await getDoc(page)).layout.items.length).toBe(before + 1)
   const item = (await getDoc(page)).layout.items.at(-1)
   if (item === undefined) throw new Error('추가된 물건이 없습니다')
@@ -142,4 +143,49 @@ test('Ctrl+휠은 포인터 아래 점을 고정한 채 확대하고, 그냥 휠
   expect((await getUi(page)).view.zoom).toBe(zoomed.zoom)
   // 화면 조작은 문서를 바꾸지 않는다
   expect((await getDoc(page)).layout.items).toEqual([item])
+})
+
+// ── 최종 리뷰 회귀(2026-10-08) ────────────────────────────────────────────
+
+/** at에서 Ctrl+휠로 배율이 maxZoom 이하가 될 때까지 줄이고, 줄인 배율을 돌려줍니다(at 아래 점은 고정). */
+async function zoomOutTo(page: Page, at: ClientPt, maxZoom: number): Promise<number> {
+  await page.mouse.move(at.x, at.y)
+  for (let i = 0; i < 60 && (await getUi(page)).view.zoom > maxZoom; i++) {
+    await page.keyboard.down('Control')
+    await page.mouse.wheel(0, 40)
+    await page.keyboard.up('Control')
+    await nextFrames(page, 1)
+  }
+  await nextFrames(page, 3)
+  const { zoom } = (await getUi(page)).view
+  expect(zoom).toBeLessThanOrEqual(maxZoom)
+  return zoom
+}
+
+for (const name of ['수납 박스', '원형 스툴']) {
+  test(`리뷰 회귀: 축소해서 작아진 ${name}도 몸통을 끌면 크기가 아니라 위치가 바뀐다`, async ({ page }) => {
+    const item = await addMatFromLibrary(page, name)
+    // 배율 0.6이면 수납 박스 30×21px, 원형 스툴 지름 21px(핸들 잡는 영역 24px에 몸통이 덮이던 크기)
+    const zoom = await zoomOutTo(page, await worldToClient(page, item.x, item.y), 0.6)
+    const from = await worldToClient(page, item.x, item.y)
+    await dragBetween(page, from, { x: from.x + 60, y: from.y })
+    await expect.poll(async () => (await itemById(page, item.id))?.x).not.toBe(item.x)
+    const moved = (await itemById(page, item.id))!
+    expect(moved.shape).toEqual(item.shape)
+    expect(Math.abs(moved.x - item.x - 60 / zoom)).toBeLessThan(1)
+    expect(Math.abs(moved.y - item.y)).toBeLessThan(1)
+  })
+}
+
+test('리뷰 회귀: 새 도형 폼의 입력칸에서 Enter를 눌러도 물건이 생기지 않고 다음 칸으로 간다', async ({ page }) => {
+  await library(page).getByRole('button', { name: '+ 새 도형' }).click()
+  const form = page.getByRole('form', { name: '새 도형 만들기' })
+  await form.getByLabel('이름').fill('접이식 테이블')
+  await form.getByLabel('이름').press('Enter')
+  await expect(form.getByLabel('가로')).toBeFocused()
+  await form.getByLabel('세로').press('Enter')
+  await expect(form.getByLabel('세로')).not.toBeFocused()
+  await nextFrames(page)
+  expect((await getDoc(page)).layout.items).toEqual([])
+  await expect(form).toBeVisible()
 })

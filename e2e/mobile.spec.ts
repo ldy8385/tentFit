@@ -17,40 +17,12 @@ import {
   worldToClient,
   type ClientPt,
 } from './helpers'
-
-/** presets/items.json의 items/mat-single-200x60 */
-const MAT = '캠핑 매트 1인'
+import { addButton, addMatFromSheet, itemById, librarySheet, MAT, selectionSheet, undoButton } from './mobileFlows'
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
   await waitReady(page)
 })
-
-const addButton = (page: Page) => page.getByTestId('toolbar').getByRole('button', { name: '+물건' })
-const undoButton = (page: Page) => page.getByTestId('mobile-top-bar').getByRole('button', { name: '실행 취소' })
-const librarySheet = (page: Page) => page.getByTestId('library-sheet')
-const selectionSheet = (page: Page) => page.getByTestId('selection-sheet')
-
-async function itemById(page: Page, id: string): Promise<Item | undefined> {
-  return (await getDoc(page)).layout.items.find((i) => i.id === id)
-}
-
-/** [+물건] → 라이브러리 시트의 매트 카드. 시트가 선택 시트로 바뀌고, 추가된 물건을 돌려줍니다. */
-async function addMatFromSheet(page: Page): Promise<Item> {
-  const before = (await getDoc(page)).layout.items.length
-  await addButton(page).tap()
-  await expect(librarySheet(page)).toBeVisible()
-  expect((await getUi(page)).mobileSheet).toBe('library')
-
-  await librarySheet(page).getByText(MAT, { exact: true }).tap()
-  await expect(selectionSheet(page)).toBeVisible()
-  await expect(librarySheet(page)).toBeHidden()
-  const { layout } = await getDoc(page)
-  expect(layout.items).toHaveLength(before + 1)
-  const item = layout.items.at(-1)
-  if (item === undefined) throw new Error('추가된 물건이 없습니다')
-  return item
-}
 
 /** 매트를 추가해 선택한 채로, 선택 시트 위 영역에 맞춤 보기를 하고 매트 가운데의 창 좌표를 돌려줍니다. */
 async function addMatAndFrame(page: Page): Promise<{ item: Item; at: ClientPt }> {

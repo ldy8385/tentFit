@@ -24,11 +24,11 @@ describe('Playwright 설정(playwright.config.ts)', () => {
     })
   })
 
-  it('desktop(1440×900 마우스)·mobile(390×844 터치) 두 프로젝트를 chromium으로 돌린다', () => {
+  it('desktop(1440×900 마우스)·mobile(390×844 터치)·mobile-small(375×667)·mobile-landscape(844×390) 프로젝트를 chromium으로 돌린다', () => {
     expect(config.use?.browserName).toBe('chromium')
     const projects = config.projects ?? []
-    expect(projects.map((p) => p.name)).toEqual(['desktop', 'mobile'])
-    const [desktop, mobile] = projects
+    expect(projects.map((p) => p.name)).toEqual(['desktop', 'mobile', 'mobile-small', 'mobile-landscape'])
+    const [desktop, mobile, small, landscape] = projects
     expect(desktop?.testMatch).toBe('editor.spec.ts')
     expect(desktop?.use).toEqual({
       viewport: { width: 1440, height: 900 },
@@ -39,6 +39,16 @@ describe('Playwright 설정(playwright.config.ts)', () => {
     expect(mobile?.testMatch).toBe('mobile.spec.ts')
     expect(mobile?.use).toEqual({
       viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 3,
+      isMobile: true,
+      hasTouch: true,
+    })
+    // 최종 리뷰: 작은 휴대폰에서 펼친 시트, 가로로 돌린 휴대폰의 셸
+    expect(small?.testMatch).toBe('mobile-small.spec.ts')
+    expect(small?.use).toEqual({ viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
+    expect(landscape?.testMatch).toBe('mobile-landscape.spec.ts')
+    expect(landscape?.use).toEqual({
+      viewport: { width: 844, height: 390 },
       deviceScaleFactor: 3,
       isMobile: true,
       hasTouch: true,

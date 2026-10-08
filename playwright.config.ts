@@ -32,6 +32,16 @@ export default defineConfig({
       testMatch: 'mobile.spec.ts',
       use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
     },
+    {
+      name: 'mobile-small',
+      testMatch: 'mobile-small.spec.ts',
+      use: { viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+    },
+    {
+      name: 'mobile-landscape',
+      testMatch: 'mobile-landscape.spec.ts',
+      use: { viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+    },
   ],
   webServer: {
     command: `pnpm vite --mode test --port ${PORT} --strictPort`,
