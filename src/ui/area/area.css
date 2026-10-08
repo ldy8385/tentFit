@@ -1,0 +1,375 @@
+/* 면적 현황·면적 상세·경고 목록·요약 칩. 색·간격·반경은 tokens.css 변수만 씁니다. */
+
+/* ── 구역 한 줄 ── */
+.tf-zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) 0;
+}
+.tf-zone__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 14px;
+}
+.tf-zone__dot {
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1.5px solid var(--text-secondary);
+}
+.tf-zone__dot--inner {
+  border-color: var(--inner-stroke);
+  background: var(--inner-fill);
+}
+.tf-zone__dot--floor {
+  border-color: var(--sand);
+  background: var(--vest-fill);
+}
+.tf-zone__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-primary);
+}
+.tf-zone__pct {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tf-zone__bar {
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+.tf-zone__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--text-secondary);
+}
+.tf-zone__fill--inner {
+  background: var(--inner-stroke);
+}
+.tf-zone__fill--floor {
+  background: var(--sand);
+}
+.tf-zone__foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── PC 면적 현황 ── */
+.tf-area {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  box-sizing: border-box;
+  background: var(--bg-surface);
+}
+/* 펼치면 오른쪽 열의 남은 높이를 차지하고 안에서 스크롤합니다(부모가 세로 flex일 때). */
+.tf-area[data-expanded='true'] {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.tf-area__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tf-area__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.tf-area__toggle {
+  min-height: 44px;
+  padding: 0 var(--sp-2);
+  margin-right: calc(-1 * var(--sp-2));
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tf-area__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.tf-area__warn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--danger);
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tf-area__warn-text {
+  flex: 1 1 auto;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.tf-area__warn-go {
+  font-size: 13px;
+}
+.tf-area__ok {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+/* ── 면적 상세 ── */
+.tf-area-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.tf-area-detail__section {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+.tf-area-detail__h {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.tf-area-detail__count {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.tf-area-detail__items {
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  list-style: none;
+}
+.tf-area-detail__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 28px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.tf-area-detail__swatch {
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid;
+  border-radius: 3px;
+}
+.tf-area-detail__iname {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tf-area-detail__ival {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.tf-area-detail__note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ── 경고 목록 ── */
+.tf-warn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  box-sizing: border-box;
+  background: var(--bg-surface);
+}
+.tf-warn__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tf-warn__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--danger);
+}
+.tf-warn__close {
+  width: 44px;
+  height: 44px;
+  margin-right: calc(-1 * var(--sp-3));
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 22px;
+  cursor: pointer;
+}
+.tf-warn__empty {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+.tf-warn__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.tf-warn__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid;
+  border-radius: var(--r-md);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tf-warn__row--danger {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.tf-warn__row--warn {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.tf-warn__icon {
+  flex: 0 0 auto;
+  display: grid;
+}
+.tf-warn__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tf-warn__rtitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.tf-warn__reason {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.tf-warn__go {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+.tf-warn__legend {
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+.tf-warn__legend-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tf-warn__legend-list {
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-3);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.tf-warn__legend-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.tf-warn__sample {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 28px;
+  height: 18px;
+  border-radius: 2px;
+}
+.tf-warn__sample--danger {
+  border: 2px solid var(--danger);
+  background: repeating-linear-gradient(45deg, var(--danger) 0 1.5px, transparent 1.5px 5px);
+}
+.tf-warn__sample--warn {
+  border: 2px dashed var(--warn);
+}
+.tf-warn__legend-note {
+  color: var(--text-tertiary);
+}
+
+/* ── 모바일 요약 칩: 캔버스 위쪽 가운데 ── */
+.tf-summary-chip {
+  position: absolute;
+  top: var(--sp-2);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  max-width: calc(100% - 2 * var(--sp-4));
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-surface);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tf-summary-chip__main,
+.tf-summary-chip__warn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.tf-summary-chip__sep {
+  color: var(--text-tertiary);
+}
+.tf-summary-chip__warn {
+  gap: var(--sp-1);
+  border-left: 1px solid var(--border);
+  color: var(--danger);
+}
