@@ -1,0 +1,112 @@
+/* 모바일 하단 시트(시안 04·05 Mobile, Sheet/Grabber, 스펙 §4.2·D29). 자리(툴바 위)는 셸이 정합니다. */
+.tf-sheet {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  max-height: 45dvh;
+  padding: 0 max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--bg-surface);
+  box-shadow: 0 -8px 24px rgb(27 30 26 / 10%);
+  color: var(--text-primary);
+  will-change: transform;
+}
+
+.tf-sheet[data-expanded='true'] {
+  max-height: calc(100dvh - 160px);
+}
+
+.tf-sheet__grabber {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 100%;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 누름 영역 44px(보이는 막대는 36×4) */
+button.tf-sheet__grabber {
+  height: 44px;
+  margin-bottom: -20px;
+}
+
+.tf-sheet__grabber-bar {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--border-strong);
+}
+
+.tf-sheet__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.tf-sheet__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tf-sheet__close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-right: -10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tf-sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tf-sheet__summary {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.tf-sheet__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tf-sheet__action {
+  min-height: 52px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tf-sheet__action--danger {
+  color: var(--danger);
+}

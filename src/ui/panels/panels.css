@@ -1,0 +1,209 @@
+/* 속성 패널·여러 개 선택 패널(시안 04·05 Desktop, 스펙 §4.1·§4.5). 누름 영역은 모두 44px 이상입니다. */
+.tf-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.tf-panel__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--text-primary);
+}
+
+.tf-panel__empty {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.tf-item-fields,
+.tf-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tf-row2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.tf-rotate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.tf-rotate-row[data-compact='true'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.tf-btn {
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tf-btn:hover {
+  background: var(--bg-subtle);
+}
+
+.tf-btn--danger {
+  color: var(--danger);
+}
+
+.tf-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* PC 패널(폭 288px 안팎)에서는 4개씩 두 줄, 시트에서는 폭이 되는 만큼 한 줄로 */
+.tf-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 44px);
+}
+
+.tf-item-fields[data-compact='true'] .tf-swatches {
+  grid-template-columns: repeat(auto-fill, 44px);
+}
+
+.tf-swatch {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tf-swatch__chip {
+  width: 30px;
+  height: 28px;
+  border: 1.5px solid;
+  border-radius: var(--r-sm);
+}
+
+.tf-swatch[aria-pressed='true'] .tf-swatch__chip {
+  box-shadow:
+    0 0 0 2px var(--bg-surface),
+    0 0 0 4px var(--text-primary);
+}
+
+.tf-select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.tf-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.tf-toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.tf-multi__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.tf-multi__row {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tf-multi__chip {
+  width: 28px;
+  height: 20px;
+  border: 1.5px solid;
+  border-radius: 4px;
+}
+
+.tf-multi__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tf-multi__dims {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.tf-multi__check {
+  color: var(--select);
+}
+
+/* 모바일 시트 안(compact)에서는 선택 목록을 칩으로 보여 줍니다(§4.5). */
+.tf-multi[data-compact='true'] .tf-multi__list {
+  flex-direction: row;
+  flex-wrap: wrap;
+  max-height: none;
+}
+
+.tf-multi[data-compact='true'] .tf-multi__row {
+  grid-template-columns: auto auto;
+  width: auto;
+  border-radius: var(--r-full);
+  padding: 6px 14px;
+}
+
+.tf-multi[data-compact='true'] .tf-multi__dims,
+.tf-multi[data-compact='true'] .tf-multi__check {
+  display: none;
+}
