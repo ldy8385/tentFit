@@ -1,8 +1,12 @@
-# Playwright 화면 테스트(desktop 1440×900 · mobile 390×844). PR과 수동 실행에서만 돌고,
+# Playwright 화면 테스트(desktop 1440×900 · mobile 390×844). main 푸시·PR·수동 실행에서 돌고,
 # 배포 관문(pnpm ci:all, Cloudflare 빌드)에는 넣지 않습니다(스펙 §12: 배포를 막지 않음).
 name: E2E
 
-on: [pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read

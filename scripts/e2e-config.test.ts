@@ -66,8 +66,8 @@ describe('package.json', () => {
 describe('GitHub Actions 화면 테스트(.github/workflows/e2e.yml)', () => {
   const workflow = read('.github/workflows/e2e.yml')
 
-  it('PR과 수동 실행에서만 돈다', () => {
-    expect(workflow).toMatch(/^on: \[pull_request, workflow_dispatch\]$/m)
+  it('main 푸시·PR·수동 실행에서 돈다(PR 없이 main에 바로 푸시하는 흐름이라 push도 필요)', () => {
+    expect(workflow).toMatch(/^on:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n {2}workflow_dispatch:$/m)
   })
 
   it('잠금 파일 그대로 설치 → chromium과 시스템 의존성 설치 → pnpm e2e 순서다', () => {
