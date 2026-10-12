@@ -20,6 +20,7 @@ import {
 import {
   MAKER_PREVIEW_FOCUSED_MAX_PX,
   MIN_CANVAS_ABOVE_SHEET_PX,
+  DOME,
   TIPI,
   browserBack,
   enterTentModeByUi,
@@ -38,6 +39,7 @@ import {
   tapCanvas,
   tentMaker,
   tentSheet,
+  toast,
   toolbar,
   vertexClient,
 } from './tentFlows'
@@ -315,3 +317,22 @@ test('이너 0개 텐트(티피): 요약 칩은 「이너 — · 바닥 0%」이
   await expect(tentSheet(page).getByRole('list', { name: '텐트 구성' }).getByRole('button')).toHaveText([/^외곽/, '+ 이너'])
   expect(errors).toEqual([])
 })
+
+test('최종 리뷰: 텐트 모드 토스트는 요약 칩에 가리지 않고 화면 안, 툴바 위에 보인다', async ({ page }) => {
+  await openEditorWith(page, DOME)
+  await enterTentModeByUi(page)
+  const add = toolbar(page).getByRole('button', { name: '+이너', exact: true })
+  for (let i = 0; i < 4 && !(await toast(page).isVisible()); i++) {
+    await add.tap()
+    await nextFrames(page, 2)
+  }
+  await expect(toast(page)).toHaveText('빈 공간이 부족해요')
+  const t = (await toast(page).boundingBox())!
+  const chip = (await page.getByRole('group', { name: '면적 요약' }).boundingBox())!
+  const bar = (await toolbar(page).boundingBox())!
+  const overlaps = t.x < chip.x + chip.width && chip.x < t.x + t.width && t.y < chip.y + chip.height && chip.y < t.y + t.height
+  expect(overlaps).toBe(false)
+  expect(t.y).toBeGreaterThanOrEqual(0)
+  expect(t.y + t.height).toBeLessThanOrEqual(bar.y)
+})
+

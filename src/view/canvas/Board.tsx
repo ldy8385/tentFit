@@ -13,7 +13,13 @@ import { useStore } from 'zustand'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStats, useZones } from '../../app/derived'
 import { useDoc, useStores, useUi, type Stores } from '../../app/stores'
-import { commitInnerMove, insertTargetVertex, setTargetVertex, tentControlsEnabled } from '../../app/tentActions'
+import {
+  commitInnerMove,
+  insertTargetVertex,
+  selectTentTargetFromCanvas,
+  setTargetVertex,
+  tentControlsEnabled,
+} from '../../app/tentActions'
 import { LIMITS, normAngle, round1, type Item, type Pt, type Shape } from '../../core/model'
 import { expandSelection } from '../../core/ops/groups'
 import { applyTransform, moveItems } from '../../core/ops/items'
@@ -451,7 +457,7 @@ class BoardController {
     const next = pressSelection(hit, cur)
     if (next !== null) {
       this.tentPrev = cur
-      ui.selectTentTarget(next.target, next.vertexIndex)
+      selectTentTargetFromCanvas(this.stores, next.target, next.vertexIndex)
     }
     this.tentDrag = tentDragFor(hit, pointerId, kind, p, ui.view)
     this.tentDragLive = false
@@ -467,7 +473,7 @@ class BoardController {
     const ui = this.stores.ui.getState()
     if (!tentControlsEnabled(ui)) return
     const effect = tentTapEffect(hit)
-    if (effect.kind === 'select') ui.selectTentTarget(effect.target, effect.vertexIndex)
+    if (effect.kind === 'select') selectTentTargetFromCanvas(this.stores, effect.target, effect.vertexIndex)
     else if (effect.kind === 'insert') insertTargetVertex(this.stores, effect.target, effect.edgeIndex)
   }
 

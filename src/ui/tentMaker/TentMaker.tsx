@@ -30,6 +30,7 @@ import {
 import { withSubject } from '../area/warningRows'
 import { SegmentedControl } from '../common/SegmentedControl'
 import { ToastView } from '../common/Toast'
+import { useFocusTrap } from '../common/useFocusTrap'
 import { FormNumberInput, FormTextInput, formEnterKeyDown, syncEnterKeyHints } from '../fields/formInput'
 import { NAME_MAX_LENGTH } from '../fields/limits'
 import { useVisualViewport } from '../fields/useVisualViewport'
@@ -119,6 +120,10 @@ export function TentMaker(p: {
     setToast({ id: toastSeq.current, text })
   }
   const dismissToast = useCallback((id: number) => setToast((t) => (t !== null && t.id === id ? null : t)), [])
+
+  // ── 포커스: 오버레이 안에 가둠(뒤 화면을 키보드로 누르지 못하게 — 누르면 history 항목이 남음, 최종 리뷰) ──
+  const rootRef = useRef<HTMLDivElement>(null)
+  const trapTab = useFocusTrap(rootRef)
 
   // ── history: 열 때 항목 하나, popstate로 닫힘 ─────────────────
   const [token] = useState(() => newId())
@@ -230,6 +235,8 @@ export function TentMaker(p: {
 
   return (
     <div
+      ref={rootRef}
+      onKeyDown={trapTab}
       className="tf-maker"
       role="dialog"
       aria-modal="true"
@@ -511,7 +518,9 @@ export function TentMaker(p: {
         </div>
       </div>
 
-      <ToastView toast={toast} onDismiss={dismissToast} />
+      <div className="tf-maker__toast">
+        <ToastView toast={toast} onDismiss={dismissToast} />
+      </div>
     </div>
   )
 }

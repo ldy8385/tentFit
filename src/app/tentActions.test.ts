@@ -14,6 +14,7 @@ import {
   MIN_VERTEX_MESSAGE,
   NO_SPACE_MESSAGE,
   renameInnerAction,
+  selectTentTargetFromCanvas,
   rotateInner90,
   setInnerRotation,
   setTargetDiameter,
@@ -73,6 +74,24 @@ const ui = () => stores.ui.getState()
 
 beforeEach(() => {
   stores = storesWith([IN1, IN2])
+})
+
+describe('최종 리뷰: 캔버스에서 대상을 고르면 경고 패널 대신 텐트 편집 패널(§4.6)', () => {
+  it('대상을 고르고, PC 경고 패널이 열려 있으면 기본 패널(auto)로 바꾼다', () => {
+    enterTentMode(stores)
+    ui().patch({ desktopPanel: 'warnings' })
+    selectTentTargetFromCanvas(stores, { innerId: IN1.id }, null)
+    expect(ui().tentTarget).toEqual({ innerId: IN1.id })
+    expect(ui().desktopPanel).toBe('auto')
+  })
+
+  it('대상 해제(null)면 패널은 그대로', () => {
+    enterTentMode(stores, { innerId: IN1.id })
+    ui().patch({ desktopPanel: 'warnings' })
+    selectTentTargetFromCanvas(stores, null, null)
+    expect(ui().tentTarget).toBeNull()
+    expect(ui().desktopPanel).toBe('warnings')
+  })
 })
 
 describe('tentControlsEnabled(측정 잠금 이음매)', () => {

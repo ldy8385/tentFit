@@ -191,7 +191,9 @@ export function CanvasOverlay(p: { variant: Variant }) {
       <ScaleBarView zoom={zoom} />
       {p.variant === 'desktop' && <ZoomControls zoom={zoom} />}
       {showEmpty && <EmptyCard variant={p.variant} />}
-      <ToastHost />
+      <div className="shell-toast">
+        <ToastHost />
+      </div>
       <SwapTentDialog />
     </div>
   )

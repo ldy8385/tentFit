@@ -195,6 +195,21 @@ describe('setTemplateField — 외곽 치수가 바뀌면 붙인 이너가 따�
 })
 
 describe('setKind', () => {
+  it('최종 리뷰: 왼쪽 벽 이너가 붙일 벽 없는 모양으로 가도 보이는 크기를 유지하고(폭·깊이 맞바꿈), 사각형으로 돌아와도 확정할 수 있다', () => {
+    const s = added(added(initialMakerState({ myTentNames: [] })))
+    const left = s.inners[2]
+    if (left === undefined) throw new Error('왼쪽 이너 없음')
+    expect(left.side).toBe('left')
+    const before = makerTent(s).inners[2]
+    const trap = setKind(s, 'trapezoid')
+    expect(trap.inners[2]?.side).toBeNull()
+    expect(makerTent(trap).inners[2]).toMatchObject({ x: before?.x, y: before?.y, shape: before?.shape })
+    const back = setKind(trap, 'rect')
+    expect(checkMaker(back).canConfirm).toBe(true)
+    const detached = updateMakerInner(s, left.id, { side: null })
+    expect(makerTent(detached).inners[2]).toMatchObject({ x: before?.x, y: before?.y, shape: before?.shape })
+  })
+
   it('같은 모양이면 그대로', () => {
     const s = initialMakerState({ myTentNames: [] })
     expect(setKind(s, 'rect')).toBe(s)

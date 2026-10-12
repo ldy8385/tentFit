@@ -215,6 +215,30 @@ describe('TentMaker — 이너와 확정 조건', () => {
     expect(confirmedTent(onConfirm).inners[0]).toMatchObject({ x: expected?.x, y: expected?.y, rotation: 0, shape: { kind: 'rect', w: 180, h: 200 } })
   })
 
+  it('최종 리뷰: 열면 오버레이 안으로 포커스가 들어가고, Tab은 오버레이 안에서만 돌며, 닫히면 원래 자리로', () => {
+    const outside = document.createElement('button')
+    outside.textContent = '뒤 화면 카드'
+    document.body.appendChild(outside)
+    outside.focus()
+    const { unmount } = renderMaker()
+    const root = screen.getByTestId('tent-maker')
+    expect(root.contains(document.activeElement)).toBe(true)
+    const items = Array.from(
+      root.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)'),
+    )
+    const first = items[0]
+    const last = items[items.length - 1]
+    if (first === undefined || last === undefined) throw new Error('컨트롤 없음')
+    last.focus()
+    fireEvent.keyDown(last, { key: 'Tab' })
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last)
+    unmount()
+    expect(document.activeElement).toBe(outside)
+    outside.remove()
+  })
+
   it('이너 추가가 겹치면 추가하지 않고 「빈 공간이 부족해요」 토스트', () => {
     renderMaker()
     // 소유자 확인 1: 기본 상태에서는 깊이를 줄여 붙으므로, 이너 1이 외곽 전체를 덮게 해 어느 벽에도 안 들어가게 합니다.

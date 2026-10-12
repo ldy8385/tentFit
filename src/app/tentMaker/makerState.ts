@@ -138,13 +138,22 @@ function toInner(inner: MakerInner): Inner {
   }
 }
 
-/** side가 있는 이너를 지금 외곽에 다시 붙입니다. 그 벽이 없으면 side null(지금 자리 유지). */
+/**
+ * 벽에서 떼어 냅니다(side null, 지금 자리). 왼쪽·오른쪽 벽 이너는 폭·깊이를 맞바꿔, 텐트에 들어가는 사각형(innerSize)이
+ * 그대로 보이게 합니다 — 안 바꾸면 같은 중심에서 90° 돌아가 다른 이너와 겹칩니다(최종 리뷰).
+ */
+function detach(inner: MakerInner): MakerInner {
+  if (inner.side === 'left' || inner.side === 'right') return { ...inner, side: null, width: inner.depth, depth: inner.width }
+  return { ...inner, side: null }
+}
+
+/** side가 있는 이너를 지금 외곽에 다시 붙입니다. 그 벽이 없으면 떼어 냄(지금 자리, 보이는 크기 유지). */
 function reattachOne(tpl: ShapeTemplate | null, inner: MakerInner): MakerInner {
   if (inner.side === null) return inner
   const side = inner.side
-  if (tpl === null || !attachSidesFor(tpl).includes(side)) return { ...inner, side: null }
+  if (tpl === null || !attachSidesFor(tpl).includes(side)) return detach(inner)
   const placed = attachedInner(tpl, side, inner.width, inner.depth)
-  if (placed === null) return { ...inner, side: null }
+  if (placed === null) return detach(inner)
   if (placed.x === inner.x && placed.y === inner.y) return inner
   return { ...inner, x: placed.x, y: placed.y }
 }
@@ -307,13 +316,13 @@ export function updateMakerInner(
   const index = s.inners.findIndex((it) => it.id === id)
   const current = s.inners[index]
   if (current === undefined) return s
-  const next: MakerInner = { ...current }
+  let next: MakerInner = { ...current }
   if (patch.name !== undefined) next.name = patch.name
   if (patch.width !== undefined) next.width = clampLength(patch.width)
   if (patch.depth !== undefined) next.depth = clampLength(patch.depth)
   const tpl = outerTemplateOf(s)
   if (patch.side !== undefined) {
-    if (patch.side === null) next.side = null
+    if (patch.side === null) next = detach(next)
     else if (attachSidesFor(tpl ?? undefined).includes(patch.side)) next.side = patch.side
   }
   const placed = reattachOne(tpl, next)

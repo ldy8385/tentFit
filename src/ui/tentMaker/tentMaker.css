@@ -306,3 +306,13 @@
   font-weight: 700;
   cursor: pointer;
 }
+
+/* 토스트 자리: 화면(키보드 위) 아래 가운데. 폼 흐름 끝에 붙어 스크롤 밖으로 사라지지 않게(최종 리뷰) */
+.tf-maker__toast {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 2;
+}
+

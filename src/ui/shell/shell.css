@@ -335,6 +335,14 @@
 }
 
 /* ── 캔버스 위 컨트롤(화면에만, PNG 제외) ───────────────────────── */
+/* 토스트 자리: 툴바·시트 바로 위(축척 막대 위) 가운데. 위쪽 요약 칩·모드 칩과 겹치지 않게(최종 리뷰) */
+.shell-toast {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--overlay-bottom, 0px) + 64px);
+}
+
 .shell-overlay {
   position: absolute;
   inset: 0;

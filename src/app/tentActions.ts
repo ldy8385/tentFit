@@ -107,6 +107,16 @@ function vertexCount(layout: Layout, target: TentTarget): number | null {
 }
 
 /** 텐트 편집 모드로(배치 모드 정리는 setMode가 함). 대상을 주면 그 대상을 고릅니다(없는 이너면 고르지 않음). */
+/**
+ * 캔버스에서 편집 대상을 고릅니다(§4.4-2). 대상을 고르면 PC 경고 패널 대신 텐트 편집 패널이 보이게 합니다
+ * (§4.6 "캔버스에서 직접 고르면 경고 패널 대신 속성 패널" — 물건 선택과 같은 규칙, 최종 리뷰).
+ */
+export function selectTentTargetFromCanvas(stores: Stores, target: TentTarget | null, vertexIndex: number | null): void {
+  const ui = stores.ui.getState()
+  ui.selectTentTarget(target, vertexIndex)
+  if (target !== null && ui.desktopPanel === 'warnings') ui.patch({ desktopPanel: 'auto' })
+}
+
 export function enterTentMode(stores: Stores, target?: TentTarget | null): void {
   const ui = stores.ui.getState()
   ui.setMode('tent')
