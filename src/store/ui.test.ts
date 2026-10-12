@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createLayout, type Item, type Layout } from '../core/model'
+import { createLayout, type Inner, type Item, type Layout } from '../core/model'
 import { fitView, ZOOM_MAX } from '../view/viewport'
-import { createUiStore, toPointerKind } from './ui'
+import { createUiStore, sameTentTarget, toPointerKind } from './ui'
 
 const NOW = '2026-10-08T00:00:00.000Z'
 
@@ -50,6 +50,10 @@ describe('createUiStore 기본값', () => {
     expect(s.mobileSheet).toBe('none')
     expect(s.desktopPanel).toBe('auto')
     expect(s.areaExpanded).toBe(false)
+    expect(s.tentTarget).toBeNull()
+    expect(s.vertexIndex).toBeNull()
+    expect(s.toast).toBeNull()
+    expect(s.editorDialog).toBeNull()
   })
 
   it('init 값을 쓰고, 보기 배율은 0.1~20으로 자른다', () => {
@@ -236,5 +240,222 @@ describe('setPointer·patch', () => {
     expect(listener).not.toHaveBeenCalled()
     ui.getState().patch({ gridVisible: false })
     expect(listener).toHaveBeenCalledTimes(1)
+  })
+})
+
+function inner(id: string, shape: Inner['shape'], x = 0): Inner {
+  return { id, name: id, shape, x, y: 0, rotation: 0 }
+}
+
+/** 외곽 600×300 사각형 + 이너들 */
+function tentLayout(inners: Inner[], outer: Layout['tent']['outer'] = { kind: 'rect', w: 600, h: 300 }): Layout {
+  return createLayout({ name: '시험 텐트', outer, inners }, { name: '시험 배치', id: 'L1', now: NOW })
+}
+
+describe('setMode — 모드 전환 정리 규칙(Review Focus 4·함정 R2)', () => {
+  it('같은 모드면 아무것도 바꾸지 않고 알리지 않는다', () => {
+    const ui = createUiStore()
+    ui.getState().setSelection(['a'])
+    const listener = vi.fn()
+    ui.subscribe(listener)
+    ui.getState().setMode('place')
+    expect(listener).not.toHaveBeenCalled()
+    expect(ui.getState().selection).toEqual(['a'])
+  })
+
+  it('배치 → 텐트: 물건 선택·그룹 안 편집·편집 대상을 비운다', () => {
+    const ui = createUiStore()
+    ui.getState().setSelection(['a', 'b'])
+    ui.getState().patch({ scopeGroupId: 'g1' })
+    ui.getState().selectTentTarget('outer', 2)
+    ui.getState().setMode('tent')
+    const s = ui.getState()
+    expect(s.mode).toBe('tent')
+    expect(s.selection).toEqual([])
+    expect(s.scopeGroupId).toBeNull()
+    expect(s.tentTarget).toBeNull()
+    expect(s.vertexIndex).toBeNull()
+  })
+
+  it('배치 → 텐트: 선택·라이브러리·새 도형 시트는 닫고, 면적·경고 시트는 그대로 둔다', () => {
+    for (const sheet of ['selection', 'library', 'newShape'] as const) {
+      const ui = createUiStore()
+      ui.getState().patch({ mobileSheet: sheet })
+      ui.getState().setMode('tent')
+      expect(ui.getState().mobileSheet).toBe('none')
+    }
+    for (const sheet of ['area', 'warnings', 'none'] as const) {
+      const ui = createUiStore()
+      ui.getState().patch({ mobileSheet: sheet })
+      ui.getState().setMode('tent')
+      expect(ui.getState().mobileSheet).toBe(sheet)
+    }
+  })
+
+  it('배치 → 텐트: PC 새 도형 패널은 auto로, 경고 패널은 그대로', () => {
+    const a = createUiStore()
+    a.getState().patch({ desktopPanel: 'newShape' })
+    a.getState().setMode('tent')
+    expect(a.getState().desktopPanel).toBe('auto')
+    const b = createUiStore()
+    b.getState().patch({ desktopPanel: 'warnings' })
+    b.getState().setMode('tent')
+    expect(b.getState().desktopPanel).toBe('warnings')
+  })
+
+  it('텐트 → 배치: 편집 대상·꼭짓점 선택을 비우고 텐트 시트를 닫는다', () => {
+    const ui = createUiStore({ mode: 'tent' })
+    ui.getState().selectTentTarget({ innerId: 'in1' }, 1)
+    ui.getState().patch({ mobileSheet: 'tent' })
+    ui.getState().setMode('place')
+    const s = ui.getState()
+    expect(s.mode).toBe('place')
+    expect(s.tentTarget).toBeNull()
+    expect(s.vertexIndex).toBeNull()
+    expect(s.mobileSheet).toBe('none')
+  })
+
+  it('텐트 → 배치: 텐트 시트가 아닌 시트(경고)는 그대로 둔다', () => {
+    const ui = createUiStore({ mode: 'tent' })
+    ui.getState().patch({ mobileSheet: 'warnings' })
+    ui.getState().setMode('place')
+    expect(ui.getState().mobileSheet).toBe('warnings')
+  })
+
+  it('측정 중에는 모드를 바꾸지 않는다(정리도 하지 않음)', () => {
+    const ui = createUiStore()
+    ui.getState().setSelection(['a'])
+    ui.getState().patch({ measuring: true })
+    ui.getState().setMode('tent')
+    expect(ui.getState().mode).toBe('place')
+    expect(ui.getState().selection).toEqual(['a'])
+  })
+})
+
+describe('selectTentTarget', () => {
+  it('대상과 꼭짓점을 고르고, 꼭짓점을 주지 않으면 null', () => {
+    const ui = createUiStore()
+    ui.getState().selectTentTarget('outer', 2)
+    expect(ui.getState().tentTarget).toBe('outer')
+    expect(ui.getState().vertexIndex).toBe(2)
+    ui.getState().selectTentTarget({ innerId: 'in1' })
+    expect(ui.getState().tentTarget).toEqual({ innerId: 'in1' })
+    expect(ui.getState().vertexIndex).toBeNull()
+  })
+
+  it('target이 null이면 vertexIndex도 null', () => {
+    const ui = createUiStore()
+    ui.getState().selectTentTarget('outer', 1)
+    ui.getState().selectTentTarget(null, 3)
+    expect(ui.getState().tentTarget).toBeNull()
+    expect(ui.getState().vertexIndex).toBeNull()
+  })
+
+  it('음수·정수가 아닌 꼭짓점 번호는 null로 둔다', () => {
+    const ui = createUiStore()
+    ui.getState().selectTentTarget('outer', -1)
+    expect(ui.getState().vertexIndex).toBeNull()
+    ui.getState().selectTentTarget('outer', 1.5)
+    expect(ui.getState().vertexIndex).toBeNull()
+  })
+
+  it('같은 대상·같은 꼭짓점이면 알리지 않는다(새 객체로 같은 이너를 줘도)', () => {
+    const ui = createUiStore()
+    ui.getState().selectTentTarget({ innerId: 'in1' }, 0)
+    const listener = vi.fn()
+    ui.subscribe(listener)
+    ui.getState().selectTentTarget({ innerId: 'in1' }, 0)
+    ui.getState().selectTentTarget(null)
+    ui.getState().selectTentTarget(null)
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('sameTentTarget: outer끼리, 같은 innerId끼리만 같다', () => {
+    expect(sameTentTarget('outer', 'outer')).toBe(true)
+    expect(sameTentTarget({ innerId: 'a' }, { innerId: 'a' })).toBe(true)
+    expect(sameTentTarget({ innerId: 'a' }, { innerId: 'b' })).toBe(false)
+    expect(sameTentTarget('outer', { innerId: 'a' })).toBe(false)
+    expect(sameTentTarget(null, null)).toBe(true)
+    expect(sameTentTarget(null, 'outer')).toBe(false)
+  })
+})
+
+describe('pruneTentTarget(Review Focus 3)', () => {
+  it('지워진 이너가 대상이면 대상·꼭짓점을 해제한다', () => {
+    const ui = createUiStore({ mode: 'tent' })
+    ui.getState().selectTentTarget({ innerId: 'gone' }, 1)
+    ui.getState().pruneTentTarget(tentLayout([inner('in1', { kind: 'rect', w: 100, h: 100 })]))
+    expect(ui.getState().tentTarget).toBeNull()
+    expect(ui.getState().vertexIndex).toBeNull()
+  })
+
+  it('꼭짓점이 줄어 번호가 고리 길이 이상이면 vertexIndex만 null', () => {
+    const ui = createUiStore({ mode: 'tent' })
+    ui.getState().selectTentTarget('outer', 3)
+    const triangle = tentLayout([], {
+      kind: 'polygon',
+      points: [
+        [-300, -150],
+        [300, -150],
+        [0, 150],
+      ],
+    })
+    ui.getState().pruneTentTarget(triangle)
+    expect(ui.getState().tentTarget).toBe('outer')
+    expect(ui.getState().vertexIndex).toBeNull()
+  })
+
+  it('대상이 원으로 바뀌면 vertexIndex null(원에는 꼭짓점이 없음)', () => {
+    const ui = createUiStore({ mode: 'tent' })
+    ui.getState().selectTentTarget({ innerId: 'in1' }, 0)
+    ui.getState().pruneTentTarget(tentLayout([inner('in1', { kind: 'circle', d: 100 })]))
+    expect(ui.getState().tentTarget).toEqual({ innerId: 'in1' })
+    expect(ui.getState().vertexIndex).toBeNull()
+  })
+
+  it('그대로 유효하면 상태를 바꾸지 않는다', () => {
+    const ui = createUiStore({ mode: 'tent' })
+    ui.getState().selectTentTarget({ innerId: 'in1' }, 3)
+    const before = ui.getState()
+    ui.getState().pruneTentTarget(tentLayout([inner('in1', { kind: 'rect', w: 100, h: 100 })]))
+    expect(ui.getState()).toBe(before)
+  })
+})
+
+describe('토스트', () => {
+  it('showToast는 부를 때마다 id를 1씩 올린다(같은 문구도 새 토스트)', () => {
+    const ui = createUiStore()
+    ui.getState().showToast('빈 공간이 부족해요')
+    expect(ui.getState().toast).toEqual({ id: 1, text: '빈 공간이 부족해요' })
+    ui.getState().showToast('빈 공간이 부족해요')
+    expect(ui.getState().toast).toEqual({ id: 2, text: '빈 공간이 부족해요' })
+  })
+
+  it('dismissToast는 지금 토스트 id가 같을 때만 지운다', () => {
+    const ui = createUiStore()
+    ui.getState().showToast('첫째')
+    ui.getState().showToast('둘째')
+    ui.getState().dismissToast(1)
+    expect(ui.getState().toast?.text).toBe('둘째')
+    ui.getState().dismissToast(2)
+    expect(ui.getState().toast).toBeNull()
+  })
+
+  it('지운 뒤 다시 띄워도 id는 줄지 않는다', () => {
+    const ui = createUiStore()
+    ui.getState().showToast('a')
+    ui.getState().dismissToast(1)
+    ui.getState().showToast('a')
+    expect(ui.getState().toast?.id).toBe(2)
+  })
+})
+
+describe('editorDialog', () => {
+  it('patch로 열고 닫는다', () => {
+    const ui = createUiStore()
+    ui.getState().patch({ editorDialog: 'swapTent' })
+    expect(ui.getState().editorDialog).toBe('swapTent')
+    ui.getState().patch({ editorDialog: null })
+    expect(ui.getState().editorDialog).toBeNull()
   })
 })

@@ -39,14 +39,18 @@ export function initialPointer(): PointerKind {
 }
 
 /**
- * 배치 하나의 스토어 묶음. 문서가 바뀔 때마다(실행 취소·다시 실행·load 포함) 선택에서 없는 id를 뺍니다(§8).
+ * 배치 하나의 스토어 묶음. 문서가 바뀔 때마다(실행 취소·다시 실행·load 포함) 선택에서 없는 id를 빼고(§8),
+ * 텐트 편집 대상도 정리합니다(없는 이너·범위 밖 꼭짓점 번호, Review Focus 3).
  * 구독은 스토어와 수명이 같아서 따로 풀지 않습니다(배치를 바꾸면 묶음을 새로 만듦).
  */
 export function createStores(layout: Layout): Stores {
   const doc = createDocStore(layout)
   const ui = createUiStore({ pointer: initialPointer() })
   doc.subscribe((state, prev) => {
-    if (state.layout !== prev.layout) ui.getState().pruneSelection(state.layout)
+    if (state.layout === prev.layout) return
+    const s = ui.getState()
+    s.pruneSelection(state.layout)
+    s.pruneTentTarget(state.layout)
   })
   return { doc, ui }
 }

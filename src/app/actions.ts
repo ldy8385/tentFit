@@ -1,6 +1,7 @@
-// UI(라이브러리·새 도형 폼·속성 패널·시트·단축키)가 함께 쓰는 문서 동작.
+// UI(라이브러리·새 도형 폼·속성 패널·시트·단축키)가 함께 쓰는 물건 문서 동작. 같은 동작은 여기 한 곳에만 둡니다
+// (Plan 3 보류 Minor #23 — ui/panels/commands.ts는 이 파일을 다시 내보내기만 합니다). 텐트 동작은 tentActions.ts.
 // 문서는 doc.commit(recipe)로만 바꾸고, recipe 안에서는 core ops만 부릅니다(스펙 §7 규칙 2).
-import type { Item, ItemPreset, Pt } from '../core/model'
+import { normAngle, type Item, type ItemPreset, type Pt } from '../core/model'
 import {
   addItem,
   deleteItems,
@@ -8,8 +9,10 @@ import {
   itemFromPreset,
   makeItem,
   newItemPosition,
+  resizeItem,
   rotateItems,
   selectionPivot,
+  setItemProps,
   type NewItemInput,
 } from '../core/ops/items'
 import { viewCenterWorld } from '../view/viewport'
@@ -48,13 +51,56 @@ export function addCustomItem(stores: Stores, input: NewItemInput): string {
   return insertItem(stores, makeItem(input, placementPoint(stores)))
 }
 
-export function deleteSelected(stores: Stores): void {
-  const ids = stores.ui.getState().selection
-  if (ids.length === 0) return
+/** 이름·색·카테고리·점유 면적 포함(속성 패널) */
+export function setProps(
+  stores: Stores,
+  id: string,
+  patch: Partial<Pick<Item, 'name' | 'color' | 'category' | 'countsArea'>>,
+): void {
+  stores.doc.getState().commit((d) => setItemProps(d, id, patch))
+}
+
+/** 숫자 입력으로 치수 바꾸기(사각형 w·h, 원 d, 다각형 바운딩 박스 가로·세로) */
+export function resize(stores: Stores, id: string, dims: { w?: number; h?: number; d?: number }): void {
+  stores.doc.getState().commit((d) => resizeItem(d, id, dims))
+}
+
+/**
+ * 회전 입력. ids[0](기준 물건)의 회전이 normAngle(deg)가 되도록 ids 전체를 selectionPivot 기준으로 함께 돌립니다.
+ * 1개면 그 물건의 원점이 피벗이라 위치는 그대로이고 회전만 바뀝니다(400 → 40).
+ */
+export function setRotation(stores: Stores, ids: string[], deg: number): void {
   stores.doc.getState().commit((d) => {
-    deleteItems(d, ids)
+    const ref = d.items.find((it) => it.id === ids[0])
+    if (ref === undefined) return
+    const delta = normAngle(deg) - ref.rotation
+    if (delta === 0) return
+    rotateItems(d, ids, selectionPivot(d, ids), delta)
+  })
+}
+
+/** [90도]·KeyR(§4.6): 1개면 그 물건 원점, 여러 개면 선택 바운딩 박스 중심을 피벗으로 시계 방향 90°. */
+export function rotateBy90(stores: Stores, ids: readonly string[]): void {
+  if (ids.length === 0) return
+  const list = [...ids]
+  stores.doc.getState().commit((d) => {
+    rotateItems(d, list, selectionPivot(d, list), 90)
+  })
+}
+
+/** [삭제]·Delete: 지우고 선택을 비웁니다. */
+export function deleteAndDeselect(stores: Stores, ids: readonly string[]): void {
+  if (ids.length === 0) return
+  const list = [...ids]
+  stores.doc.getState().commit((d) => {
+    deleteItems(d, list)
   })
   stores.ui.getState().clearSelection()
+}
+
+/** Delete·Backspace(배치 모드): 지금 선택을 지웁니다. */
+export function deleteSelected(stores: Stores): void {
+  deleteAndDeselect(stores, stores.ui.getState().selection)
 }
 
 /** 복제(§4.7-4·§4.9-4). 그룹 안 편집 중이면 그 그룹 안에서 복제합니다. 새 id(배열 순서)를 선택하고 돌려줍니다. */
@@ -81,12 +127,7 @@ export function duplicateAndSelect(stores: Stores, ids: readonly string[]): stri
   return created
 }
 
-/** [90도]·KeyR(§4.6): 1개면 그 물건 원점, 여러 개면 선택 바운딩 박스 중심을 피벗으로 시계 방향 90°. */
+/** KeyR: 지금 선택을 90° 돌립니다([90도] 버튼과 같은 구현). */
 export function rotateSelected90(stores: Stores): void {
-  const ids = stores.ui.getState().selection
-  if (ids.length === 0) return
-  const pivot = selectionPivot(stores.doc.getState().layout, ids)
-  stores.doc.getState().commit((d) => {
-    rotateItems(d, ids, pivot, 90)
-  })
+  rotateBy90(stores, stores.ui.getState().selection)
 }

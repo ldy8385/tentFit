@@ -1,7 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { outerRing, pointInRing } from '../core/geom'
 import { createLayout, type ItemPreset, type Layout } from '../core/model'
-import { addCustomItem, addPresetItem, deleteSelected, duplicateSelected, rotateSelected90 } from './actions'
+import {
+  addCustomItem,
+  addPresetItem,
+  deleteAndDeselect,
+  deleteSelected,
+  duplicateSelected,
+  resize,
+  rotateBy90,
+  rotateSelected90,
+  setProps,
+  setRotation,
+} from './actions'
 import { defaultTentPreset, loadItemPresets } from './presets'
 import { createStores, type Stores } from './stores'
 
@@ -188,5 +199,51 @@ describe('rotateSelected90', () => {
     const before = layout()
     rotateSelected90(stores)
     expect(layout()).toBe(before)
+  })
+})
+
+describe('패널 동작(commands.ts에서 옮겨 온 구현)', () => {
+  it('rotateBy90은 넘긴 id를 돌리고, rotateSelected90과 같은 결과다(선택 1개)', () => {
+    const a = addPresetItem(stores, MAT)
+    rotateBy90(stores, [a])
+    expect(layout().items[0]).toMatchObject({ x: 0, y: 0, rotation: 90 })
+    stores.ui.getState().setSelection([a])
+    rotateSelected90(stores)
+    expect(layout().items[0]?.rotation).toBe(180)
+  })
+
+  it('rotateBy90에 빈 목록을 주면 문서는 그대로다', () => {
+    addPresetItem(stores, MAT)
+    const before = layout()
+    rotateBy90(stores, [])
+    expect(layout()).toBe(before)
+  })
+
+  it('deleteAndDeselect는 넘긴 id를 지우고 선택을 비운다. 실행 취소 1번에 돌아온다', () => {
+    const a = addPresetItem(stores, MAT)
+    const b = addPresetItem(stores, MAT)
+    stores.ui.getState().setSelection([a, b])
+    deleteAndDeselect(stores, [b])
+    expect(layout().items.map((it) => it.id)).toEqual([a])
+    expect(selection()).toEqual([])
+    stores.doc.getState().undo()
+    expect(layout().items.map((it) => it.id)).toEqual([a, b])
+  })
+
+  it('setRotation은 기준 물건의 회전을 normAngle(deg)로 맞추고, 같은 각이면 커밋하지 않는다', () => {
+    const a = addPresetItem(stores, MAT)
+    setRotation(stores, [a], 400)
+    expect(layout().items[0]?.rotation).toBe(40)
+    const before = layout()
+    setRotation(stores, [a], 40)
+    expect(layout()).toBe(before)
+  })
+
+  it('setProps·resize는 그 물건만 바꾼다', () => {
+    const a = addPresetItem(stores, MAT)
+    setProps(stores, a, { name: '두꺼운 매트', color: 'pink' })
+    resize(stores, a, { w: 190 })
+    expect(layout().items[0]).toMatchObject({ name: '두꺼운 매트', color: 'pink' })
+    expect(layout().items[0]?.shape).toEqual({ kind: 'rect', w: 190, h: 60 })
   })
 })

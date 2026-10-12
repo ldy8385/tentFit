@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createLayout, type Item, type Layout, type Pt, type Shape } from '../core/model'
+import { createLayout, type Inner, type Item, type Layout, type Pt, type Shape } from '../core/model'
 import {
   clampZoom,
   fitView,
@@ -17,8 +17,8 @@ import {
 
 const NOW = '2026-10-08T00:00:00.000Z'
 
-function layoutOf(outer: Shape, items: Item[] = []): Layout {
-  const layout = createLayout({ name: '시험 텐트', outer, inners: [] }, { name: '시험 배치', id: 'L1', now: NOW })
+function layoutOf(outer: Shape, items: Item[] = [], inners: Inner[] = []): Layout {
+  const layout = createLayout({ name: '시험 텐트', outer, inners }, { name: '시험 배치', id: 'L1', now: NOW })
   layout.items = items
   return layout
 }
@@ -248,6 +248,28 @@ describe('layoutBBox', () => {
     const b = layoutBBox(layoutOf({ kind: 'rect', w: 600, h: 300 }, [item('stool', { kind: 'circle', d: 40 }, -320, 0)]))
     expect(b.minX).toBeCloseTo(-340, 0)
     expect(b.maxX).toBe(300)
+  })
+
+  it('Plan 4 R12: 외곽 밖으로 나간 이너도 포함한다(회전한 이너는 돌린 모양으로)', () => {
+    const escaped: Inner = { id: 'in1', name: '이너 1', shape: { kind: 'rect', w: 200, h: 100 }, x: 0, y: -250, rotation: 0 }
+    const turned: Inner = { id: 'in2', name: '이너 2', shape: { kind: 'rect', w: 400, h: 20 }, x: 280, y: 0, rotation: 90 }
+    // escaped: y −300~−200, turned: 90° 돌리면 가로 20(270~290)·세로 400(−200~200)
+    expect(layoutBBox(layoutOf({ kind: 'rect', w: 600, h: 300 }, [], [escaped, turned]))).toEqual({
+      minX: -300,
+      minY: -300,
+      maxX: 300,
+      maxY: 200,
+    })
+  })
+
+  it('외곽 안의 이너만 있으면 외곽 bbox 그대로', () => {
+    const inside: Inner = { id: 'in1', name: '이너 1', shape: { kind: 'rect', w: 220, h: 300 }, x: -200, y: 0, rotation: 0 }
+    expect(layoutBBox(layoutOf({ kind: 'rect', w: 620, h: 320 }, [], [inside]))).toEqual({
+      minX: -310,
+      minY: -160,
+      maxX: 310,
+      maxY: 160,
+    })
   })
 })
 

@@ -114,11 +114,11 @@ export function fitView(bbox: BBox, size: Size, insets: Insets, handlePx = 14): 
   return { zoom, panX: nz(w / 2 - cx * zoom), panY: nz(band.top + band.height / 2 - cy * zoom) }
 }
 
-/** 외곽 ∪ 모든 물건(밖으로 나간 것 포함)의 월드 bbox(cm). §4.6 */
+/** 외곽 ∪ 모든 이너 ∪ 모든 물건(밖으로 나간 것 포함)의 월드 bbox(cm). §4.6, Plan 4 R12(외곽 밖으로 나간 이너도 보이게) */
 export function layoutBBox(layout: Layout): BBox {
   const b = { ...ringBBox(outerRing(layout.tent)) }
-  for (const item of layout.items) {
-    const r = ringBBox(worldRing(item))
+  for (const placed of [...layout.tent.inners, ...layout.items]) {
+    const r = ringBBox(worldRing(placed))
     if (r.minX < b.minX) b.minX = r.minX
     if (r.minY < b.minY) b.minY = r.minY
     if (r.maxX > b.maxX) b.maxX = r.maxX
