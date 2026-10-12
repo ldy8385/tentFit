@@ -102,7 +102,7 @@ export function shapesEqual(a: Shape, b: Shape, tol = 0.1): boolean {
   }
 }
 
-// ── 이너 붙이기 도우미(§4.4-1, 텐트 만들기 화면 전용) ─────────────────
+// ── 벽에 붙이기 도우미(설계 2026-10-12 §2.4) ─────────────────
 
 /** 붙일 벽. 앞 = 화면 아래(y+) 벽, 뒤 = 위(y−) 벽(§4.4-1, §4.8 사다리꼴과 같음). 저장하지 않는 생성 도우미입니다(D23). */
 export type AttachSide = 'front' | 'back' | 'left' | 'right'
@@ -126,12 +126,6 @@ export function attachSidesFor(outer: ShapeTemplate | undefined): AttachSide[] {
 function clampLength(v: number): number {
   const [min, max] = LIMITS.length
   return round1(Math.min(max, Math.max(min, Number.isFinite(v) ? v : min)))
-}
-
-/** 좌표를 LIMITS.coord로 자르고 0.1cm로 반올림합니다(−0 없음). */
-function clampCoordinate(v: number): number {
-  const [min, max] = LIMITS.coord
-  return round1(Math.min(max, Math.max(min, v)))
 }
 
 /** 붙일 벽 하나: 벽 가운데(cx, cy)와 안쪽 방향(dx, dy — 단위 벡터, 축 나란). */
@@ -165,33 +159,6 @@ function wallOf(outer: ShapeTemplate, side: AttachSide): Wall | null {
     return null
   }
   return null
-}
-
-/**
- * 외곽 템플릿의 그 벽 가운데에 폭(벽을 따라)·깊이(벽에서 안쪽) 사각 이너를 붙인 자리(R7).
- * 회전 0. 앞·뒤는 w = 폭·h = 깊이, 왼쪽·오른쪽은 w = 깊이·h = 폭. 벽 가운데 = 그 벽 변의 중점(사다리꼴 뒷변은 offset만큼 치우침).
- * 그 모양에 그 벽이 없으면 null. 폭·깊이는 1~5000으로 자르고 좌표는 0.1cm 반올림.
- */
-export function attachedInner(
-  outer: ShapeTemplate,
-  side: AttachSide,
-  width: number,
-  depth: number,
-): { x: number; y: number; rotation: 0; template: { kind: 'rect'; w: number; h: number }; shape: { kind: 'rect'; w: number; h: number } } | null {
-  const wall = wallOf(outer, side)
-  if (wall === null) return null
-  const along = clampLength(width)
-  const across = clampLength(depth)
-  const vertical = side === 'front' || side === 'back'
-  const w = vertical ? along : across
-  const h = vertical ? across : along
-  return {
-    x: clampCoordinate(wall.cx + (wall.dx * across) / 2),
-    y: clampCoordinate(wall.cy + (wall.dy * across) / 2),
-    rotation: 0,
-    template: { kind: 'rect', w, h },
-    shape: { kind: 'rect', w, h },
-  }
 }
 
 /** 예시 모양 종류(설계 2026-10-12 §2.1) */

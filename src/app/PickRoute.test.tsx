@@ -12,6 +12,8 @@ import type { TentCatalog } from './tentCatalog'
 // 텐트 목록 불러오기(동적 import)는 테스트마다 결과를 정합니다.
 const load = vi.hoisted(() => vi.fn<() => Promise<TentCatalog>>())
 vi.mock('./tentCatalog', () => ({ loadTentCatalog: load }))
+// 만들기 화면(Plan 4.1)이 편집기 캔버스를 쓰므로 Konva 대신 빈 상자
+vi.mock('../view/canvas/Board', () => ({ Board: () => <div data-testid="board" /> }))
 
 const CATALOG: TentCatalog = { generic: loadGenericTents(), brands: [] }
 
@@ -140,7 +142,7 @@ describe('PickRoute', () => {
     expect(window.location.hash).toBe(editHash(a.id))
   })
 
-  it('[직접 만들기]는 이 작업에서는 아무것도 만들지 않는다(Task 7이 연결)', async () => {
+  it('[직접 만들기]는 만들기 화면만 열고 배치는 만들지 않는다', async () => {
     render(<PickRoute />)
     fireEvent.click(await screen.findByTestId('make-tent-card'))
     expect(layoutCount()).toBe(0)

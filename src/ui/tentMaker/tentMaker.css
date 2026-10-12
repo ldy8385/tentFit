@@ -1,6 +1,7 @@
-/* 텐트 만들기 화면(시안 02 Desktop·Mobile, 스펙 §4.4-1). 색·간격·반경은 tokens.css 변수만 씁니다.
-   누름 영역 44px, 입력칸 글자 16px(Plan 4 Global Constraints). PC = 왼쪽 설정 400px + 오른쪽 미리보기,
-   휴대폰 = 위 미리보기(높이는 컴포넌트가 정함) + 아래 폼(스크롤). 확정 버튼은 상단 바에 있어 화면 크기 4종 모두에서 보입니다. */
+/* 텐트 만들기 화면(설계 2026-10-12 §1, Plan 4.1). 색·간격·반경은 tokens.css 변수만 씁니다.
+   누름 영역 44px, 입력칸 글자 16px(Plan 4 Global Constraints).
+   PC = 상단 바 / 사유 줄 / 도구 줄 / [캔버스 | 오른쪽 패널 360px]. 휴대폰 = 상단 바 / 사유 줄 / 도구 줄(가로 스크롤) / 캔버스 + 아래 시트,
+   그리는 중에는 시트 대신 아래 그리기 버튼 줄. 주 버튼은 상단 바에 있어 화면 크기 4종 모두에서 보입니다. */
 .tf-maker {
   position: fixed;
   inset: 0;
@@ -16,14 +17,15 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   min-height: 56px;
-  padding: 0 14px 0 6px;
+  padding: 0 10px 0 6px;
   padding-top: env(safe-area-inset-top);
   border-bottom: 1px solid var(--border);
 }
 
-.tf-maker__back {
+.tf-maker__back,
+.tf-maker__icon {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -37,22 +39,55 @@
   cursor: pointer;
 }
 
+.tf-maker__icon:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
 .tf-maker__title {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
+  flex: none;
+  margin: 0 4px 0 0;
   font-size: 16px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+/* 휴대폰은 제목을 화면에서 숨기고(대화상자 이름으로만) 단계 표시에 자리를 줍니다. */
+.tf-maker[data-layout='mobile'] .tf-maker__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tf-maker__steps {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tf-maker__steps li[aria-current='step'] {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .tf-maker__actions {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
 
 .tf-maker__cancel {
@@ -70,7 +105,8 @@
 
 .tf-maker__confirm {
   min-height: 44px;
-  padding: 0 16px;
+  margin-left: 4px;
+  padding: 0 14px;
   border: 0;
   border-radius: var(--r-sm);
   background: var(--accent);
@@ -89,24 +125,23 @@
 }
 
 .tf-maker__back:focus-visible,
+.tf-maker__icon:focus-visible,
 .tf-maker__cancel:focus-visible,
 .tf-maker__confirm:focus-visible,
-.tf-maker__kind:focus-visible,
-.tf-maker__trash:focus-visible,
-.tf-maker__add-inner:focus-visible {
+.tf-maker__tool:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* 확정 비활성 사유. 비어 있으면 자리를 차지하지 않습니다(role=status는 남겨 바뀔 때 읽힘). */
+/* 주 버튼이 꺼진 사유. 비어 있으면 자리를 차지하지 않습니다(role=status는 남겨 바뀔 때 읽힘). */
 .tf-maker__reason {
   flex: none;
   margin: 0;
   padding: 6px 16px;
   font-size: 13px;
   line-height: 18px;
-  color: var(--danger);
-  background: var(--danger-soft);
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
   text-align: right;
 }
 
@@ -114,205 +149,88 @@
   padding: 0;
 }
 
+/* 도구 줄: 예시 4종 · 자유 그리기. 휴대폰은 가로 스크롤 */
+.tf-maker__tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.tf-maker__tools-label {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.tf-maker__tools-sep {
+  flex: none;
+  width: 1px;
+  height: 24px;
+  margin: 0 2px;
+  background: var(--border);
+}
+
+.tf-maker__tool {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tf-maker__tool:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
 .tf-maker__body {
   flex: 1 1 auto;
   display: flex;
-  flex-direction: column;
   min-height: 0;
 }
 
-.tf-maker__preview {
-  flex: none;
-  min-height: 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--canvas-bg);
-  transition: height 120ms ease-out;
-}
-
-.tf-maker__form {
+.tf-maker__canvas {
+  position: relative;
   flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--canvas-bg);
+}
+
+.tf-maker__panel {
+  flex: none;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
-  min-height: 0;
-  padding: 14px 16px calc(24px + env(safe-area-inset-bottom));
+  gap: 12px;
+  width: 360px;
+  padding: 16px;
+  border-left: 1px solid var(--border);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
-.tf-maker[data-layout='desktop'] .tf-maker__body {
-  display: grid;
-  grid-template-columns: 400px minmax(0, 1fr);
-  grid-template-areas: 'form preview';
+.tf-maker__name {
+  margin-bottom: 4px;
 }
 
-.tf-maker[data-layout='desktop'] .tf-maker__form {
-  grid-area: form;
-  padding: 20px;
-  border-right: 1px solid var(--border);
-}
-
-.tf-maker[data-layout='desktop'] .tf-maker__preview {
-  grid-area: preview;
-  height: auto;
-  border-bottom: 0;
-}
-
-.tf-maker__group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-.tf-maker__label {
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--text-secondary);
-}
-
-.tf-maker__kinds {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.tf-maker__kind {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
-  min-height: 62px;
-  padding: 4px 2px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.tf-maker__kind[aria-pressed='true'] {
-  border: 1.5px solid var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.tf-maker__grid2 {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-}
-
-.tf-maker__hint {
-  margin: -4px 0 0;
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--text-secondary);
-}
-
-.tf-maker__area {
-  display: flex;
-  align-items: center;
-  min-height: 36px;
-  margin: 0;
-  padding: 0 11px;
-  border-radius: var(--r-sm);
-  background: var(--bg-app);
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.tf-maker__inners-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.tf-maker__count {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.tf-maker__inner {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  padding: 12px;
-  border: 1px solid var(--info);
-  border-radius: var(--r-sm);
-  background: var(--bg-app);
-}
-
-.tf-maker__inner[data-escaped='true'] {
-  border-color: var(--danger);
-}
-
-.tf-maker__inner-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* 이너 색 견본은 채운 색 점(빈 사각형은 체크박스로 오인, 검토 L192) */
-.tf-maker__dot {
+/* 휴대폰 그리는 중 아래 그리기 버튼 줄(편집기 툴바와 같은 모양) */
+.tf-maker__drawtools {
   flex: none;
-  width: 12px;
-  height: 12px;
-  border-radius: var(--r-full);
-  background: var(--inner-stroke);
 }
-
-.tf-maker__inner-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 14px;
-}
-
-.tf-maker__trash {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  margin: -10px -10px -10px 0;
-  border: 0;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.tf-maker__warn {
-  margin: 0;
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--danger);
-}
-
-.tf-maker__add-inner {
-  min-height: 44px;
-  border: 1px solid var(--info);
-  border-radius: var(--r-sm);
-  background: var(--bg-surface);
-  color: var(--info);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-/* 토스트 자리: 화면(키보드 위) 아래 가운데. 폼 흐름 끝에 붙어 스크롤 밖으로 사라지지 않게(최종 리뷰) */
-.tf-maker__toast {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  z-index: 2;
-}
-

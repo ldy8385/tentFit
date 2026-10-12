@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import fc from 'fast-check'
-import { worldRing } from './geom'
-import type { Inner, Pt, Shape, ShapeTemplate } from './model'
+import type { Pt, Shape, ShapeTemplate } from './model'
 import {
   ATTACH_SIDE_LABELS,
   attachBBoxToWall,
-  attachedInner,
   attachSidesFor,
   defaultInnerTemplate,
   defaultOuterTemplate,
@@ -16,9 +13,7 @@ import {
   ngonSideFromDiameter,
   shapeFromTemplate,
   shapesEqual,
-  type AttachSide,
 } from './templates'
-import { buildZones } from './zones'
 
 /** 부호 없는 신발끈 넓이(cm²) */
 function polyArea(points: Pt[]): number {
@@ -181,7 +176,7 @@ describe('shapesEqual', () => {
   })
 })
 
-describe('붙일 위치(§4.4-1, R7)', () => {
+describe('붙일 위치 선택지(설계 §2.4)', () => {
   it('라벨과 선택지 순서: 사각형 = 뒤·앞·왼쪽·오른쪽, 사다리꼴 = 뒤·앞, 그 밖 = []', () => {
     expect(ATTACH_SIDE_LABELS).toEqual({ front: '앞', back: '뒤', left: '왼쪽', right: '오른쪽' })
     expect(attachSidesFor({ kind: 'rect', w: 620, h: 320 })).toEqual(['back', 'front', 'left', 'right'])
@@ -191,135 +186,6 @@ describe('붙일 위치(§4.4-1, R7)', () => {
     expect(attachSidesFor(undefined)).toEqual([])
   })
 
-  it('사각형 620×320에 폭 300·깊이 220: 뒤 → y −50, 앞 → y +50(회전 0, w = 폭·h = 깊이)', () => {
-    const outer: ShapeTemplate = { kind: 'rect', w: 620, h: 320 }
-    expect(attachedInner(outer, 'back', 300, 220)).toEqual({
-      x: 0,
-      y: -50,
-      rotation: 0,
-      template: { kind: 'rect', w: 300, h: 220 },
-      shape: { kind: 'rect', w: 300, h: 220 },
-    })
-    expect(attachedInner(outer, 'front', 300, 220)).toMatchObject({ x: 0, y: 50, shape: { kind: 'rect', w: 300, h: 220 } })
-  })
-
-  it('사각형 왼쪽·오른쪽 벽은 회전 0이고 w = 깊이·h = 폭', () => {
-    const outer: ShapeTemplate = { kind: 'rect', w: 620, h: 320 }
-    expect(attachedInner(outer, 'left', 300, 220)).toEqual({
-      x: -200,
-      y: 0,
-      rotation: 0,
-      template: { kind: 'rect', w: 220, h: 300 },
-      shape: { kind: 'rect', w: 220, h: 300 },
-    })
-    expect(attachedInner(outer, 'right', 300, 220)).toMatchObject({ x: 200, y: 0, rotation: 0, shape: { kind: 'rect', w: 220, h: 300 } })
-  })
-
-  it('정사각형 체크면 세로 = 가로로 보고 붙인다', () => {
-    expect(attachedInner({ kind: 'rect', w: 400, h: 100, square: true }, 'front', 200, 100)).toMatchObject({ x: 0, y: 150 })
-  })
-
-  it('사다리꼴 front 300·back 200·depth 250·offset 30: 뒤는 뒷변 중점(x 30), 앞은 앞변 중점(x 0)', () => {
-    const trap: ShapeTemplate = { kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 30 }
-    expect(attachedInner(trap, 'back', 160, 100)).toEqual({
-      x: 30,
-      y: -75,
-      rotation: 0,
-      template: { kind: 'rect', w: 160, h: 100 },
-      shape: { kind: 'rect', w: 160, h: 100 },
-    })
-    expect(attachedInner(trap, 'front', 160, 100)).toMatchObject({ x: 0, y: 75, shape: { kind: 'rect', w: 160, h: 100 } })
-  })
-
-  it('사다리꼴 offset 100은 바운딩 박스 중심이 옮겨지므로 벽 중점도 따라간다', () => {
-    const trap: ShapeTemplate = { kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 100 }
-    // 꼭짓점: 뒷변 (−25,−125)~(175,−125), 앞변 (−175,125)~(125,125)
-    expect(attachedInner(trap, 'back', 100, 50)).toMatchObject({ x: 75, y: -100 })
-    expect(attachedInner(trap, 'front', 100, 50)).toMatchObject({ x: -25, y: 100 })
-  })
-
-  it('그 모양에 그 벽이 없으면 null: 사다리꼴 왼쪽·오른쪽, 원·정N각형 전부', () => {
-    const trap: ShapeTemplate = { kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 0 }
-    expect(attachedInner(trap, 'left', 100, 100)).toBeNull()
-    expect(attachedInner(trap, 'right', 100, 100)).toBeNull()
-    const sides: AttachSide[] = ['front', 'back', 'left', 'right']
-    for (const side of sides) {
-      expect(attachedInner({ kind: 'circle', d: 400 }, side, 100, 100)).toBeNull()
-      expect(attachedInner({ kind: 'ngon', n: 6, sizeBy: 'diameter', size: 400 }, side, 100, 100)).toBeNull()
-    }
-  })
-
-  it('폭·깊이는 1~5000으로 자르고 0.1cm로 반올림한다(−0 없음)', () => {
-    const outer: ShapeTemplate = { kind: 'rect', w: 620, h: 320 }
-    expect(attachedInner(outer, 'back', 0, 9999)).toMatchObject({ shape: { kind: 'rect', w: 1, h: 5000 } })
-    const r = attachedInner(outer, 'back', 300.04, 220.06)
-    expect(r).toMatchObject({ shape: { kind: 'rect', w: 300, h: 220.1 }, y: -49.9 })
-    expect(Object.is(r?.x, -0)).toBe(false)
-  })
-
-  it('성질: 사각형 외곽의 벽에 붙인 이너는 그 벽 위에 한 변을 두고, 벽 안에 들어가면 이탈이 없다', () => {
-    const tenth = (min: number, max: number) => fc.integer({ min: min * 10, max: max * 10 }).map((v) => v / 10)
-    const arb = fc
-      .record({ W: tenth(100, 1500), H: tenth(100, 1500), side: fc.constantFrom<AttachSide>('front', 'back', 'left', 'right') })
-      .chain(({ W, H, side }) => {
-        const along = side === 'front' || side === 'back' ? W : H
-        const across = side === 'front' || side === 'back' ? H : W
-        return fc.record({
-          W: fc.constant(W),
-          H: fc.constant(H),
-          side: fc.constant(side),
-          width: tenth(1, along),
-          depth: tenth(1, across),
-        })
-      })
-    fc.assert(
-      fc.property(arb, ({ W, H, side, width, depth }) => {
-        const placed = attachedInner({ kind: 'rect', w: W, h: H }, side, width, depth)
-        if (placed === null) return false
-        const ring = worldRing(placed)
-        const xs = ring.map((p) => p[0])
-        const ys = ring.map((p) => p[1])
-        const wall = { back: Math.min(...ys) + H / 2, front: Math.max(...ys) - H / 2, left: Math.min(...xs) + W / 2, right: Math.max(...xs) - W / 2 }[side]
-        expect(Math.abs(wall)).toBeLessThanOrEqual(0.1)
-        const inner: Inner = { id: 'i', name: '이너 1', ...placed }
-        expect(buildZones({ name: 't', outer: { kind: 'rect', w: W, h: H }, inners: [inner] }).innerEscapes).toEqual([])
-        return true
-      }),
-      { numRuns: 60 },
-    )
-  })
-
-  it('성질: 사다리꼴 앞·뒤 벽에 붙인 이너는 그 벽(수평) 위에 한 변을 두고 벽 중점에 가운데가 온다', () => {
-    const tenth = (min: number, max: number) => fc.integer({ min: min * 10, max: max * 10 }).map((v) => v / 10)
-    const arb = fc.record({
-      front: tenth(50, 1500),
-      back: tenth(50, 1500),
-      depth: tenth(50, 1500),
-      offset: tenth(-300, 300),
-      side: fc.constantFrom<AttachSide>('front', 'back'),
-      width: tenth(1, 400),
-      depth2: tenth(1, 400),
-    })
-    fc.assert(
-      fc.property(arb, ({ front, back, depth, offset, side, width, depth2 }) => {
-        const tpl: ShapeTemplate = { kind: 'trapezoid', front, back, depth, offset }
-        const shape = shapeFromTemplate(tpl)
-        if (shape.kind !== 'polygon') return false
-        const [bl, br, fr, fl] = shape.points as [Pt, Pt, Pt, Pt]
-        const placed = attachedInner(tpl, side, width, depth2)
-        if (placed === null) return false
-        const ring = worldRing(placed)
-        const ys = ring.map((p) => p[1])
-        const wallY = side === 'back' ? bl[1] : fl[1]
-        const edgeY = side === 'back' ? Math.min(...ys) : Math.max(...ys)
-        expect(Math.abs(edgeY - wallY)).toBeLessThanOrEqual(0.1)
-        const midX = side === 'back' ? (bl[0] + br[0]) / 2 : (fl[0] + fr[0]) / 2
-        expect(Math.abs(placed.x - midX)).toBeLessThanOrEqual(0.05 + 1e-9)
-        return true
-      }),
-      { numRuns: 60 },
-    )
-  })
 })
 
 describe('newInnerSide(§4.4-4 새 이너 한 변)', () => {

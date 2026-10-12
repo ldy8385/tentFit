@@ -1,45 +1,37 @@
-// 텐트 만들기 화면(스펙 §4.4-1·§4.8, D22–D24). 고르기 화면(#/pick) 위, 또는 텐트 바꾸기(편집기) 위에 띄우는 전체 화면 오버레이입니다.
-// - 상태는 폼 상태(makerState, 문서 아님)이고 실행 취소 기록 밖입니다(§8). 확정 때 makerTent(state) 한 번만 밖으로 나갑니다.
-// - history(Review Focus 4): 열 때 항목 하나를 쌓고(해시 그대로), 그 항목이 빠지면(popstate) 닫힙니다.
-//   [취소]·‹ = history.back() → popstate → onCancel. 확정 = 텐트를 기억해 두고 history.back() → popstate → onConfirm.
-//   그래서 확정·취소 뒤 history에 오버레이 항목이 남지 않고(뒤로 가기가 한 번 헛돌지 않음), 확정 뒤의 편집기 push가 고르기 화면 위에 쌓입니다.
-// - 입력: blur·Enter 때 검사(Minor #17), Enter = 다음 칸·마지막 칸 blur(formEnterKeyDown), 한글 조합 Enter는 이동 없음.
-// - 휴대폰 키보드(§4.2): 입력 포커스 동안 미리보기 약 140px, 포커스 칸 scrollIntoView({ block: 'nearest' }).
+// 텐트 만들기 화면(설계 2026-10-12 §1·§4, Plan 4.1). 고르기 화면(#/pick) 위, 또는 텐트 바꾸기(편집기) 위에 띄우는 전체 화면 오버레이입니다.
+// - 편집기와 같은 캔버스(Board)·텐트 패널(TentEditor)을 임시 스토어(mode 'tent', 보관소에 쓰지 않음) 위에서 씁니다.
+//   외곽이 아직 없을 때는 자리표시 외곽 + ui.outerPending(판단 Q1). 첫 외곽은 doc.load(기록 빈 시작, 판단 Q2).
+// - 두 단계: ① 외곽(이너 잠금 'inners') → [다음] → ② 이너(외곽 잠금 'outer'). 단계 ②의 ‹ 「외곽으로」는 단계 ①로(이너 유지),
+//   단계 ①의 ‹ 「뒤로」와 [취소]·브라우저 뒤로 가기는 취소입니다(판단 Q4).
+// - 확정 = 임시 문서 텐트 + 이름 칸 값(앞뒤 공백 정리, 비면 「내 텐트」). 임시 기록은 확정·취소하면 버립니다(D22).
+// - history: 열 때 항목 하나(해시 그대로), 그 항목이 빠지면(popstate) 닫힘. [취소]·‹ = history.back() → onCancel,
+//   확정 = 텐트를 기억해 두고 history.back() → onConfirm. 그래서 확정·취소 뒤 오버레이 항목이 남지 않습니다.
+// - 포커스는 오버레이 안에 가둡니다(Plan 4 최종 리뷰). 단축키는 자기 스토어로 따로 걸고 자기 루트는 모달로 치지 않습니다(판단 Q17).
+// - 그리는 중에는 주 버튼·실행 취소를 끄고 사유 「그리기를 마치거나 취소하세요」(판단 Q5). 휴대폰 시트는 숨깁니다(판단 Q13).
 // - "내 텐트에도 저장" 체크는 Plan 7(R1) — 만들지 않습니다.
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type JSX } from 'react'
-import { ringBBox } from '../../core/geom'
-import { LIMITS, newId, round1, type Pt, type Tent } from '../../core/model'
-import { ATTACH_SIDE_LABELS, attachSidesFor, ngonDiameterFromSide, ngonSideFromDiameter, type AttachSide } from '../../core/templates'
-import {
-  addMakerInner,
-  checkMaker,
-  deleteFreePoint,
-  floorAreaText,
-  initialMakerState,
-  insertFreePoint,
-  makerTent,
-  outerTemplateOf,
-  removeMakerInner,
-  setFreePoint,
-  setKind,
-  setTemplateField,
-  updateMakerInner,
-  type MakerKind,
-  type MakerState,
-} from '../../app/tentMaker/makerState'
-import { withSubject } from '../area/warningRows'
-import { SegmentedControl } from '../common/SegmentedControl'
-import { ToastView } from '../common/Toast'
+import { useEffect, useId, useRef, useState, type CSSProperties, type JSX } from 'react'
+import { useShortcuts } from '../../app/shortcuts'
+import { createStores, StoresProvider, useDoc, useStores, useUi, type Stores } from '../../app/stores'
+import { MAKER_CANVAS_HOST_TEST_ID, MAKER_HOOK_KEY, installTestHook } from '../../app/testHook'
+import { tentIssues } from '../../core/ops/tent'
+import { newId, type Tent } from '../../core/model'
+import { initialTentName, makerConfirmTent, makerLayout } from '../../app/tentMaker/makerTent'
+import { toPointerKind } from '../../store/ui'
+import { Board } from '../../view/canvas/Board'
 import { useFocusTrap } from '../common/useFocusTrap'
-import { FormNumberInput, FormTextInput, formEnterKeyDown, syncEnterKeyHints } from '../fields/formInput'
 import { NAME_MAX_LENGTH } from '../fields/limits'
-import { useVisualViewport } from '../fields/useVisualViewport'
-import { BackIcon, TrashIcon } from '../shell/icons'
+import { TextField } from '../fields/TextField'
+import { ScaleBarView, ToastHost, ZoomControls } from '../shell/CanvasOverlay'
+import { BackIcon, RedoIcon, UndoIcon } from '../shell/icons'
+import { useRevealOnSheet, useSheetInsets } from '../shell/sheetHooks'
 import { useIsDesktop } from '../shell/useIsDesktop'
-import { VertexTable } from '../tent/VertexTable'
-import { overlayBoxFor, previewHeightFor } from './makerLayout'
-import { TentPreview } from './TentPreview'
+import { BottomSheet } from '../sheets/BottomSheet'
+import { DrawTools } from '../tent/DrawTools'
+import { TentEditor } from '../tent/TentEditor'
+import { targetName } from '../tent/tentEditorModel'
+import { ShapeTools } from './ShapeTools'
 import '../panels/panels.css'
+import '../shell/shell.css'
 import './tentMaker.css'
 
 export type TentMakerMode = 'start' | 'swap'
@@ -50,47 +42,30 @@ export const CONFIRM_LABELS: Readonly<Record<TentMakerMode, { full: string; shor
   swap: { full: '이 텐트로 바꾸기', short: '바꾸기' },
 }
 
-/** 이너 추가 실패 토스트(§4.4-1·§4.4-4) */
-export const NO_SPACE_TEXT = '빈 공간이 부족해요'
-
-const KIND_OPTIONS: readonly { kind: MakerKind; label: string }[] = [
-  { kind: 'rect', label: '사각형' },
-  { kind: 'trapezoid', label: '사다리꼴' },
-  { kind: 'ngon', label: '정N각형' },
-  { kind: 'circle', label: '원' },
-  { kind: 'free', label: '자유' },
-]
-
-const SIZE_BY_OPTIONS = [
-  { value: 'diameter', label: '지름' },
-  { value: 'side', label: '한 변' },
-] as const
-
-const [LEN_MIN, LEN_MAX] = LIMITS.length
-const [OFF_MIN, OFF_MAX] = LIMITS.offset
-const [N_MIN, N_MAX] = LIMITS.ngonN
-
-function clampLength(v: number): number {
-  return Math.min(LEN_MAX, Math.max(LEN_MIN, round1(v)))
+/** 단계 ① [다음]이 꺼진 사유(외곽 없음) */
+export const NEED_OUTER_REASON = '예시 모양을 고르거나 그려서 외곽을 만드세요'
+/** 그리는 중 주 버튼이 꺼진 사유(판단 Q5) */
+export const DRAWING_REASON = '그리기를 마치거나 취소하세요'
+/** 대상이 없을 때 패널·시트 안내(설계 §1.1) */
+export const STEP_GUIDES: Readonly<Record<1 | 2, string>> = {
+  1: '예시 모양을 고르거나 자유롭게 그려 외곽을 만드세요',
+  2: '예시 모양을 고르거나 자유롭게 그려 이너를 더하세요(없어도 돼요)',
 }
+const STEP_TITLES: Readonly<Record<1 | 2, string>> = { 1: '외곽', 2: '이너' }
+const SHEET_TITLES: Readonly<Record<1 | 2, string>> = { 1: '외곽 만들기', 2: '이너 추가' }
 
 /** history 항목에 단 표시. 이 오버레이가 쌓은 항목인지 알아보는 데 씁니다. */
 function markOf(state: unknown): unknown {
   return typeof state === 'object' && state !== null ? (state as { tentMaker?: unknown }).tentMaker : undefined
 }
 
-/** 모양 카드 아이콘(20px, currentColor) */
-function KindIcon(p: { kind: MakerKind }): JSX.Element {
-  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinejoin: 'round' as const }
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      {p.kind === 'rect' && <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" {...common} />}
-      {p.kind === 'trapezoid' && <path d="M6 4.5h8l3.5 11h-15z" {...common} />}
-      {p.kind === 'ngon' && <path d="M10 2.5 16.5 6.2v7.6L10 17.5l-6.5-3.7V6.2z" {...common} />}
-      {p.kind === 'circle' && <circle cx="10" cy="10" r="7.5" {...common} />}
-      {p.kind === 'free' && <path d="M4 5.5 12.5 3l4.5 6-3 7.5-9.5-1.5z" {...common} />}
-    </svg>
-  )
+/** 만들기 화면 임시 스토어: 텐트 모드, 외곽 없음, 단계 ① 잠금(이너) */
+function createMakerStores(name: string): Stores {
+  const stores = createStores(makerLayout(name), { mode: 'tent' })
+  const ui = stores.ui.getState()
+  ui.setOuterPending(true)
+  ui.setTentLock('inners')
+  return stores
 }
 
 export function TentMaker(p: {
@@ -99,31 +74,9 @@ export function TentMaker(p: {
   onConfirm(tent: Tent): void
   onCancel(): void
 }): JSX.Element {
-  const isDesktop = useIsDesktop()
-  const vv = useVisualViewport()
-  const titleId = useId()
-  const reasonId = useId()
-  const [state, setState] = useState<MakerState>(() => initialMakerState({ myTentNames: p.myTentNames }))
-  const tent = useMemo(() => makerTent(state), [state])
-  const check = useMemo(() => checkMaker(state), [state])
-  const template = outerTemplateOf(state)
-  const sides = attachSidesFor(template ?? undefined)
-  const escaped = new Set(check.escapedInnerIds)
-  const labels = CONFIRM_LABELS[p.mode]
-  const reason = check.canConfirm ? '' : (check.problems[0] ?? '')
-
-  // ── 토스트 ────────────────────────────────────────────────
-  const [toast, setToast] = useState<{ id: number; text: string } | null>(null)
-  const toastSeq = useRef(0)
-  const showToast = (text: string) => {
-    toastSeq.current += 1
-    setToast({ id: toastSeq.current, text })
-  }
-  const dismissToast = useCallback((id: number) => setToast((t) => (t !== null && t.id === id ? null : t)), [])
-
-  // ── 포커스: 오버레이 안에 가둠(뒤 화면을 키보드로 누르지 못하게 — 누르면 history 항목이 남음, 최종 리뷰) ──
-  const rootRef = useRef<HTMLDivElement>(null)
-  const trapTab = useFocusTrap(rootRef)
+  const [initialName] = useState(() => initialTentName(p.myTentNames))
+  const [stores] = useState(() => createMakerStores(initialName))
+  const [name, setName] = useState(initialName)
 
   // ── history: 열 때 항목 하나, popstate로 닫힘 ─────────────────
   const [token] = useState(() => newId())
@@ -156,82 +109,91 @@ export function TentMaker(p: {
     pendingTent.current = confirmed
     window.history.back()
   }
-  const cancel = () => leave(null)
-  const confirm = () => {
-    if (!check.canConfirm) return
-    leave(tent)
-  }
 
-  // ── 휴대폰 키보드: 입력 포커스 중 미리보기 축소 + 포커스 칸 보이게 ─────
-  const formRef = useRef<HTMLDivElement>(null)
-  const focusedInput = useRef<HTMLInputElement | null>(null)
-  const [inputFocused, setInputFocused] = useState(false)
-  const [focusSeq, setFocusSeq] = useState(0)
-  const isTextInput = (el: EventTarget | null): el is HTMLInputElement => el instanceof HTMLInputElement && el.type === 'text'
-  const onFormFocus = (e: FocusEvent<HTMLDivElement>) => {
-    if (!isTextInput(e.target)) return
-    focusedInput.current = e.target
-    setInputFocused(true)
-    setFocusSeq((n) => n + 1)
-  }
-  const onFormBlur = (e: FocusEvent<HTMLDivElement>) => {
-    const next = e.relatedTarget
-    if (isTextInput(next) && e.currentTarget.contains(next)) return
-    focusedInput.current = null
-    setInputFocused(false)
-  }
-  useLayoutEffect(() => {
-    if (isDesktop || !inputFocused) return
-    focusedInput.current?.scrollIntoView({ block: 'nearest' })
-  }, [isDesktop, inputFocused, focusSeq, vv.height, vv.keyboardInset])
-
-  // 칸 구성이 모양·이너 수에 따라 바뀌므로 그릴 때마다 Enter 표시(next/done)를 맞춥니다.
-  useLayoutEffect(() => {
-    if (formRef.current !== null) syncEnterKeyHints(formRef.current)
-  })
-
-  // ── 자유 모양 좌표 표: 기준점 = 지금 꼭짓점 바운딩 박스 왼쪽 위, 표 안에 포커스가 있는 동안 고정(D32) ─────
-  const [freeSelected, setFreeSelected] = useState<number | null>(null)
-  const [frozenOrigin, setFrozenOrigin] = useState<Pt | null>(null)
-  const liveOrigin: Pt = state.free.length > 0 ? [ringBBox(state.free).minX, ringBBox(state.free).minY] : [0, 0]
-  const origin = frozenOrigin ?? liveOrigin
-  const tablePoints = state.free.map((pt): Pt => [round1(pt[0] - origin[0]), round1(pt[1] - origin[1])])
-
-  // ── 동작 ────────────────────────────────────────────────
-  const update = (f: (s: MakerState) => MakerState) => setState((s) => f(s))
-  const chooseKind = (kind: MakerKind) => {
-    setFreeSelected(null)
-    update((s) => setKind(s, kind))
-  }
-  const addInner = () => {
-    const r = addMakerInner(state)
-    if (r.ok) setState(r.state)
-    else showToast(NO_SPACE_TEXT)
-  }
-  const chooseSizeBy = (next: 'diameter' | 'side') => {
-    update((s) => {
-      if (s.ngon.sizeBy === next) return s
-      const size = next === 'side' ? ngonSideFromDiameter(s.ngon.n, s.ngon.size) : ngonDiameterFromSide(s.ngon.n, s.ngon.size)
-      return setTemplateField(s, { sizeBy: next, size: clampLength(size) })
-    })
-  }
-
-  const confirmButton = (
-    <button
-      type="button"
-      className="tf-maker__confirm"
-      aria-label={labels.full}
-      aria-describedby={reason === '' ? undefined : reasonId}
-      disabled={!check.canConfirm}
-      onClick={confirm}
-    >
-      <span aria-hidden="true">✓ {isDesktop ? labels.full : labels.short}</span>
-    </button>
+  return (
+    <StoresProvider stores={stores}>
+      <MakerScreen mode={p.mode} name={name} onName={setName} onCancel={() => leave(null)} onConfirm={(tent) => leave(tent)} />
+    </StoresProvider>
   )
+}
 
-  const overlayBox = isDesktop ? null : overlayBoxFor(vv)
-  const viewportHeight = vv.height > 0 ? vv.height : typeof window === 'undefined' ? 0 : window.innerHeight
-  const previewHeight = previewHeightFor(viewportHeight, inputFocused)
+function MakerScreen(p: {
+  mode: TentMakerMode
+  name: string
+  onName(name: string): void
+  onCancel(): void
+  onConfirm(tent: Tent): void
+}): JSX.Element {
+  const stores = useStores()
+  const isDesktop = useIsDesktop()
+  const titleId = useId()
+  const reasonId = useId()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const trapTab = useFocusTrap(rootRef)
+  useShortcuts({ modalRoot: rootRef })
+
+  const [step, setStep] = useState<1 | 2>(1)
+  const tent = useDoc((s) => s.layout.tent)
+  const canUndo = useDoc((s) => s.canUndo)
+  const canRedo = useDoc((s) => s.canRedo)
+  const outerPending = useUi((s) => s.outerPending)
+  const drawing = useUi((s) => s.drawing !== null)
+
+  // 시트·버튼(DOM)을 눌러도 마지막 포인터 종류를 기억합니다(편집기와 같은 규칙, 자기 스토어).
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => stores.ui.getState().setPointer(toPointerKind(e.pointerType))
+    window.addEventListener('pointerdown', onDown, true)
+    return () => window.removeEventListener('pointerdown', onDown, true)
+  }, [stores])
+
+  // 화면 테스트 훅: 편집기 훅(__tentfit)을 덮지 않게 자기 이름·자기 캔버스로(판단 Q16)
+  useEffect(() => {
+    if (import.meta.env.MODE !== 'test') return
+    return installTestHook(stores, { key: MAKER_HOOK_KEY, hostTestId: MAKER_CANVAS_HOST_TEST_ID })
+  }, [stores])
+
+  // 휴대폰은 늘 보이는 시트(텐트 시트 규칙으로 대상이 시트 위에 보이게), PC는 시트 없음
+  useEffect(() => {
+    stores.ui.getState().patch({ mobileSheet: isDesktop ? 'none' : 'tent' })
+  }, [isDesktop, stores])
+
+  const issues = tentIssues(tent)
+  const outerIssue = issues.find((i) => i.path === 'tent.outer')
+  const reason = drawing
+    ? DRAWING_REASON
+    : step === 1
+      ? outerPending
+        ? NEED_OUTER_REASON
+        : (outerIssue?.message ?? '')
+      : (issues[0]?.message ?? '')
+  const ready = reason === ''
+
+  const primaryFull = step === 1 ? '다음' : CONFIRM_LABELS[p.mode].full
+  const primaryText = step === 1 ? '다음' : isDesktop ? CONFIRM_LABELS[p.mode].full : `✓ ${CONFIRM_LABELS[p.mode].short}`
+  const onPrimary = () => {
+    if (!ready) return
+    if (step === 1) {
+      stores.ui.getState().setTentLock('outer')
+      setStep(2)
+      return
+    }
+    p.onConfirm(makerConfirmTent(stores.doc.getState().layout, p.name))
+  }
+  const onBack = () => {
+    if (step === 1) {
+      p.onCancel()
+      return
+    }
+    stores.ui.getState().setTentLock('inners')
+    setStep(1)
+  }
+
+  const nameField =
+    step === 1 ? (
+      <div className="tf-maker__name">
+        <TextField label="텐트 이름" value={p.name} targetId="maker-tent-name" maxLength={NAME_MAX_LENGTH} onCommit={(_id, v) => p.onName(v)} />
+      </div>
+    ) : null
 
   return (
     <div
@@ -243,284 +205,129 @@ export function TentMaker(p: {
       aria-labelledby={titleId}
       data-testid="tent-maker"
       data-layout={isDesktop ? 'desktop' : 'mobile'}
-      style={overlayBox === null ? undefined : { top: overlayBox.top, bottom: 'auto', height: overlayBox.height }}
+      data-step={step}
     >
       <header className="tf-maker__bar">
-        <button type="button" className="tf-maker__back" aria-label="뒤로" onClick={cancel}>
+        <button type="button" className="tf-maker__back" aria-label={step === 1 ? '뒤로' : '외곽으로'} onClick={onBack}>
           <BackIcon />
         </button>
         <h1 id={titleId} className="tf-maker__title">
           텐트 만들기
         </h1>
+        <ol className="tf-maker__steps" aria-label="단계">
+          <li aria-current={step === 1 ? 'step' : undefined}>① 외곽</li>
+          <li aria-current={step === 2 ? 'step' : undefined}>② 이너</li>
+        </ol>
         <div className="tf-maker__actions">
+          <button
+            type="button"
+            className="tf-maker__icon"
+            aria-label="실행 취소"
+            disabled={!canUndo || drawing}
+            onClick={() => stores.doc.getState().undo()}
+          >
+            <UndoIcon />
+          </button>
+          <button
+            type="button"
+            className="tf-maker__icon"
+            aria-label="다시 실행"
+            disabled={!canRedo || drawing}
+            onClick={() => stores.doc.getState().redo()}
+          >
+            <RedoIcon />
+          </button>
           {isDesktop && (
-            <button type="button" className="tf-maker__cancel" onClick={cancel}>
+            <button type="button" className="tf-maker__cancel" onClick={p.onCancel}>
               취소
             </button>
           )}
-          {confirmButton}
+          <button
+            type="button"
+            className="tf-maker__confirm"
+            aria-label={primaryFull}
+            aria-describedby={ready ? undefined : reasonId}
+            disabled={!ready}
+            onClick={onPrimary}
+          >
+            <span aria-hidden="true">{primaryText}</span>
+          </button>
         </div>
       </header>
       <p id={reasonId} className="tf-maker__reason" role="status" data-testid="tent-maker-reason" data-empty={reason === ''}>
         {reason}
       </p>
 
+      <ShapeTools step={step} />
+
       <div className="tf-maker__body">
-        <section
-          className="tf-maker__preview"
-          aria-label="미리보기"
-          data-testid="tent-maker-preview"
-          style={isDesktop ? undefined : { height: previewHeight }}
-        >
-          <TentPreview tent={tent} template={template} selectedVertex={state.kind === 'free' ? freeSelected : null} />
-        </section>
+        <MakerCanvas desktop={isDesktop} step={step} nameField={nameField} />
+        {isDesktop && (
+          <aside className="tf-maker__panel" aria-label={STEP_TITLES[step]}>
+            {nameField}
+            <TentEditor variant="panel" context="maker" title={STEP_TITLES[step]} emptyText={STEP_GUIDES[step]} />
+          </aside>
+        )}
+      </div>
+      {!isDesktop && drawing && (
+        <nav className="shell-toolbar tf-maker__drawtools" aria-label="그리기 도구">
+          <DrawTools variant="toolbar" />
+        </nav>
+      )}
+    </div>
+  )
+}
 
-        <div
-          ref={formRef}
-          className="tf-maker__form"
-          data-testid="tent-maker-form"
-          onKeyDown={formEnterKeyDown}
-          onFocus={onFormFocus}
-          onBlur={onFormBlur}
-        >
-          <FormTextInput
-            label="텐트 이름"
-            value={state.name}
-            maxLength={NAME_MAX_LENGTH}
-            onCommit={(name) => update((s) => ({ ...s, name }))}
-          />
-
-          <div className="tf-maker__group" role="group" aria-label="모양">
-            <span className="tf-maker__label" aria-hidden="true">
-              모양
-            </span>
-            <div className="tf-maker__kinds">
-              {KIND_OPTIONS.map((o) => (
-                <button
-                  key={o.kind}
-                  type="button"
-                  className="tf-maker__kind"
-                  aria-pressed={state.kind === o.kind}
-                  onClick={() => chooseKind(o.kind)}
-                >
-                  <KindIcon kind={o.kind} />
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="tf-maker__group" role="group" aria-label="치수">
-            <span className="tf-maker__label" aria-hidden="true">
-              치수
-            </span>
-            {state.kind === 'rect' && (
-              <>
-                <div className="tf-row2">
-                  <FormNumberInput
-                    label="가로"
-                    unit="cm"
-                    value={state.rect.w}
-                    min={LEN_MIN}
-                    max={LEN_MAX}
-                    onCommit={(w) => update((s) => setTemplateField(s, s.rect.square ? { w, h: w } : { w }))}
-                  />
-                  <FormNumberInput
-                    label="세로"
-                    unit="cm"
-                    value={state.rect.square ? state.rect.w : state.rect.h}
-                    min={LEN_MIN}
-                    max={LEN_MAX}
-                    onCommit={(h) => update((s) => setTemplateField(s, s.rect.square ? { w: h, h } : { h }))}
-                  />
-                </div>
-                <label className="tf-toggle">
-                  <input
-                    type="checkbox"
-                    checked={state.rect.square}
-                    onChange={(e) => {
-                      const square = e.target.checked
-                      update((s) => setTemplateField(s, { square }))
-                    }}
-                  />
-                  <span>정사각형</span>
-                </label>
-              </>
-            )}
-            {state.kind === 'trapezoid' && (
-              <>
-                <div className="tf-maker__grid2">
-                  <FormNumberInput
-                    label="앞변"
-                    unit="cm"
-                    value={state.trapezoid.front}
-                    min={LEN_MIN}
-                    max={LEN_MAX}
-                    onCommit={(front) => update((s) => setTemplateField(s, { front }))}
-                  />
-                  <FormNumberInput
-                    label="뒷변"
-                    unit="cm"
-                    value={state.trapezoid.back}
-                    min={LEN_MIN}
-                    max={LEN_MAX}
-                    onCommit={(back) => update((s) => setTemplateField(s, { back }))}
-                  />
-                  <FormNumberInput
-                    label="깊이"
-                    unit="cm"
-                    value={state.trapezoid.depth}
-                    min={LEN_MIN}
-                    max={LEN_MAX}
-                    onCommit={(depth) => update((s) => setTemplateField(s, { depth }))}
-                  />
-                  <FormNumberInput
-                    label="치우침"
-                    unit="cm"
-                    allowNegative
-                    value={state.trapezoid.offset}
-                    min={OFF_MIN}
-                    max={OFF_MAX}
-                    onCommit={(offset) => update((s) => setTemplateField(s, { offset }))}
-                  />
-                </div>
-                <p className="tf-maker__hint">+면 뒷변이 오른쪽으로</p>
-              </>
-            )}
-            {state.kind === 'ngon' && (
-              <>
-                <FormNumberInput
-                  label="변 수"
-                  integer
-                  value={state.ngon.n}
-                  min={N_MIN}
-                  max={N_MAX}
-                  onCommit={(n) => update((s) => setTemplateField(s, { n }))}
-                />
-                <SegmentedControl
-                  label="크기 기준"
-                  options={SIZE_BY_OPTIONS}
-                  value={state.ngon.sizeBy}
-                  onChange={chooseSizeBy}
-                />
-                <FormNumberInput
-                  key={state.ngon.sizeBy}
-                  label={state.ngon.sizeBy === 'diameter' ? '지름' : '한 변'}
-                  unit="cm"
-                  value={state.ngon.size}
-                  min={LEN_MIN}
-                  max={LEN_MAX}
-                  onCommit={(size) => update((s) => setTemplateField(s, { size }))}
-                />
-              </>
-            )}
-            {state.kind === 'circle' && (
-              <FormNumberInput
-                label="지름"
-                unit="cm"
-                value={state.circle.d}
-                min={LEN_MIN}
-                max={LEN_MAX}
-                onCommit={(d) => update((s) => setTemplateField(s, { d }))}
-              />
-            )}
-            {state.kind === 'free' && (
-              <div
-                onFocus={() => {
-                  if (frozenOrigin === null) setFrozenOrigin(liveOrigin)
-                }}
-                onBlur={(e) => {
-                  if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) setFrozenOrigin(null)
-                }}
-              >
-                <VertexTable
-                  points={tablePoints}
-                  selectedIndex={freeSelected}
-                  onSelect={setFreeSelected}
-                  onChange={(index, tp) => update((s) => setFreePoint(s, index, [tp[0] + origin[0], tp[1] + origin[1]]))}
-                  onDelete={(index) => {
-                    setFreeSelected(null)
-                    update((s) => deleteFreePoint(s, index))
-                  }}
-                  onAdd={() => {
-                    const after = freeSelected ?? state.free.length - 1
-                    update((s) => insertFreePoint(s, freeSelected))
-                    setFreeSelected(after + 1)
-                  }}
-                />
-              </div>
-            )}
-            <p className="tf-maker__area tf-num">{floorAreaText(state)}</p>
-          </div>
-
-          <section className="tf-maker__group" aria-label="이너">
-            <div className="tf-maker__inners-head">
-              <span className="tf-maker__label">이너</span>
-              <span className="tf-maker__count tf-num">{state.inners.length}개</span>
-            </div>
-            {state.inners.map((inner) => (
-              <div
-                key={inner.id}
-                className="tf-maker__inner"
-                role="group"
-                aria-label={inner.name}
-                data-escaped={escaped.has(inner.id)}
-              >
-                <div className="tf-maker__inner-head">
-                  <span className="tf-maker__dot" aria-hidden="true" />
-                  <strong className="tf-maker__inner-name">{inner.name}</strong>
-                  <button
-                    type="button"
-                    className="tf-maker__trash"
-                    aria-label={`${inner.name} 삭제`}
-                    onClick={() => update((s) => removeMakerInner(s, inner.id))}
-                  >
-                    <TrashIcon size={18} />
-                  </button>
-                </div>
-                <div className="tf-row2">
-                  <FormNumberInput
-                    label="폭"
-                    ariaLabel={`${inner.name} 폭`}
-                    unit="cm"
-                    value={inner.width}
-                    min={LEN_MIN}
-                    max={LEN_MAX}
-                    onCommit={(width) => update((s) => updateMakerInner(s, inner.id, { width }))}
-                  />
-                  <FormNumberInput
-                    label="깊이"
-                    ariaLabel={`${inner.name} 깊이`}
-                    unit="cm"
-                    value={inner.depth}
-                    min={LEN_MIN}
-                    max={LEN_MAX}
-                    onCommit={(depth) => update((s) => updateMakerInner(s, inner.id, { depth }))}
-                  />
-                </div>
-                {sides.length > 0 && (
-                  <SegmentedControl<AttachSide | 'none'>
-                    label={`${inner.name} 붙일 위치`}
-                    options={sides.map((side) => ({ value: side, label: ATTACH_SIDE_LABELS[side] }))}
-                    value={inner.side ?? 'none'}
-                    onChange={(side) => {
-                      if (side !== 'none') update((s) => updateMakerInner(s, inner.id, { side }))
-                    }}
-                  />
-                )}
-                {escaped.has(inner.id) && <p className="tf-maker__warn">{`${withSubject(inner.name)} 외곽 밖으로 나감`}</p>}
-              </div>
-            ))}
-            <button type="button" className="tf-maker__add-inner" onClick={addInner}>
-              + 이너 추가
-            </button>
-          </section>
+/** 캔버스 + 위 컨트롤(축척·확대·그리기 막대·토스트) + 휴대폰 시트 */
+function MakerCanvas(p: { desktop: boolean; step: 1 | 2; nameField: JSX.Element | null }): JSX.Element {
+  const zoom = useUi((s) => s.view.zoom)
+  const insetTop = useUi((s) => s.insets.top)
+  const insetBottom = useUi((s) => s.insets.bottom)
+  const drawing = useUi((s) => s.drawing !== null)
+  const sheetHostRef = useRef<HTMLDivElement>(null)
+  useSheetInsets(sheetHostRef, p.desktop ? 'none' : drawing ? 'none' : 'tent')
+  useRevealOnSheet({ topZonePx: 0 })
+  const style = { '--overlay-top': `${insetTop}px`, '--overlay-bottom': `${insetBottom}px` } as CSSProperties
+  return (
+    <div className="tf-maker__canvas" data-sheet-bounds="">
+      <div className="canvas-host shell-canvas" data-testid={MAKER_CANVAS_HOST_TEST_ID}>
+        <Board />
+      </div>
+      <div className="shell-overlay" style={style}>
+        <ScaleBarView zoom={zoom} />
+        {p.desktop && <ZoomControls zoom={zoom} />}
+        {p.desktop && drawing && <DrawTools variant="bar" />}
+        <div className="shell-toast">
+          <ToastHost />
         </div>
       </div>
-
-      <div className="tf-maker__toast">
-        <ToastView toast={toast} onDismiss={dismissToast} />
-      </div>
+      {!p.desktop && (
+        <div className="shell-mobile__sheet" ref={sheetHostRef} data-testid="maker-sheet-host">
+          {!drawing && <MakerSheet step={p.step} nameField={p.nameField} />}
+        </div>
+      )}
     </div>
+  )
+}
+
+/** 휴대폰 늘 보이는 시트(판단 Q13): 제목 = 대상 이름(없으면 단계 제목), × = 선택 해제(대상이 있을 때만) */
+function MakerSheet(p: { step: 1 | 2; nameField: JSX.Element | null }): JSX.Element {
+  const stores = useStores()
+  const tent = useDoc((s) => s.layout.tent)
+  const target = useUi((s) => s.tentTarget)
+  const [expanded, setExpanded] = useState(false)
+  const title = (target === null ? null : targetName(tent, target)) ?? SHEET_TITLES[p.step]
+  return (
+    <BottomSheet
+      title={title}
+      closeLabel="선택 해제"
+      onClose={target === null ? undefined : () => stores.ui.getState().selectTentTarget(null)}
+      expanded={expanded}
+      onToggleExpand={() => setExpanded((v) => !v)}
+      testId="tent-maker-sheet"
+    >
+      {p.nameField}
+      <TentEditor variant="sheet" context="maker" emptyText={STEP_GUIDES[p.step]} />
+    </BottomSheet>
   )
 }

@@ -1,12 +1,15 @@
 // @vitest-environment happy-dom
 // Task 7: 고르기 화면의 [직접 만들기] → 텐트 만들기 오버레이 연결(PickRoute.test.tsx는 Task 5 몫이라 파일을 나눔).
+// Plan 4.1: 만들기 화면이 편집기 캔버스를 쓰므로 Board를 바꿔 두고, 외곽은 도구 줄 예시로 만듭니다.
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installFakeMatchMedia, type FakeMedia } from '../ui/shell/fakeMatchMedia'
 import { DESKTOP_QUERY } from '../ui/shell/useIsDesktop'
 import { clearLayoutRepo, getLayout, listLayoutSummaries } from './layoutRepo'
 import { clearPickReturn, PickRoute } from './PickRoute'
 import { parseHash } from './router'
+
+vi.mock('../view/canvas/Board', () => ({ Board: () => <div data-testid="board" /> }))
 
 let media: FakeMedia
 
@@ -33,6 +36,8 @@ async function openMaker() {
 describe('PickRoute — 직접 만들기', () => {
   it('확정하면 새 배치(sourcePresetId 없음, 빈 물건)를 만들고 편집기로 push한다. 뒤로 가면 바로 고르기 화면', async () => {
     await openMaker()
+    fireEvent.click(screen.getByRole('button', { name: '사각형' }))
+    fireEvent.click(screen.getByRole('button', { name: '다음' }))
     fireEvent.click(screen.getByRole('button', { name: '이 텐트로 시작' }))
     await waitFor(() => expect(parseHash(window.location.hash).name).toBe('edit'))
     const route = parseHash(window.location.hash)
@@ -41,7 +46,7 @@ describe('PickRoute — 직접 만들기', () => {
     expect(layout?.name).toBe('내 텐트 배치')
     expect(layout?.tent.name).toBe('내 텐트')
     expect(layout?.tent.outer).toEqual({ kind: 'rect', w: 400, h: 300 })
-    expect(layout?.tent.inners).toHaveLength(1)
+    expect(layout?.tent.inners).toHaveLength(0)
     expect(layout?.sourcePresetId).toBeUndefined()
     expect(layout?.items).toEqual([])
     expect(maker()).toBeNull()
@@ -69,7 +74,7 @@ describe('PickRoute — 직접 만들기', () => {
     expect(window.location.hash).toBe('#/pick')
   })
 
-  it('다시 열어도 처음 값(R6)으로 시작한다', async () => {
+  it('다시 열면 외곽 없음·이름 「내 텐트」로 시작한다', async () => {
     await openMaker()
     const name = screen.getByLabelText('텐트 이름') as HTMLInputElement
     act(() => name.focus())
@@ -79,5 +84,6 @@ describe('PickRoute — 직접 만들기', () => {
     await waitFor(() => expect(maker()).toBeNull())
     fireEvent.click(screen.getByRole('button', { name: /직접 만들기/ }))
     expect((screen.getByLabelText('텐트 이름') as HTMLInputElement).value).toBe('내 텐트')
+    expect((screen.getByRole('button', { name: '다음' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

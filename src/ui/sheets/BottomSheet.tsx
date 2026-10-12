@@ -34,7 +34,8 @@ export function sheetMaxHeight(vvTop: number, vvBottom: number, boundsTop: numbe
 
 export function BottomSheet(p: {
   title: string
-  onClose(): void
+  /** 없으면 ×를 그리지 않습니다(만들기 화면의 늘 보이는 시트에서 대상이 없을 때) */
+  onClose?(): void
   /** ×의 이름(기본 '닫기'). 동작이 선택 해제인 시트는 '선택 해제' */
   closeLabel?: string
   expanded?: boolean
@@ -81,9 +82,11 @@ export function BottomSheet(p: {
       )}
       <header className="tf-sheet__header">
         <h2 className="tf-sheet__title">{p.title}</h2>
-        <button type="button" className="tf-sheet__close" aria-label={p.closeLabel ?? '닫기'} onClick={p.onClose}>
-          ×
-        </button>
+        {p.onClose !== undefined && (
+          <button type="button" className="tf-sheet__close" aria-label={p.closeLabel ?? '닫기'} onClick={p.onClose}>
+            ×
+          </button>
+        )}
       </header>
       <div className="tf-sheet__body">{p.children}</div>
     </section>
