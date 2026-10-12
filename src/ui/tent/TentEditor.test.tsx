@@ -533,3 +533,26 @@ describe('TentEditor 잠금·만들기 화면(Plan 4.1 §1.1)', () => {
     expect(within(editor()).queryByRole('button', { name: '+ 이너' })).toBeNull()
   })
 })
+
+describe('최종 리뷰 수정(Plan 4.1)', () => {
+  it("시트(variant 'sheet')는 [모양 바꾸기]가 메뉴가 아니라 버튼 줄(시트 스크롤에 잘리지 않게), 지금 모양은 비활성", () => {
+    const stores = setup(TWO_INNERS, { variant: 'sheet', target: 'i2' })
+    expect(within(editor()).queryByRole('button', { name: '모양 바꾸기' })).toBeNull()
+    const group = within(editor()).getByRole('group', { name: '모양 바꾸기' })
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['사각형', '사다리꼴', '정N각형', '원'])
+    expect((within(group).getByRole('button', { name: '사각형' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(within(group).getByRole('button', { name: '원' }))
+    expect(stores.doc.getState().layout.tent.inners[1]!.shape).toEqual({ kind: 'circle', d: 100 })
+  })
+
+  it('시트에는 목록의 [+ 이너]가 없다(휴대폰은 툴바 [+이너 ▾], 설계 §3)', () => {
+    setup(TWO_INNERS, { variant: 'sheet' })
+    expect(within(editor()).queryByRole('button', { name: '+ 이너' })).toBeNull()
+  })
+
+  it('그리는 중에는 [텐트 바꾸기]가 꺼진다', () => {
+    const stores = setup(TWO_INNERS, { target: 'outer' })
+    act(() => stores.ui.getState().startDrawing('newInner'))
+    expect((within(editor()).getByRole('button', { name: '텐트 바꾸기' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})

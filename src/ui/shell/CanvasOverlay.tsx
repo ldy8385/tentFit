@@ -190,7 +190,10 @@ export function CanvasOverlay(p: { variant: Variant }) {
 
   return (
     <div className="shell-overlay" style={style} data-testid="canvas-overlay">
-      <ModeChip key={mode} text={MODE_CHIP_TEXT[mode]} collapsible={p.variant === 'mobile'} />
+      {/* PC 그리는 중에는 그리기 막대가 모드 안내를 대신합니다(좁은 캔버스에서 겹치지 않게, 최종 리뷰). */}
+      {!(p.variant === 'desktop' && drawing) && (
+        <ModeChip key={mode} text={MODE_CHIP_TEXT[mode]} collapsible={p.variant === 'mobile'} />
+      )}
       <ScaleBarView zoom={zoom} />
       {p.variant === 'desktop' && <ZoomControls zoom={zoom} />}
       {/* 그리는 중 PC 그리기 막대(휴대폰은 툴바가 같은 버튼, Plan 4.1) */}

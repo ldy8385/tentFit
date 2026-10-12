@@ -69,3 +69,16 @@ test('텐트 편집 모드도 모바일 셸(툴바 [+이너] [완료])이고, �
   expect((await worldToClient(page, inner.x, inner.y)).y).toBeLessThan((await tentSheet(page).boundingBox())!.y)
   await expect(toolbar(page).getByRole('button', { name: '완료', exact: true })).toBeInViewport({ ratio: 1 })
 })
+
+test('최종 리뷰: 낮은 텐트 시트에서도 [모양 바꾸기] 버튼 줄은 시트를 스크롤해 끝까지 보이고 누를 수 있다', async ({ page }) => {
+  await openEditorWith(page)
+  await enterTentModeByUi(page)
+  const inner = await innerNamed(page, '이너 1')
+  await tapCanvas(page, await worldToClient(page, inner.x, inner.y))
+  await expect(tentSheet(page)).toBeVisible()
+  const circle = tentSheet(page).getByRole('group', { name: '모양 바꾸기' }).getByRole('button', { name: '원', exact: true })
+  await circle.scrollIntoViewIfNeeded()
+  await expect(circle).toBeInViewport({ ratio: 1 })
+  await circle.tap()
+  await expect.poll(async () => (await innerNamed(page, '이너 1')).shape.kind).toBe('circle')
+})

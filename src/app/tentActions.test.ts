@@ -26,6 +26,7 @@ import {
   TINY_MESSAGE,
   undoDrawPoint,
   ZERO_EDGE_MESSAGE,
+  ANGLE_FLIP_MESSAGE,
   deleteInnerAction,
   deleteTargetVertex,
   enterTentMode,
@@ -761,5 +762,22 @@ describe('만들기 화면 첫 외곽(Plan 4.1 판단 Q1·Q2)', () => {
     stores = makerStores()
     defineFirstOuter(stores, { kind: 'rect', w: 300, h: 300 })
     expect(tent()).toEqual({ name: '내 텐트', outer: { kind: 'rect', w: 300, h: 300 }, inners: [] })
+  })
+})
+
+describe('최종 리뷰 수정(Plan 4.1)', () => {
+  it('꼭짓점 각도 입력으로 다각형 방향이 뒤집혀 그 각이 되지 않으면 거부하고 기록이 없다', () => {
+    stores = storesWithTent(polyTent([[0, 0], [400, 0], [400, 300], [0, 300]]))
+    expect(setTargetVertexAngle(stores, 'outer', 2, 340)).toEqual({ ok: false, error: ANGLE_FLIP_MESSAGE })
+    expect(outerPoints()).toEqual([[0, 0], [400, 0], [400, 300], [0, 300]])
+    expect(canUndo()).toBe(false)
+  })
+
+  it('텐트를 바꾸면 그리던 것을 버린다', () => {
+    ui().setMode('tent')
+    ui().startDrawing('newInner')
+    ui().setDrawPoints([[0, 0], [100, 0]])
+    swapTentAction(stores, tentOf([]))
+    expect(ui().drawing).toBeNull()
   })
 })

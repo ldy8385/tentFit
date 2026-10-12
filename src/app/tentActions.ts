@@ -69,6 +69,8 @@ export const CROSS_MESSAGE = '선이 겹쳐요'
 export const TINY_MESSAGE = '너무 작아요'
 /** 변 길이·각도·크기 입력으로 길이 0인 변이 생길 때(Plan 4.1 판단 Q9) */
 export const ZERO_EDGE_MESSAGE = '변 길이가 0이 돼요'
+/** 각도 입력 결과 다각형 방향이 뒤집혀 그 각이 되지 않을 때(최종 리뷰) */
+export const ANGLE_FLIP_MESSAGE = '그 각도로는 만들 수 없어요'
 
 const OK: EditResult = { ok: true }
 
@@ -316,6 +318,8 @@ export function swapTentAction(stores: Stores, tent: Tent, sourcePresetId?: stri
   stores.doc.getState().commit((d) => {
     swapTent(d, tent, sourcePresetId)
   })
+  // 그리던 점은 바뀐 텐트와 맞지 않으므로 버립니다(최종 리뷰).
+  stores.ui.getState().endDrawing()
   stores.ui.getState().selectTentTarget(null)
   fitToLayout(stores)
 }
@@ -419,7 +423,10 @@ export function setTargetVertexAngle(stores: Stores, target: TentTarget, vertexI
   if (ring === null || !Number.isInteger(vertexIndex) || vertexIndex < 1 || vertexIndex > ring.length - 2) return OK
   const current = interiorAngles(ring)[vertexIndex] ?? 0
   if (Math.abs(deg - current) < 0.005) return OK
-  return applyLocalPolygon(stores, target, setVertexAngle(ring, vertexIndex, deg))
+  const next = setVertexAngle(ring, vertexIndex, deg)
+  // 돌린 결과 다각형 방향이 뒤집히면 그 꼭짓점 내각이 입력값이 아니게 됩니다(예: 사각형에 340° → 20°). 조용히 다른 모양을 반영하지 않습니다.
+  if (Math.abs((interiorAngles(next)[vertexIndex] ?? 0) - deg) > 0.01) return { ok: false, error: ANGLE_FLIP_MESSAGE }
+  return applyLocalPolygon(stores, target, next)
 }
 
 /** 전체 크기(설계 §2.3-1): 그 축만 bbox 가운데 기준 비율로. 범위 1~5000, 같은 값(±0.05cm)이면 기록 없음. */

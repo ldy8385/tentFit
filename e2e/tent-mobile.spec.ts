@@ -83,6 +83,10 @@ test.describe('고르기·만들기 화면(390×844)', () => {
     await expect(makerNextButton(page)).toBeInViewport({ ratio: 1 })
     await expect(tentMaker(page).getByRole('button', { name: '취소', exact: true })).toHaveCount(0)
     await expect(makerTools(page)).toBeInViewport()
+    // 최종 리뷰: 도구 다섯 개가 스크롤 없이 모두 보임([자유 그리기] 포함)
+    for (const name of ['사각형', '사다리꼴', '정N각형', '원', '자유 그리기']) {
+      await expect(makerTools(page).getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 })
+    }
     await expect(makerSheet(page)).toBeVisible()
     expect(await horizontalOverflowPx(tentMaker(page), '.tf-maker__tools')).toBeLessThanOrEqual(0)
 
@@ -209,6 +213,17 @@ test.describe('텐트 편집 모드(터치)', () => {
     await drawPoints(page, pts)
     expect((await getUi(page)).drawing?.points).toEqual(pts)
     expect((await getDoc(page)).canUndo).toBe(false)
+    // Review Focus 1: 누르는 중 터치가 취소되면 점이 생기지 않고 찍은 점은 남음
+    const cancelAt = await worldToClient(page, 180, 0)
+    const fingers = await Fingers.open(page)
+    try {
+      await fingers.down(1, cancelAt)
+      await fingers.cancel()
+    } finally {
+      await fingers.detach()
+    }
+    await nextFrames(page)
+    expect((await getUi(page)).drawing?.points).toEqual(pts)
     await toolbar(page).getByRole('button', { name: '점 되돌리기', exact: true }).tap()
     expect((await getUi(page)).drawing?.points).toEqual(pts.slice(0, 3))
     await drawPoints(page, pts.slice(3))
@@ -403,7 +418,8 @@ test('이너 0개 텐트(티피): 요약 칩은 「이너 — · 바닥 0%」이
   await enterTentModeByUi(page)
   await selectOuter(page, [0, 0])
   await expect(tentSheet(page)).toBeVisible()
-  await expect(tentSheet(page).getByRole('list', { name: '텐트 구성' }).getByRole('button')).toHaveText([/^외곽/, '+ 이너'])
+  // 휴대폰 시트에는 [+ 이너]가 없습니다(툴바 [+이너 ▾]가 맡음, 설계 §3)
+  await expect(tentSheet(page).getByRole('list', { name: '텐트 구성' }).getByRole('button')).toHaveText([/^외곽/])
   expect(errors).toEqual([])
 })
 

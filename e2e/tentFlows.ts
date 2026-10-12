@@ -124,6 +124,25 @@ export async function pickExample(page: Page, name: '사각형' | '사다리꼴'
 export async function startMakerDrawing(page: Page): Promise<void> {
   await press(makerTools(page).getByRole('button', { name: '자유 그리기', exact: true }))
   await expect.poll(async () => (await getUi(page, MAKER_HOOK)).drawing).not.toBeNull()
+  // 휴대폰은 그리기 버튼 줄이 생겨 캔버스가 줄고 자동 맞춤 보기가 한 번 더 돕니다. 끝난 뒤 점을 찍습니다.
+  await waitViewStable(page, MAKER_HOOK)
+}
+
+/** 보기(view)가 더 바뀌지 않을 때까지(시트·그리기 줄로 캔버스 크기가 바뀐 뒤 자동 맞춤 보기가 끝날 때까지) 기다립니다. */
+export async function waitViewStable(page: Page, key: HookKey = EDITOR_HOOK): Promise<void> {
+  let prev = ''
+  await expect
+    .poll(
+      async () => {
+        await nextFrames(page)
+        const v = JSON.stringify((await getUi(page, key)).view)
+        const same = v === prev
+        prev = v
+        return same
+      },
+      { intervals: [50, 100, 100, 200, 300] },
+    )
+    .toBe(true)
 }
 
 /** [다음] → 단계 ② */

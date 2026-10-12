@@ -230,6 +230,26 @@
   margin-bottom: 4px;
 }
 
+/* 휴대폰 도구 줄: 아이콘 위·글자 아래로 좁혀 다섯 개가 한 화면에 들어가게(375px 포함, 최종 리뷰) */
+.tf-maker[data-layout='mobile'] .tf-maker__tools {
+  gap: 4px;
+  padding: 4px 8px;
+}
+
+.tf-maker[data-layout='mobile'] .tf-maker__tools-label {
+  display: none;
+}
+
+.tf-maker[data-layout='mobile'] .tf-maker__tool {
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+
 /* 휴대폰 그리는 중 아래 그리기 버튼 줄(편집기 툴바와 같은 모양) */
 .tf-maker__drawtools {
   flex: none;

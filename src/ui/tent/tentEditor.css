@@ -126,6 +126,12 @@
   gap: 8px;
 }
 
+/* 휴대폰 시트: 모양 바꾸기 버튼 줄(펼침 메뉴 대신) 아래에 [다시 그리기] */
+.tf-tent__shape-actions--sheet {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .tf-tent__poly,
 .tf-tent__edges {
   display: flex;
@@ -201,7 +207,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  /* left 50%면 줄어들 폭이 캔버스 절반이라 글자가 쪼개집니다. 내용 폭으로 두고 캔버스 폭에서 자릅니다(최종 리뷰). */
+  width: max-content;
   max-width: calc(100% - 32px);
+  box-sizing: border-box;
   padding: 6px 8px 6px 14px;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
@@ -213,7 +222,14 @@
   pointer-events: auto;
 }
 
+.tf-drawbar > button {
+  flex: none;
+  white-space: nowrap;
+}
+
 .tf-drawbar__hint {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

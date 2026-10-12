@@ -42,6 +42,9 @@ test('고르기 화면은 가로 스크롤이 없고 카드를 누를 수 있으
   await expect(tentMaker(page).getByRole('list', { name: '단계' })).toBeInViewport()
   await expect(makerNextButton(page)).toBeInViewport({ ratio: 1 })
   await expect(makerTools(page)).toBeInViewport()
+  for (const name of ['사각형', '사다리꼴', '정N각형', '원', '자유 그리기']) {
+    await expect(makerTools(page).getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 })
+  }
   await expect(makerSheet(page)).toBeVisible()
   expect(await horizontalOverflowPx(tentMaker(page), '.tf-maker__tools')).toBeLessThanOrEqual(0)
 })

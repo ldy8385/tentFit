@@ -401,8 +401,15 @@ test.describe('텐트 편집 모드 — 자유 그리기·모양 바꾸기(Plan 
     await tentEditor(page).getByRole('button', { name: '+ 이너', exact: true }).click()
     await tentEditor(page).getByRole('menuitem', { name: '자유 그리기', exact: true }).click()
     expect((await getUi(page)).drawing).toEqual({ goal: 'newInner', points: [] })
-    await expect(page.getByRole('toolbar', { name: '그리기' })).toBeVisible()
+    const bar = page.getByRole('toolbar', { name: '그리기' })
+    await expect(bar).toBeVisible()
     await expect(page.getByTestId('top-bar').getByRole('button', { name: '실행 취소' })).toBeDisabled()
+    // 최종 리뷰: 막대 버튼 글자가 쪼개지지 않고 안내가 잘리지 않으며, 모드 칩과 겹치지 않음(그리는 중 숨김)
+    for (const name of ['점 되돌리기', '그리기 완료', '그리기 취소']) {
+      expect(await bar.getByRole('button', { name, exact: true }).locator('span').evaluate((el) => el.getClientRects().length)).toBe(1)
+    }
+    expect(await bar.locator('.tf-drawbar__hint').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await expect(page.getByText('텐트 편집 · 물건은 잠겨 있어요')).toHaveCount(0)
 
     // 끌기 = 화면 이동, 점은 찍히지 않음
     const pan0 = (await getUi(page)).view.panX

@@ -286,6 +286,14 @@ describe('CanvasOverlay — 그리기 막대(Plan 4.1 §3)', () => {
     expect(stores.ui.getState().drawing).toBeNull()
   })
 
+  it('최종 리뷰: PC 그리는 중에는 모드 칩을 숨겨 그리기 막대와 겹치지 않는다', () => {
+    const stores = renderOverlay('desktop')
+    act(() => stores.ui.getState().setMode('tent'))
+    expect(screen.getByText('텐트 편집 · 물건은 잠겨 있어요')).toBeTruthy()
+    act(() => stores.ui.getState().startDrawing('newInner'))
+    expect(screen.queryByText('텐트 편집 · 물건은 잠겨 있어요')).toBeNull()
+  })
+
   it('휴대폰은 막대 대신 툴바가 같은 버튼을 가진다(여기에는 막대 없음)', () => {
     const stores = renderOverlay('mobile')
     act(() => {

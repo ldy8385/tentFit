@@ -156,7 +156,8 @@ export function TentEditor(p: {
             </button>
           </li>
         ))}
-        {!maker && tentLock !== 'inners' && !outerPending && (
+        {/* 휴대폰 시트에는 두지 않습니다(휴대폰 [+ 이너]는 툴바, 설계 §3 — 시트 스크롤 안의 메뉴는 잘림, 최종 리뷰). */}
+        {!maker && p.variant === 'panel' && tentLock !== 'inners' && !outerPending && (
           <li>
             <MenuButton
               label="+ 이너"
@@ -175,11 +176,11 @@ export function TentEditor(p: {
       ) : live === null ? (
         <p className="tf-panel__empty">{p.emptyText ?? EMPTY_TARGET_TEXT}</p>
       ) : (
-        <TargetFields target={live} layout={layout} vertexIndex={vertexIndex} enabled={enabled} />
+        <TargetFields target={live} layout={layout} vertexIndex={vertexIndex} enabled={enabled} variant={p.variant} />
       )}
 
       {!maker && (
-        <button type="button" className="tf-btn tf-tent__swap" disabled={!enabled} onClick={openSwap}>
+        <button type="button" className="tf-btn tf-tent__swap" disabled={!enabled || drawing} onClick={openSwap}>
           텐트 바꾸기
         </button>
       )}
@@ -187,8 +188,11 @@ export function TentEditor(p: {
   )
 }
 
-/** [모양 바꾸기 ▾](지금 종류는 비활성)·[다시 그리기](설계 §3). 거부는 토스트. */
-function ShapeActions(p: { target: TentTarget; layout: Layout; enabled: boolean }): JSX.Element {
+/**
+ * [모양 바꾸기 ▾](지금 종류는 비활성)·[다시 그리기](설계 §3). 거부는 토스트.
+ * 휴대폰 시트는 본문이 스크롤 영역이라 펼침 메뉴가 잘리므로 같은 항목을 버튼 줄로 둡니다(최종 리뷰).
+ */
+function ShapeActions(p: { target: TentTarget; layout: Layout; enabled: boolean; variant: TentEditorVariant }): JSX.Element {
   const stores = useStores()
   const { target, enabled } = p
   const current = currentShapeKind(p.layout, target)
@@ -200,17 +204,39 @@ function ShapeActions(p: { target: TentTarget; layout: Layout; enabled: boolean 
     disabled: kind === current,
     onSelect: () => toastIfRejected(changeTargetShape(stores, target, kind)),
   }))
+  const redraw = (
+    <button
+      type="button"
+      className="tf-btn"
+      disabled={!enabled}
+      onClick={() => startDrawingAction(stores, target === 'outer' ? 'outer' : { innerId: target.innerId })}
+    >
+      다시 그리기
+    </button>
+  )
+  if (p.variant === 'sheet') {
+    return (
+      <div className="tf-tent__shape-actions tf-tent__shape-actions--sheet">
+        <div className="tf-tent__attach" role="group" aria-label="모양 바꾸기">
+          <span className="tf-tent__attach-label" aria-hidden="true">
+            모양 바꾸기
+          </span>
+          <div className="tf-tent__attach-buttons">
+            {items.map((item) => (
+              <button key={item.label} type="button" className="tf-btn" disabled={!enabled || item.disabled} onClick={item.onSelect}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {redraw}
+      </div>
+    )
+  }
   return (
     <div className="tf-tent__shape-actions">
       <MenuButton label="모양 바꾸기" showLabel align="left" buttonClassName="tf-btn" disabled={!enabled} items={items} />
-      <button
-        type="button"
-        className="tf-btn"
-        disabled={!enabled}
-        onClick={() => startDrawingAction(stores, target === 'outer' ? 'outer' : { innerId: target.innerId })}
-      >
-        다시 그리기
-      </button>
+      {redraw}
     </div>
   )
 }
@@ -246,7 +272,13 @@ function AttachWallRow(p: { innerId: string; layout: Layout; enabled: boolean })
 }
 
 /** 선택한 대상(외곽 또는 이너 하나)의 편집 칸 */
-function TargetFields(p: { target: TentTarget; layout: Layout; vertexIndex: number | null; enabled: boolean }): JSX.Element {
+function TargetFields(p: {
+  target: TentTarget
+  layout: Layout
+  vertexIndex: number | null
+  enabled: boolean
+  variant: TentEditorVariant
+}): JSX.Element {
   const stores = useStores()
   const { target, layout, enabled } = p
   const tid = targetKey(target)
@@ -300,7 +332,7 @@ function TargetFields(p: { target: TentTarget; layout: Layout; vertexIndex: numb
         />
       )}
 
-      <ShapeActions target={target} layout={layout} enabled={enabled} />
+      <ShapeActions target={target} layout={layout} enabled={enabled} variant={p.variant} />
 
       {free && (
         <>
