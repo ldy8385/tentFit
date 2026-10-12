@@ -2,25 +2,54 @@
 // 문서는 doc.commit(recipe)로만 바꾸고, recipe 안에서는 core/ops/tent만 부릅니다(스펙 §7 규칙 2).
 // 잘못된 결과 막기(§4.4-8·§6.9): 미리 produce로 만들어 보고, 이번 조작으로 "새로 생긴" 이슈가 있으면 커밋하지 않습니다(R11).
 import { produce } from 'immer'
-import { LIMITS, normAngle, type Layout, type Pt, type ShapeTemplate, type Tent } from '../core/model'
+import { ringBBox } from '../core/geom'
+import { createLayout, LIMITS, newId, normAngle, round1, type Layout, type Pt, type Shape, type ShapeTemplate, type Tent } from '../core/model'
 import {
-  addInner,
+  addInnerFromPolygon,
+  addInnerFromTemplate,
   deleteInner,
   deleteVertex,
   insertVertex,
   moveInner,
+  moveInnerTo,
   renameInner,
   rotateInner,
   setCircleDiameter,
   setInnerTemplate,
   setOuterTemplate,
+  setTargetPolygon,
+  setTargetShapeTemplate,
   setVertex,
   swapTent,
+  targetLocalRing,
   targetWorldRing,
   type TentTarget,
 } from '../core/ops/tent'
-import { newTentIssues } from '../core/validate'
-import { sameTentTarget, type UiState } from '../store/ui'
+import {
+  canClosePolygon,
+  centerPolygon,
+  drawGridOrigin,
+  edgeLengths,
+  interiorAngles,
+  MIN_EDGE_CM,
+  minEdgeLength,
+  scaleToSize,
+  segmentCrosses,
+  setEdgeLength,
+  setVertexAngle,
+  snapDrawPoint,
+} from '../core/polygonEdit'
+import {
+  attachBBoxToWall,
+  defaultInnerTemplate,
+  defaultOuterTemplate,
+  shapeFromTemplate,
+  templateFromBBox,
+  type AttachSide,
+  type TemplateKind,
+} from '../core/templates'
+import { innersOverlap, newTentIssues, type IssueCode } from '../core/validate'
+import { sameTentTarget, tentTargetBlocked, type DrawGoal, type UiState } from '../store/ui'
 import { getZones } from './derived'
 import type { Stores } from './stores'
 import { fitToLayout } from './viewActions'
@@ -32,6 +61,14 @@ export type EditResult = { ok: true } | { ok: false; error: string }
 export const NO_SPACE_MESSAGE = '빈 공간이 부족해요'
 /** 꼭짓점이 3개 남았을 때 삭제를 막는 문구(§6.9) */
 export const MIN_VERTEX_MESSAGE = '꼭짓점이 3개면 지울 수 없어요'
+/** 그린 이너가 다른 이너와 겹칠 때(설계 2026-10-12 §2.2) */
+export const OVERLAP_DRAW_MESSAGE = '다른 이너와 겹쳐요'
+/** 그리는 선이 꼬이거나 점이 모자랄 때(설계 §2.2) */
+export const CROSS_MESSAGE = '선이 겹쳐요'
+/** 그린 도형 넓이가 1cm² 이하일 때(설계 §2.2) */
+export const TINY_MESSAGE = '너무 작아요'
+/** 변 길이·각도·크기 입력으로 길이 0인 변이 생길 때(Plan 4.1 판단 Q9) */
+export const ZERO_EDGE_MESSAGE = '변 길이가 0이 돼요'
 
 const OK: EditResult = { ok: true }
 
@@ -71,7 +108,7 @@ function templateRangeError(t: ShapeTemplate): EditResult | null {
   }
 }
 
-type Attempt = { kind: 'committed' } | { kind: 'unchanged' } | { kind: 'rejected'; error: string }
+type Attempt = { kind: 'committed' } | { kind: 'unchanged' } | { kind: 'rejected'; error: string; code: IssueCode }
 
 /**
  * 거부 판정 공통: produce로 미리 만들어 보고, 바뀐 게 없으면 커밋하지 않고(기록 없음),
@@ -85,7 +122,7 @@ function attempt(stores: Stores, recipe: (d: Layout) => void): Attempt {
   })
   if (next === before) return { kind: 'unchanged' }
   const issue = newTentIssues(before.tent, next.tent)[0]
-  if (issue !== undefined) return { kind: 'rejected', error: issue.message }
+  if (issue !== undefined) return { kind: 'rejected', error: issue.message, code: issue.code }
   return doc.commit(recipe) ? { kind: 'committed' } : { kind: 'unchanged' }
 }
 
@@ -130,22 +167,32 @@ export function exitTentMode(stores: Stores): void {
   stores.ui.getState().setMode('place')
 }
 
-/** §4.4-4 새 이너. 실패면 토스트 「빈 공간이 부족해요」와 null. 성공하면 새 이너를 대상으로 고르고 id를 돌려줍니다. */
+/** §4.4-4 새 이너(사각형 예시). 실패면 토스트 「빈 공간이 부족해요」와 null. 성공하면 새 이너를 대상으로 고르고 id를 돌려줍니다. */
 export function addInnerAction(stores: Stores): string | null {
+  return addInnerShape(stores, 'rect')
+}
+
+/**
+ * 예시 모양 이너(설계 2026-10-12 §2.1): 기본 치수(s = newInnerSide)로 가장 큰 빈 바닥에 넣고 고릅니다(1칸).
+ * 자리가 없으면 토스트 「빈 공간이 부족해요」와 null. 측정 중·이너 잠금·외곽 없음이면 아무것도 하지 않고 null.
+ */
+export function addInnerShape(stores: Stores, kind: TemplateKind): string | null {
+  const ui = stores.ui.getState()
+  if (!tentControlsEnabled(ui) || ui.tentLock === 'inners' || ui.outerPending) return null
   const doc = stores.doc.getState()
   const zones = getZones(doc.layout)
-  let created = null as string | null
+  const template = defaultInnerTemplate(kind, doc.layout.tent.outer)
+  const id = newId()
+  let added = false
   doc.commit((d) => {
-    const r = addInner(d, zones)
-    if (r.ok) created = r.id
+    added = addInnerFromTemplate(d, zones, template, id).ok
   })
-  const ui = stores.ui.getState()
-  if (created === null) {
-    ui.showToast(NO_SPACE_MESSAGE)
+  if (!added) {
+    stores.ui.getState().showToast(NO_SPACE_MESSAGE)
     return null
   }
-  ui.selectTentTarget({ innerId: created })
-  return created
+  stores.ui.getState().selectTentTarget({ innerId: id })
+  return id
 }
 
 /** 이너 삭제([삭제]). 그 이너가 편집 대상이면 대상을 풉니다. */
@@ -270,5 +317,298 @@ export function swapTentAction(stores: Stores, tent: Tent, sourcePresetId?: stri
     swapTent(d, tent, sourcePresetId)
   })
   stores.ui.getState().selectTentTarget(null)
+  fitToLayout(stores)
+}
+
+// ── Plan 4.1: 모양 바꾸기·cm 맞추기·벽에 붙이기·자유 그리기·만들기 첫 외곽 ─────────────
+
+function targetShapeOf(layout: Layout, target: TentTarget): Shape | undefined {
+  return target === 'outer' ? layout.tent.outer : layout.tent.inners.find((it) => it.id === target.innerId)?.shape
+}
+
+function targetTemplateOf(layout: Layout, target: TentTarget): ShapeTemplate | undefined {
+  return target === 'outer' ? layout.tent.outerTemplate : layout.tent.inners.find((it) => it.id === target.innerId)?.template
+}
+
+/** 텐트 편집 버튼을 이 대상에 쓸 수 있는지(측정 잠금 이음매 + 단계 잠금) */
+function canEdit(stores: Stores, target: TentTarget): boolean {
+  const ui = stores.ui.getState()
+  return tentControlsEnabled(ui) && !tentTargetBlocked(ui, target)
+}
+
+/** 지금 모양 종류(패널 메뉴 비활성·같은 종류 무시용). 템플릿이 없으면 사각형·원은 그 종류, 다각형은 'free' */
+export function currentShapeKind(layout: Layout, target: TentTarget): TemplateKind | 'free' | null {
+  const shape = targetShapeOf(layout, target)
+  if (shape === undefined) return null
+  const tpl = targetTemplateOf(layout, target)
+  if (tpl !== undefined) return tpl.kind
+  return shape.kind === 'polygon' ? 'free' : shape.kind
+}
+
+/**
+ * 모양 바꾸기(설계 §3): 지금 로컬 bbox w×h(원은 지름)를 이어받은 다른 예시로. 이너는 보이는 가운데·회전 그대로(판단 Q8).
+ * 같은 종류면 아무것도 하지 않음. 새 이슈면 거부(문구), 성공하면 꼭짓점 선택을 풉니다(1칸).
+ */
+export function changeTargetShape(stores: Stores, target: TentTarget, kind: TemplateKind): EditResult {
+  if (!canEdit(stores, target)) return OK
+  const layout = stores.doc.getState().layout
+  const shape = targetShapeOf(layout, target)
+  if (shape === undefined || currentShapeKind(layout, target) === kind) return OK
+  let w: number
+  let h: number
+  if (shape.kind === 'circle') {
+    w = shape.d
+    h = shape.d
+  } else if (shape.kind === 'rect') {
+    w = shape.w
+    h = shape.h
+  } else {
+    const bb = ringBBox(shape.points)
+    w = bb.maxX - bb.minX
+    h = bb.maxY - bb.minY
+  }
+  const t = templateFromBBox(kind, w, h)
+  const a = attempt(stores, (d) => {
+    setTargetShapeTemplate(d, target, t)
+  })
+  if (a.kind === 'committed') stores.ui.getState().selectTentTarget(target, null)
+  return toResult(a)
+}
+
+/** 로컬 점(반올림 전)을 대상 도형으로. 0.05cm 미만 변이 생기면 거부, 새 이슈면 거부, 같은 점이면 기록 없음. */
+function applyLocalPolygon(stores: Stores, target: TentTarget, points: Pt[]): EditResult {
+  const rounded = points.map((p): Pt => [round1(p[0]), round1(p[1])])
+  if (minEdgeLength(rounded) < MIN_EDGE_CM) return { ok: false, error: ZERO_EDGE_MESSAGE }
+  return toResult(
+    attempt(stores, (d) => {
+      setTargetPolygon(d, target, points, 'local')
+    }),
+  )
+}
+
+/** 대상의 로컬 고리(꼭짓점 3개 이상일 때만, 아니면 null) */
+function editableRing(stores: Stores, target: TentTarget): Pt[] | null {
+  if (!canEdit(stores, target)) return null
+  const ring = targetLocalRing(stores.doc.getState().layout, target)
+  return ring.length >= 3 ? ring : null
+}
+
+/**
+ * 변 길이(설계 §2.3-2). edgeIndex는 0부터(UI 「변 i」 = i−1), 0 ≤ edgeIndex ≤ n−2.
+ * 다른 변(닫는 변 제외) 길이·각도는 그대로, 닫는 변이 흡수. 범위 1~5000, 같은 값(±0.05cm)이면 기록 없음.
+ */
+export function setTargetEdgeLength(stores: Stores, target: TentTarget, edgeIndex: number, length: number): EditResult {
+  if (!inRange(length, LIMITS.length)) return rangeError(...LIMITS.length)
+  const ring = editableRing(stores, target)
+  if (ring === null || !Number.isInteger(edgeIndex) || edgeIndex < 0 || edgeIndex > ring.length - 2) return OK
+  const current = edgeLengths(ring)[edgeIndex] ?? 0
+  if (Math.abs(length - current) < 0.05) return OK
+  return applyLocalPolygon(stores, target, setEdgeLength(ring, edgeIndex, length))
+}
+
+/** 꼭짓점 각도 범위(설계 §2.3-3) */
+const ANGLE_RANGE = [1, 359] as const
+
+/**
+ * 꼭짓점 내각(설계 §2.3-3). vertexIndex는 0부터(UI 「꼭짓점 i」 = i−1), 1 ≤ vertexIndex ≤ n−2.
+ * 범위 1~359°, 같은 값(±0.005°)이면 기록 없음.
+ */
+export function setTargetVertexAngle(stores: Stores, target: TentTarget, vertexIndex: number, deg: number): EditResult {
+  if (!inRange(deg, ANGLE_RANGE)) return rangeError(...ANGLE_RANGE)
+  const ring = editableRing(stores, target)
+  if (ring === null || !Number.isInteger(vertexIndex) || vertexIndex < 1 || vertexIndex > ring.length - 2) return OK
+  const current = interiorAngles(ring)[vertexIndex] ?? 0
+  if (Math.abs(deg - current) < 0.005) return OK
+  return applyLocalPolygon(stores, target, setVertexAngle(ring, vertexIndex, deg))
+}
+
+/** 전체 크기(설계 §2.3-1): 그 축만 bbox 가운데 기준 비율로. 범위 1~5000, 같은 값(±0.05cm)이면 기록 없음. */
+export function setTargetSize(stores: Stores, target: TentTarget, axis: 'w' | 'h', value: number): EditResult {
+  if (!inRange(value, LIMITS.length)) return rangeError(...LIMITS.length)
+  const ring = editableRing(stores, target)
+  if (ring === null) return OK
+  const bb = ringBBox(ring)
+  const w = bb.maxX - bb.minX
+  const h = bb.maxY - bb.minY
+  if (Math.abs(value - (axis === 'w' ? w : h)) < 0.05) return OK
+  return applyLocalPolygon(stores, target, scaleToSize(ring, axis === 'w' ? value : w, axis === 'h' ? value : h))
+}
+
+/**
+ * 벽에 붙이기(설계 §2.4): 이너의 월드 bbox(원은 지름)를 외곽 템플릿의 그 벽에 맞닿게, 벽 가운데로 한 번 옮깁니다(1칸).
+ * 외곽 템플릿이 없거나 그 벽이 없으면 아무것도 하지 않고, 새로 겹치면 거부합니다.
+ */
+export function attachInnerToWall(stores: Stores, innerId: string, side: AttachSide): EditResult {
+  if (!canEdit(stores, { innerId })) return OK
+  const layout = stores.doc.getState().layout
+  const outer = layout.tent.outerTemplate
+  const inner = layout.tent.inners.find((it) => it.id === innerId)
+  if (outer === undefined || inner === undefined) return OK
+  const bbox =
+    inner.shape.kind === 'circle'
+      ? { minX: inner.x - inner.shape.d / 2, maxX: inner.x + inner.shape.d / 2, minY: inner.y - inner.shape.d / 2, maxY: inner.y + inner.shape.d / 2 }
+      : ringBBox(targetWorldRing(layout, { innerId }))
+  const move = attachBBoxToWall(outer, bbox, side)
+  if (move === null) return OK
+  return toResult(
+    attempt(stores, (d) => {
+      moveInnerTo(d, innerId, inner.x + move.dx, inner.y + move.dy)
+    }),
+  )
+}
+
+/** 그리기를 시작합니다(설계 §2.2). 텐트 모드·측정 아님·잠금이 허락할 때만, 다시 그리기는 있는 이너만. */
+export function startDrawingAction(stores: Stores, goal: DrawGoal): void {
+  const ui = stores.ui.getState()
+  if (ui.mode !== 'tent' || !tentControlsEnabled(ui)) return
+  if (goal === 'outer') {
+    if (ui.tentLock === 'outer') return
+  } else {
+    if (ui.tentLock === 'inners' || ui.outerPending) return
+    if (typeof goal === 'object' && !stores.doc.getState().layout.tent.inners.some((it) => it.id === goal.innerId)) return
+  }
+  ui.startDrawing(goal)
+}
+
+function samePoint(a: Pt | undefined, b: Pt): boolean {
+  return a !== undefined && Math.abs(a[0] - b[0]) < 0.05 && Math.abs(a[1] - b[1]) < 0.05
+}
+
+/**
+ * 탭 한 번의 점(설계 §2.2): 맞춤(첫 점 10cm 격자, 다음 점 15°·10cm) 뒤, 첫 점에 다시 맞춰지면(점 3개 이상) 닫고,
+ * 길이 0·교차면 찍지 않고 토스트 「선이 겹쳐요」와 false. 점은 문서 밖입니다.
+ */
+export function appendDrawPoint(stores: Stores, rawWorld: Pt): boolean {
+  const ui = stores.ui.getState()
+  const drawing = ui.drawing
+  if (drawing === null) return false
+  const pts = drawing.points
+  const origin = drawGridOrigin(stores.doc.getState().layout.tent, ui.outerPending)
+  const p = snapDrawPoint(pts[pts.length - 1] ?? null, rawWorld, origin)
+  if (!inRange(p[0], LIMITS.coord) || !inRange(p[1], LIMITS.coord)) return false
+  if (pts.length >= 3 && samePoint(pts[0], p)) return finishDrawing(stores).ok
+  if (segmentCrosses(pts, p)) {
+    ui.showToast(CROSS_MESSAGE)
+    return false
+  }
+  ui.setDrawPoints([...pts, p])
+  return true
+}
+
+/** 마지막 점 하나를 지웁니다(Ctrl/Cmd+Z·[점 되돌리기]). */
+export function undoDrawPoint(stores: Stores): void {
+  const ui = stores.ui.getState()
+  const pts = ui.drawing?.points
+  if (pts !== undefined && pts.length > 0) ui.setDrawPoints(pts.slice(0, -1))
+}
+
+/** 그리던 것을 버립니다([그리기 취소]·Esc). 문서는 그대로. */
+export function cancelDrawing(stores: Stores): void {
+  stores.ui.getState().endDrawing()
+}
+
+function drawRejected(stores: Stores, error: string): EditResult {
+  stores.ui.getState().showToast(error)
+  return { ok: false, error }
+}
+
+/** 그리기 완료 뒤: 거부면 그리기를 그대로 두고 토스트, 아니면 그리기를 끝내고 결과 대상을 고릅니다. */
+function afterDraw(stores: Stores, a: Attempt, target: TentTarget): EditResult {
+  if (a.kind === 'rejected') return drawRejected(stores, a.code === 'inner-overlap' ? OVERLAP_DRAW_MESSAGE : a.error)
+  const ui = stores.ui.getState()
+  ui.endDrawing()
+  ui.selectTentTarget(target)
+  return OK
+}
+
+/** 그린 점으로 새 이너를 만들면 다른 이너와 겹치는지(이름이 같은 이너가 있어도 놓치지 않게 직접 봄, 판단 Q11) */
+function drawnInnerOverlaps(layout: Layout, points: Pt[]): boolean {
+  const probe = produce(layout, (d) => {
+    addInnerFromPolygon(d, points, '__probe__')
+  })
+  const drawn = probe.tent.inners[probe.tent.inners.length - 1]
+  return drawn !== undefined && layout.tent.inners.some((other) => innersOverlap(drawn, other))
+}
+
+/**
+ * 그리기 완료([완료]·첫 점 다시 누르기, 설계 §2.2). 3점 미만·꼬임이면 「선이 겹쳐요」, 넓이 ≤1cm²면 「너무 작아요」(그리기 유지).
+ * 목표별 결과는 커밋 1번: 외곽(만들기 화면 첫 외곽 = bbox 가운데를 원점으로 새 배치, 그 밖 = 월드 그대로),
+ * 새 이너(겹치면 「다른 이너와 겹쳐요」), 이너 다시 그리기(x·y·회전 그대로).
+ */
+export function finishDrawing(stores: Stores): EditResult {
+  const ui = stores.ui.getState()
+  const drawing = ui.drawing
+  if (drawing === null) return OK
+  const pts = drawing.points
+  const check = canClosePolygon(pts)
+  if (!check.ok) return drawRejected(stores, check.reason === 'tiny' ? TINY_MESSAGE : CROSS_MESSAGE)
+  const goal = drawing.goal
+  if (goal === 'outer') {
+    if (ui.outerPending) {
+      defineFirstOuter(stores, { kind: 'polygon', points: centerPolygon(pts).points })
+      return OK
+    }
+    return afterDraw(
+      stores,
+      attempt(stores, (d) => {
+        setTargetPolygon(d, 'outer', pts, 'world')
+      }),
+      'outer',
+    )
+  }
+  if (goal === 'newInner') {
+    if (drawnInnerOverlaps(stores.doc.getState().layout, pts)) return drawRejected(stores, OVERLAP_DRAW_MESSAGE)
+    const id = newId()
+    return afterDraw(
+      stores,
+      attempt(stores, (d) => {
+        addInnerFromPolygon(d, pts, id)
+      }),
+      { innerId: id },
+    )
+  }
+  return afterDraw(
+    stores,
+    attempt(stores, (d) => {
+      setTargetPolygon(d, goal, pts, 'world')
+    }),
+    goal,
+  )
+}
+
+/**
+ * 만들기 화면 첫 외곽(판단 Q1·Q2): 자리표시 문서를 그 외곽(이너 없음)의 새 배치로 바꿉니다(실행 취소 기록 비움).
+ * 이름·id는 그대로, 외곽 없음 해제·그리기 끝·외곽 선택·맞춤 보기.
+ */
+export function defineFirstOuter(stores: Stores, outer: Shape, outerTemplate?: ShapeTemplate): void {
+  const doc = stores.doc.getState()
+  const cur = doc.layout
+  const tent: Tent = { name: cur.tent.name, outer, inners: [] }
+  if (outerTemplate !== undefined) tent.outerTemplate = outerTemplate
+  const ui = stores.ui.getState()
+  ui.endDrawing()
+  doc.load(createLayout(tent, { name: cur.name, id: cur.id }))
+  ui.setOuterPending(false)
+  ui.selectTentTarget('outer')
+  fitToLayout(stores)
+}
+
+/**
+ * 만들기 화면 단계 ①의 예시 모양(설계 §1.1): 외곽 없음이면 그 예시로 첫 외곽, 아니면 외곽을 그 예시 기본값으로 바꿈(1칸).
+ * 외곽을 고르고 맞춤 보기. 측정 중·외곽 잠금이면 아무것도 하지 않음.
+ */
+export function setMakerOuterShape(stores: Stores, kind: TemplateKind): void {
+  const ui = stores.ui.getState()
+  if (!tentControlsEnabled(ui) || ui.tentLock === 'outer') return
+  const tpl = defaultOuterTemplate(kind)
+  if (ui.outerPending) {
+    defineFirstOuter(stores, shapeFromTemplate(tpl), tpl)
+    return
+  }
+  ui.endDrawing()
+  attempt(stores, (d) => {
+    setOuterTemplate(d, tpl)
+  })
+  stores.ui.getState().selectTentTarget('outer')
   fitToLayout(stores)
 }

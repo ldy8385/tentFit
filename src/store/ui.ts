@@ -17,6 +17,12 @@ export type DesktopPanel = 'auto' | 'newShape' | 'warnings' // auto = 선택 있
 /** 편집기 위 대화상자(텐트 바꾸기). 고르기 화면의 내 배치 대화상자는 PickRoute 컴포넌트 상태입니다. */
 export type EditorDialog = 'swapTent' | null
 export type Toast = { id: number; text: string }
+/** 자유 그리기 목표(설계 2026-10-12 §2.2): 외곽 새로·다시, 새 이너, 그 이너 다시 그리기 */
+export type DrawGoal = 'outer' | 'newInner' | { innerId: string }
+/** 그리는 중 상태. 점은 문서·실행 취소 기록 밖(월드 cm, 맞춤 적용 뒤) */
+export type Drawing = { goal: DrawGoal; points: Pt[] }
+/** 만들기 화면 단계 잠금(설계 §1.1): 단계 ① = 'inners', 단계 ② = 'outer', 편집기 = 'none' */
+export type TentLock = 'none' | 'outer' | 'inners'
 export type UiState = {
   mode: Mode
   measuring: boolean
@@ -38,6 +44,11 @@ export type UiState = {
   areaExpanded: boolean
   toast: Toast | null
   editorDialog: EditorDialog
+  /** 자유 그리기 중이면 그 상태(설계 §2.2). 정리 규칙은 아래 구현 주석 */
+  drawing: Drawing | null
+  tentLock: TentLock
+  /** 만들기 화면에서 외곽이 아직 없음(문서의 외곽은 자리표시라 그리지도 고르지도 않음, Plan 4.1 판단 Q1) */
+  outerPending: boolean
   setSelection(ids: string[]): void
   toggleSelected(id: string): void
   clearSelection(): void
@@ -48,6 +59,14 @@ export type UiState = {
   selectTentTarget(target: TentTarget | null, vertexIndex?: number | null): void
   /** 없는 이너면 대상·꼭짓점 해제, 꼭짓점 번호가 고리 길이 이상이거나 원이면 vertexIndex null */
   pruneTentTarget(layout: Layout): void
+  /** 그리기 시작: 점 0개, 꼭짓점 선택 해제, 대상 = 새 이너면 없음·외곽/이너 다시 그리기면 그 대상(외곽 없음이면 없음). 한 번에 바꿉니다 */
+  startDrawing(goal: DrawGoal): void
+  /** 그리는 중일 때만 점 목록을 바꿉니다 */
+  setDrawPoints(points: Pt[]): void
+  endDrawing(): void
+  /** 잠금을 바꾸면 잠긴 쪽 대상을 풀고 그리던 것을 버립니다(단계 전환 = 그리기 끝, 설계 §2.2) */
+  setTentLock(lock: TentLock): void
+  setOuterPending(pending: boolean): void
   /** 토스트를 띄웁니다. id는 부를 때마다 1씩 올라갑니다(같은 문구도 새 토스트) */
   showToast(text: string): void
   /** 지금 토스트의 id가 같을 때만 지웁니다(늦게 도착한 타이머가 새 토스트를 지우지 않게) */
@@ -121,6 +140,13 @@ export function sameTentTarget(a: TentTarget | null, b: TentTarget | null): bool
   return a.innerId === b.innerId
 }
 
+/** 잠금·외곽 없음 때문에 고를 수 없는 대상인지 */
+export function tentTargetBlocked(s: Pick<UiState, 'tentLock' | 'outerPending'>, target: TentTarget | null): boolean {
+  if (target === null) return false
+  if (target === 'outer') return s.tentLock === 'outer' || s.outerPending
+  return s.tentLock === 'inners'
+}
+
 /** 꼭짓점 번호는 0 이상 정수만(아니면 null) */
 function cleanVertexIndex(v: number | null | undefined): number | null {
   return v !== null && v !== undefined && Number.isInteger(v) && v >= 0 ? v : null
@@ -165,6 +191,9 @@ export function createUiStore(
       areaExpanded: false,
       toast: null,
       editorDialog: null,
+      drawing: null,
+      tentLock: 'none',
+      outerPending: false,
 
       setSelection(ids) {
         const next = unique(ids)
@@ -197,27 +226,38 @@ export function createUiStore(
             scopeGroupId: null,
             tentTarget: null,
             vertexIndex: null,
+            drawing: null,
             mobileSheet: PLACE_ONLY_SHEETS.has(s.mobileSheet) ? 'none' : s.mobileSheet,
             desktopPanel: s.desktopPanel === 'newShape' ? 'auto' : s.desktopPanel,
           })
           return
         }
-        // 텐트 → 배치: 편집 대상·꼭짓점 선택과 텐트 시트를 정리합니다.
+        // 텐트 → 배치: 편집 대상·꼭짓점 선택·그리기와 텐트 시트를 정리합니다.
         set({
           mode,
           tentTarget: null,
           vertexIndex: null,
+          drawing: null,
           mobileSheet: s.mobileSheet === 'tent' ? 'none' : s.mobileSheet,
         })
       },
       selectTentTarget(target, vertexIndex) {
         const s = get()
-        const nextIndex = target === null ? null : cleanVertexIndex(vertexIndex)
-        if (sameTentTarget(s.tentTarget, target) && s.vertexIndex === nextIndex) return
-        set({ tentTarget: target, vertexIndex: nextIndex })
+        // 잠긴 대상은 고르지 않습니다(캔버스·목록·키보드가 한 번에 막힘, 설계 §1.1).
+        const next = tentTargetBlocked(s, target) ? null : target
+        const nextIndex = next === null ? null : cleanVertexIndex(vertexIndex)
+        if (sameTentTarget(s.tentTarget, next) && s.vertexIndex === nextIndex) return
+        // 다른 대상을 고르면 그리던 것을 버립니다(설계 §2.2 끝나는 조건).
+        const dropDrawing = s.drawing !== null && !sameTentTarget(s.tentTarget, next)
+        set({ tentTarget: next, vertexIndex: nextIndex, ...(dropDrawing ? { drawing: null } : {}) })
       },
       pruneTentTarget(layout) {
         const s = get()
+        // 다시 그리는 이너가 없어지면(실행 취소 등) 그리기도 끝냅니다. 새 이너 그리기는 대상이 null이라 아래 조기 return보다 먼저 봅니다.
+        const goal = s.drawing?.goal
+        if (goal !== undefined && typeof goal === 'object' && !layout.tent.inners.some((it) => it.id === goal.innerId)) {
+          set({ drawing: null })
+        }
         if (s.tentTarget === null) return
         const count = vertexCountOf(layout, s.tentTarget)
         if (count === null) {
@@ -225,6 +265,31 @@ export function createUiStore(
           return
         }
         if (s.vertexIndex !== null && s.vertexIndex >= count) set({ vertexIndex: null })
+      },
+      startDrawing(goal) {
+        const s = get()
+        const target: TentTarget | null = goal === 'newInner' ? null : goal === 'outer' ? (s.outerPending ? null : 'outer') : { innerId: goal.innerId }
+        set({ drawing: { goal, points: [] }, tentTarget: target, vertexIndex: null })
+      },
+      setDrawPoints(points) {
+        const d = get().drawing
+        if (d !== null) set({ drawing: { goal: d.goal, points } })
+      },
+      endDrawing() {
+        if (get().drawing !== null) set({ drawing: null })
+      },
+      setTentLock(lock) {
+        const s = get()
+        if (s.tentLock === lock) return
+        const locked = tentTargetBlocked({ tentLock: lock, outerPending: s.outerPending }, s.tentTarget)
+        set({
+          tentLock: lock,
+          drawing: null,
+          ...(locked ? { tentTarget: null, vertexIndex: null } : {}),
+        })
+      },
+      setOuterPending(pending) {
+        if (get().outerPending !== pending) set({ outerPending: pending })
       },
       showToast(text) {
         toastSeq += 1

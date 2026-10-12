@@ -4,6 +4,7 @@ import type { Pt } from './model'
 import {
   canClosePolygon,
   centerPolygon,
+  drawGridOrigin,
   edgeLengths,
   interiorAngles,
   minEdgeLength,
@@ -162,6 +163,13 @@ describe('scaleToSize(bbox 가운데 기준 축별 비율)', () => {
   it('두 축 모두, bbox가 원점 밖이어도 가운데 기준', () => {
     const pts: Pt[] = [[100, 100], [300, 100], [300, 200], [100, 200]]
     close(scaleToSize(pts, 100, 200), [[150, 50], [250, 50], [250, 250], [150, 250]])
+  })
+})
+
+describe('drawGridOrigin', () => {
+  it('외곽 bbox 왼쪽 위, 외곽 없음이면 원점', () => {
+    expect(drawGridOrigin({ outer: { kind: 'rect', w: 620, h: 320 } }, false)).toEqual([-310, -160])
+    expect(drawGridOrigin({ outer: { kind: 'rect', w: 620, h: 320 } }, true)).toEqual([0, 0])
   })
 })
 

@@ -3,7 +3,7 @@ import { createContext, useContext, type JSX, type ReactNode } from 'react'
 import { useStore } from 'zustand'
 import type { Layout } from '../core/model'
 import { createDocStore, type DocState, type DocStore } from '../store/doc'
-import { createUiStore, type PointerKind, type UiState, type UiStore } from '../store/ui'
+import { createUiStore, type Mode, type PointerKind, type UiState, type UiStore } from '../store/ui'
 
 export type Stores = { doc: DocStore; ui: UiStore }
 
@@ -42,10 +42,11 @@ export function initialPointer(): PointerKind {
  * 배치 하나의 스토어 묶음. 문서가 바뀔 때마다(실행 취소·다시 실행·load 포함) 선택에서 없는 id를 빼고(§8),
  * 텐트 편집 대상도 정리합니다(없는 이너·범위 밖 꼭짓점 번호, Review Focus 3).
  * 구독은 스토어와 수명이 같아서 따로 풀지 않습니다(배치를 바꾸면 묶음을 새로 만듦).
+ * mode는 처음 모드(만들기 화면 임시 스토어는 'tent').
  */
-export function createStores(layout: Layout): Stores {
+export function createStores(layout: Layout, opts?: { mode?: Mode }): Stores {
   const doc = createDocStore(layout)
-  const ui = createUiStore({ pointer: initialPointer() })
+  const ui = createUiStore({ pointer: initialPointer(), ...(opts?.mode !== undefined ? { mode: opts.mode } : {}) })
   doc.subscribe((state, prev) => {
     if (state.layout === prev.layout) return
     const s = ui.getState()

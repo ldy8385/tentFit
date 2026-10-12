@@ -3,7 +3,8 @@
 // UI는 1부터 셉니다: 「변 i」 = 변 i−1, 「꼭짓점 i」 = 꼭짓점 i−1. 마지막 변(닫는 변)·첫 꼭짓점·마지막 꼭짓점은 계산값입니다.
 // 좌표계는 y 아래, 회전은 시계 방향 양수(ops/util.rotateAround와 같은 방향)입니다.
 import { ringBBox } from './geom'
-import { round1, type Pt } from './model'
+import { round1, type Pt, type Tent } from './model'
+import { gridOriginOf } from './snap'
 import { ringIssue } from './validate'
 
 /** 첫 점 격자(cm) */
@@ -114,6 +115,11 @@ export function scaleToSize(points: readonly Pt[], w: number, h: number): Pt[] {
   const sx = bw > 0 ? w / bw : 1
   const sy = bh > 0 ? h / bh : 1
   return points.map((p): Pt => [cx + (p[0] - cx) * sx, cy + (p[1] - cy) * sy])
+}
+
+/** 첫 점 격자 원점(설계 §2.2): 외곽 bbox 왼쪽 위, 외곽이 아직 없으면(만들기 화면) 월드 원점. */
+export function drawGridOrigin(tent: Pick<Tent, 'outer'>, outerPending: boolean): Pt {
+  return outerPending ? [0, 0] : gridOriginOf(tent)
 }
 
 /**
