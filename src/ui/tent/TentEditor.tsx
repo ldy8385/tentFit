@@ -9,12 +9,18 @@
 //   · 선택한 꼭짓점이 있으면 x·y 입력(표가 없을 때)과 [꼭짓점 삭제].
 //   · 이너: 이름, 회전 + [90도], 삭제. 외곽은 삭제 없음.
 // - [텐트 바꾸기] → editorDialog 'swapTent'(Task 11). [내 텐트로 저장]은 Plan 7(R1).
+// - Plan 4.1(설계 2026-10-12): [+ 이너 ▾] 예시·자유 그리기 메뉴, 대상마다 [모양 바꾸기 ▾]·[다시 그리기], 자유 다각형은
+//   전체 크기·변 길이·꼭짓점 각도 칸(PolygonFields)과 접힌 「좌표로 고치기」, 이너는 [벽에 붙이기].
+//   만들기 화면(context 'maker')은 같은 패널을 쓰되 [텐트 바꾸기]·목록의 [+ 이너]가 없고(도구 줄이 대신함), 단계 잠금(ui.tentLock)과
+//   외곽 없음(ui.outerPending)을 목록에 반영합니다. 그리는 중에는 대상 칸 대신 안내만 둡니다.
 // - 문서 동작은 app/tentActions만 부릅니다. 결과가 규칙을 깨면 입력칸은 그 칸에 오류(반영 안 함), 버튼은 토스트로 알립니다.
 // - 측정 중(tentControlsEnabled false)이면 모든 컨트롤이 비활성입니다(§4.3).
 import { useState, type JSX } from 'react'
 import { useDoc, useStores, useUi } from '../../app/stores'
 import {
-  addInnerAction,
+  attachInnerToWall,
+  changeTargetShape,
+  currentShapeKind,
   deleteInnerAction,
   deleteTargetVertex,
   insertTargetVertex,
@@ -24,17 +30,22 @@ import {
   setTargetDiameter,
   setTargetTemplate,
   setTargetVertex,
+  startDrawingAction,
   tentControlsEnabled,
   type EditResult,
 } from '../../app/tentActions'
 import { LIMITS, type Inner, type Layout, type Pt, type ShapeTemplate } from '../../core/model'
-import { targetWorldRing, type TentTarget } from '../../core/ops/tent'
+import { targetLocalRing, targetWorldRing, type TentTarget } from '../../core/ops/tent'
+import { ATTACH_SIDE_LABELS, attachSidesFor } from '../../core/templates'
 import { tableOrigin, tableToWorld, worldToTable } from '../../view/tentEdit'
 import { SegmentedControl } from '../common/SegmentedControl'
 import { NumberField } from '../fields/NumberField'
 import { TextField } from '../fields/TextField'
 import { NAME_MAX_LENGTH } from '../fields/limits'
 import '../panels/panels.css'
+import { MenuButton } from '../shell/MenuButton'
+import { COORDS_LABEL, Disclosure, PolygonFields } from './PolygonFields'
+import { DRAWING_HINT, innerShapeMenu, KIND_LABELS, TEMPLATE_KINDS } from './shapeMenu'
 import { VertexTable } from './VertexTable'
 import './tentEditor.css'
 import {
@@ -55,6 +66,8 @@ import {
 } from './tentEditorModel'
 
 export type TentEditorVariant = 'panel' | 'sheet'
+export { ANGLES_LABEL, COORDS_LABEL } from './PolygonFields'
+export { DRAWING_HINT } from './shapeMenu'
 
 /** 꼭짓점 직접 편집 버튼 문구(§4.4-3 원문) */
 export const FREE_EDIT_LABEL = '꼭짓점 직접 편집(자유 다각형으로 바뀜)'
@@ -76,12 +89,24 @@ function errorOf(r: EditResult): string | undefined {
   return r.ok ? undefined : r.error
 }
 
-export function TentEditor(p: { variant: TentEditorVariant }): JSX.Element {
+export function TentEditor(p: {
+  variant: TentEditorVariant
+  /** 'maker'면 만들기 화면(설계 §1.1): [텐트 바꾸기]·목록의 [+ 이너] 없음 */
+  context?: 'editor' | 'maker'
+  /** PC 패널 제목(기본 「텐트 편집」) */
+  title?: string
+  /** 대상이 없을 때 안내(기본 「편집할 곳을 고르세요」) */
+  emptyText?: string
+}): JSX.Element {
   const stores = useStores()
   const layout = useDoc((s) => s.layout)
   const target = useUi((s) => s.tentTarget)
   const vertexIndex = useUi((s) => s.vertexIndex)
   const enabled = useUi((s) => tentControlsEnabled(s))
+  const tentLock = useUi((s) => s.tentLock)
+  const outerPending = useUi((s) => s.outerPending)
+  const drawing = useUi((s) => s.drawing !== null)
+  const maker = p.context === 'maker'
   const tent = layout.tent
   const key = targetKey(target)
   // 없는 이너를 가리키면(정리 직전 한 번) 대상이 없는 것처럼 그립니다.
@@ -99,28 +124,30 @@ export function TentEditor(p: { variant: TentEditorVariant }): JSX.Element {
       data-testid="tent-editor"
       data-variant={p.variant}
     >
-      {p.variant === 'panel' && <h2 className="tf-panel__title">텐트 편집</h2>}
+      {p.variant === 'panel' && <h2 className="tf-panel__title">{p.title ?? '텐트 편집'}</h2>}
       <ul className="tf-tent__list" aria-label="텐트 구성">
-        <li>
-          <button
-            type="button"
-            className="tf-tent__row"
-            aria-pressed={key === 'outer'}
-            disabled={!enabled}
-            onClick={() => select('outer')}
-          >
-            <span className="tf-tent__dot tf-tent__dot--outer" aria-hidden="true" />
-            <span className="tf-tent__name">외곽</span>
-            <span className="tf-tent__meta">{shapeSummary(tent.outer, tent.outerTemplate)}</span>
-          </button>
-        </li>
+        {!outerPending && (
+          <li>
+            <button
+              type="button"
+              className="tf-tent__row"
+              aria-pressed={key === 'outer'}
+              disabled={!enabled || tentLock === 'outer'}
+              onClick={() => select('outer')}
+            >
+              <span className="tf-tent__dot tf-tent__dot--outer" aria-hidden="true" />
+              <span className="tf-tent__name">외곽</span>
+              <span className="tf-tent__meta">{shapeSummary(tent.outer, tent.outerTemplate)}</span>
+            </button>
+          </li>
+        )}
         {tent.inners.map((inner) => (
           <li key={inner.id}>
             <button
               type="button"
               className="tf-tent__row"
               aria-pressed={key === targetKey({ innerId: inner.id })}
-              disabled={!enabled}
+              disabled={!enabled || tentLock === 'inners'}
               onClick={() => select({ innerId: inner.id })}
             >
               <span className="tf-tent__dot tf-tent__dot--inner" aria-hidden="true" />
@@ -129,23 +156,92 @@ export function TentEditor(p: { variant: TentEditorVariant }): JSX.Element {
             </button>
           </li>
         ))}
-        <li>
-          <button type="button" className="tf-tent__add" disabled={!enabled} onClick={() => addInnerAction(stores)}>
-            + 이너
-          </button>
-        </li>
+        {!maker && tentLock !== 'inners' && !outerPending && (
+          <li>
+            <MenuButton
+              label="+ 이너"
+              showLabel
+              align="left"
+              buttonClassName="tf-tent__add"
+              disabled={!enabled || drawing}
+              items={innerShapeMenu(stores)}
+            />
+          </li>
+        )}
       </ul>
 
-      {live === null ? (
-        <p className="tf-panel__empty">{EMPTY_TARGET_TEXT}</p>
+      {drawing ? (
+        <p className="tf-panel__empty">{DRAWING_HINT}</p>
+      ) : live === null ? (
+        <p className="tf-panel__empty">{p.emptyText ?? EMPTY_TARGET_TEXT}</p>
       ) : (
         <TargetFields target={live} layout={layout} vertexIndex={vertexIndex} enabled={enabled} />
       )}
 
-      <button type="button" className="tf-btn tf-tent__swap" disabled={!enabled} onClick={openSwap}>
-        텐트 바꾸기
-      </button>
+      {!maker && (
+        <button type="button" className="tf-btn tf-tent__swap" disabled={!enabled} onClick={openSwap}>
+          텐트 바꾸기
+        </button>
+      )}
     </section>
+  )
+}
+
+/** [모양 바꾸기 ▾](지금 종류는 비활성)·[다시 그리기](설계 §3). 거부는 토스트. */
+function ShapeActions(p: { target: TentTarget; layout: Layout; enabled: boolean }): JSX.Element {
+  const stores = useStores()
+  const { target, enabled } = p
+  const current = currentShapeKind(p.layout, target)
+  const toastIfRejected = (r: EditResult) => {
+    if (!r.ok) stores.ui.getState().showToast(r.error)
+  }
+  const items = TEMPLATE_KINDS.map((kind) => ({
+    label: KIND_LABELS[kind],
+    disabled: kind === current,
+    onSelect: () => toastIfRejected(changeTargetShape(stores, target, kind)),
+  }))
+  return (
+    <div className="tf-tent__shape-actions">
+      <MenuButton label="모양 바꾸기" showLabel align="left" buttonClassName="tf-btn" disabled={!enabled} items={items} />
+      <button
+        type="button"
+        className="tf-btn"
+        disabled={!enabled}
+        onClick={() => startDrawingAction(stores, target === 'outer' ? 'outer' : { innerId: target.innerId })}
+      >
+        다시 그리기
+      </button>
+    </div>
+  )
+}
+
+/** [벽에 붙이기: 뒤 · 앞 · 왼쪽 · 오른쪽](설계 §2.4) — 외곽 템플릿이 사각형·사다리꼴일 때만. 한 번 옮기는 버튼 묶음. */
+function AttachWallRow(p: { innerId: string; layout: Layout; enabled: boolean }): JSX.Element | null {
+  const stores = useStores()
+  const sides = attachSidesFor(p.layout.tent.outerTemplate)
+  if (sides.length === 0) return null
+  return (
+    <div className="tf-tent__attach" role="group" aria-label="벽에 붙이기">
+      <span className="tf-tent__attach-label" aria-hidden="true">
+        벽에 붙이기
+      </span>
+      <div className="tf-tent__attach-buttons">
+        {sides.map((side) => (
+          <button
+            key={side}
+            type="button"
+            className="tf-btn"
+            disabled={!p.enabled}
+            onClick={() => {
+              const r = attachInnerToWall(stores, p.innerId, side)
+              if (!r.ok) stores.ui.getState().showToast(r.error)
+            }}
+          >
+            {ATTACH_SIDE_LABELS[side]}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -163,7 +259,9 @@ function TargetFields(p: { target: TentTarget; layout: Layout; vertexIndex: numb
   const inner: Inner | undefined = target === 'outer' ? undefined : layout.tent.inners.find((it) => it.id === target.innerId)
   const name = targetName(layout.tent, target) ?? ''
   const isCircle = shape.kind === 'circle'
-  const showTable = !isCircle && (template === null || tableFor === tid)
+  const free = template === null
+  // 표는 [꼭짓점 직접 편집](예시 모양)이나 「좌표로 고치기」(자유 다각형)를 눌렀을 때만 펼칩니다.
+  const showTable = !isCircle && tableFor === tid
 
   const toastIfRejected = (r: EditResult) => {
     if (!r.ok) stores.ui.getState().showToast(r.error)
@@ -202,6 +300,20 @@ function TargetFields(p: { target: TentTarget; layout: Layout; vertexIndex: numb
         />
       )}
 
+      <ShapeActions target={target} layout={layout} enabled={enabled} />
+
+      {free && (
+        <>
+          <PolygonFields key={tid} target={target} points={targetLocalRing(layout, target)} enabled={enabled} />
+          <Disclosure
+            label={COORDS_LABEL}
+            open={showTable}
+            controls={`${tid}-coords`}
+            onToggle={() => setTableFor((cur) => (cur === tid ? null : tid))}
+          />
+        </>
+      )}
+
       {template !== null && (
         <TemplateFields
           template={template}
@@ -212,7 +324,7 @@ function TargetFields(p: { target: TentTarget; layout: Layout; vertexIndex: numb
         />
       )}
 
-      {!isCircle && !showTable && (
+      {!isCircle && !free && !showTable && (
         <button type="button" className="tf-btn" disabled={!enabled} onClick={() => setTableFor(tid)}>
           {FREE_EDIT_LABEL}
         </button>
@@ -221,6 +333,7 @@ function TargetFields(p: { target: TentTarget; layout: Layout; vertexIndex: numb
       {!isCircle && (
         <VertexSection
           key={tid}
+          id={`${tid}-coords`}
           target={target}
           layout={layout}
           vertexIndex={p.vertexIndex}
@@ -231,6 +344,7 @@ function TargetFields(p: { target: TentTarget; layout: Layout; vertexIndex: numb
 
       {inner !== undefined && (
         <>
+          <AttachWallRow innerId={inner.id} layout={layout} enabled={enabled} />
           <div className="tf-rotate-row">
             {/* 회전은 아무 실수나 받고 [0,360)으로 정규화합니다(§5.1). */}
             <NumberField
@@ -357,6 +471,7 @@ function TemplateFields(p: {
 
 /** 좌표 표와 선택 꼭짓점 칸. 안에 입력 포커스가 있는 동안 표 기준점을 고정합니다(D32). 대상이 바뀌면 새로 만듭니다(key). */
 function VertexSection(p: {
+  id: string
   target: TentTarget
   layout: Layout
   vertexIndex: number | null
@@ -389,6 +504,7 @@ function VertexSection(p: {
 
   return (
     <div
+      id={p.id}
       className="tf-tent__vertices"
       data-testid="tent-vertex-section"
       onFocus={() => setFrozenOrigin((o) => o ?? liveOrigin)}

@@ -118,3 +118,76 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Plan 4.1: 모양 바꾸기·다시 그리기, 자유 다각형 칸, 벽에 붙이기 ── */
+.tf-tent__shape-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tf-tent__poly,
+.tf-tent__edges {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tf-tent__auto {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.tf-tent__auto-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.tf-tent__auto-tag {
+  padding: 0 6px;
+  border-radius: var(--r-full);
+  background: var(--bg-subtle);
+  font-size: 12px;
+}
+
+.tf-tent__disclosure {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tf-tent__attach {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tf-tent__attach-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.tf-tent__attach-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

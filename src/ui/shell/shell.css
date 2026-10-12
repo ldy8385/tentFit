@@ -267,6 +267,12 @@
   right: auto;
 }
 
+/* 화면 아래쪽 버튼(휴대폰 툴바)의 메뉴는 위로 엽니다(Plan 4.1). */
+.shell-menu__list[data-placement='up'] {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
 .shell-menu__item {
   display: flex;
   align-items: center;

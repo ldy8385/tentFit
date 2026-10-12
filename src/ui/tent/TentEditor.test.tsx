@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StoresProvider, createStores, type Stores } from '../../app/stores'
 import { createLayout, type Inner, type Tent } from '../../core/model'
-import { EMPTY_TARGET_TEXT, FREE_EDIT_LABEL, TentEditor, type TentEditorVariant } from './TentEditor'
+import { ANGLES_LABEL, COORDS_LABEL, DRAWING_HINT, EMPTY_TARGET_TEXT, FREE_EDIT_LABEL, TentEditor, type TentEditorVariant } from './TentEditor'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -36,18 +36,39 @@ const POLY: Tent = {
   inners: [],
 }
 
-function setup(tent: Tent, opts: { variant?: TentEditorVariant; target?: 'outer' | string | null; vertex?: number } = {}): Stores {
+function setup(
+  tent: Tent,
+  opts: {
+    variant?: TentEditorVariant
+    target?: 'outer' | string | null
+    vertex?: number
+    context?: 'editor' | 'maker'
+    before?: (s: Stores) => void
+  } = {},
+): Stores {
   const stores = createStores(createLayout(tent, { name: '배치', id: 'L1', now: '2026-10-08T00:00:00.000Z' }))
   const ui = stores.ui.getState()
   ui.setMode('tent')
+  opts.before?.(stores)
   const t = opts.target ?? null
   if (t !== null) ui.selectTentTarget(t === 'outer' ? 'outer' : { innerId: t }, opts.vertex ?? null)
   render(
     <StoresProvider stores={stores}>
-      <TentEditor variant={opts.variant ?? 'panel'} />
+      <TentEditor variant={opts.variant ?? 'panel'} context={opts.context ?? 'editor'} />
     </StoresProvider>,
   )
   return stores
+}
+
+/** 메뉴 버튼을 열고 항목을 고릅니다 */
+function pickMenu(button: string, item: string): void {
+  fireEvent.click(within(editor()).getByRole('button', { name: button }))
+  fireEvent.click(within(editor()).getByRole('menuitem', { name: item }))
+}
+
+/** 접힌 칸(꼭짓점 각도·좌표로 고치기)을 엽니다 */
+function expand(name: string): void {
+  fireEvent.click(within(editor()).getByRole('button', { name }))
 }
 
 function editor(): HTMLElement {
@@ -98,9 +119,9 @@ describe('TentEditor 구성 목록(§4.4-3)', () => {
     expect(within(editor()).queryByRole('button', { name: /내 텐트로 저장/ })).toBeNull() // R1
   })
 
-  it('[+ 이너]는 새 이너를 만들고 그 이너를 대상으로 고른다', () => {
+  it('[+ 이너 ▾] → 사각형은 새 이너를 만들고 그 이너를 대상으로 고른다', () => {
     const stores = setup({ ...TWO_INNERS, inners: [] })
-    fireEvent.click(within(editor()).getByRole('button', { name: '+ 이너' }))
+    pickMenu('+ 이너', '사각형')
     const inners = stores.doc.getState().layout.tent.inners
     expect(inners).toHaveLength(1)
     expect(stores.ui.getState().tentTarget).toEqual({ innerId: inners[0]!.id })
@@ -228,14 +249,17 @@ describe('TentEditor 템플릿 대상', () => {
 })
 
 describe('TentEditor 자유 다각형과 좌표 표(D32)', () => {
-  it('자유 다각형은 바로 좌표 표(기준점 = 외곽 bbox 왼쪽 위)', () => {
+  it('자유 다각형의 좌표 표는 「좌표로 고치기」를 열면 보인다(기준점 = 외곽 bbox 왼쪽 위)', () => {
     setup(POLY, { target: 'outer' })
     expect(within(editor()).queryByRole('button', { name: FREE_EDIT_LABEL })).toBeNull()
+    expect(screen.queryByTestId('tent-vertex-table')).toBeNull()
+    expand(COORDS_LABEL)
     expect(tableInputs().map((i) => i.value)).toEqual(['0', '0', '600', '0', '600', '300', '0', '300'])
   })
 
   it('기준점 고정: 왼쪽 위 꼭짓점 x를 −50으로 넣는 동안 다른 칸 표시값이 바뀌지 않고, 표를 떠나면 한 번 다시 매겨진다', () => {
     const stores = setup(POLY, { target: 'outer' })
+    expand(COORDS_LABEL)
     typeEnter(tableInputs()[0]!, '-50')
     // 월드에는 기준점(−300)을 더해 −350으로 저장
     expect(stores.doc.getState().layout.tent.outer).toEqual({
@@ -256,6 +280,7 @@ describe('TentEditor 자유 다각형과 좌표 표(D32)', () => {
 
   it('자기교차가 되는 입력은 그 칸에 오류, 문서 그대로', () => {
     const stores = setup(POLY, { target: 'outer' })
+    expand(COORDS_LABEL)
     // 1번 꼭짓점을 (700, 0)으로 → 변 1-2와 3-4가 교차
     typeEnter(tableInputs()[0]!, '700')
     expect(within(screen.getByTestId('tent-vertex-table')).getByRole('alert').textContent).toBe('외곽: 변끼리 교차해요')
@@ -364,5 +389,147 @@ describe('TentEditor 측정 중(§4.3)', () => {
     expect((within(editor()).getByRole('checkbox', { name: '정사각형' }) as HTMLInputElement).disabled).toBe(true)
     fireEvent.click(within(editor()).getByRole('button', { name: '텐트 바꾸기' }))
     expect(stores.ui.getState().editorDialog).toBeNull()
+  })
+})
+
+/** 맞춤으로 직각인 대충 그린 외곽 600×330(밑변 590) */
+const ROUGH: Tent = {
+  name: '그린 텐트',
+  outer: { kind: 'polygon', points: [[0, 0], [600, 0], [600, 330], [10, 330]] },
+  inners: [],
+}
+
+function outerPoints(stores: Stores): number[][] {
+  const o = stores.doc.getState().layout.tent.outer
+  return o.kind === 'polygon' ? o.points : []
+}
+
+describe('TentEditor 예시 모양 메뉴(Plan 4.1 §3)', () => {
+  it('[+ 이너 ▾] 항목: 사각형·사다리꼴·정N각형·원·자유 그리기, 자유 그리기는 새 이너 그리기를 시작', () => {
+    const stores = setup(TWO_INNERS)
+    fireEvent.click(within(editor()).getByRole('button', { name: '+ 이너' }))
+    expect(within(editor()).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['사각형', '사다리꼴', '정N각형', '원', '자유 그리기'])
+    fireEvent.click(within(editor()).getByRole('menuitem', { name: '자유 그리기' }))
+    expect(stores.ui.getState().drawing).toEqual({ goal: 'newInner', points: [] })
+  })
+
+  it('[모양 바꾸기 ▾]: 지금 종류는 비활성, 원을 고르면 지름 = 짧은 변(1칸)', () => {
+    const stores = setup(TWO_INNERS, { target: 'outer' })
+    fireEvent.click(within(editor()).getByRole('button', { name: '모양 바꾸기' }))
+    const rect = within(editor()).getByRole('menuitem', { name: '사각형' }) as HTMLButtonElement
+    expect(rect.disabled).toBe(true)
+    fireEvent.click(within(editor()).getByRole('menuitem', { name: '원' }))
+    expect(stores.doc.getState().layout.tent.outer).toEqual({ kind: 'circle', d: 300 })
+    expect(stores.doc.getState().canUndo).toBe(true)
+  })
+
+  it('[다시 그리기]는 그 대상 그리기를 시작한다(원도 가능)', () => {
+    const stores = setup({ name: '원', outer: { kind: 'circle', d: 400 }, outerTemplate: { kind: 'circle', d: 400 }, inners: [] }, { target: 'outer' })
+    fireEvent.click(within(editor()).getByRole('button', { name: '다시 그리기' }))
+    expect(stores.ui.getState().drawing?.goal).toBe('outer')
+  })
+
+  it('그리는 중에는 대상 칸 대신 안내', () => {
+    const stores = setup(TWO_INNERS, { target: 'outer' })
+    act(() => stores.ui.getState().startDrawing('outer'))
+    expect(screen.queryByTestId('tent-target-fields')).toBeNull()
+    expect(within(editor()).getByText(DRAWING_HINT)).toBeTruthy()
+  })
+})
+
+describe('TentEditor 자유 다각형 cm 맞추기(Plan 4.1 §2.3)', () => {
+  it('전체 크기·변 1…n−1 입력, 닫는 변은 읽기 전용 「자동」, 각도·좌표는 접힘', () => {
+    setup(ROUGH, { target: 'outer' })
+    expect(field('가로').value).toBe('600')
+    expect(field('세로').value).toBe('330')
+    expect(['변 1', '변 2', '변 3'].map((l) => field(l).value)).toEqual(['600', '330', '590'])
+    expect(within(editor()).queryByLabelText('변 4')).toBeNull()
+    const closing = screen.getByTestId('tent-edge-closing')
+    expect(closing.textContent).toContain('변 4')
+    expect(closing.textContent).toContain('330.2')
+    expect(closing.textContent).toContain('자동')
+    expect(within(editor()).queryByLabelText('꼭짓점 2')).toBeNull()
+    expect(screen.queryByTestId('tent-vertex-table')).toBeNull()
+  })
+
+  it('변 1=620·변 2=320·변 3=620 → 정확한 620×320(각 1칸)', () => {
+    const stores = setup(ROUGH, { target: 'outer' })
+    typeEnter(field('변 1'), '620')
+    typeEnter(field('변 2'), '320')
+    typeEnter(field('변 3'), '620')
+    expect(outerPoints(stores)).toEqual([[0, 0], [620, 0], [620, 320], [0, 320]])
+    expect(screen.getByTestId('tent-edge-closing').textContent).toContain('320')
+  })
+
+  it('닫는 변이 0이 되는 변 길이는 그 칸에 오류, 문서 그대로', () => {
+    const stores = setup({ ...ROUGH, outer: { kind: 'polygon', points: [[0, 0], [400, 0], [400, 300], [0, 300], [0, 100]] } }, { target: 'outer' })
+    typeEnter(field('변 4'), '300')
+    expect(within(editor()).getByRole('alert').textContent).toBe('변 길이가 0이 돼요')
+    expect(stores.doc.getState().canUndo).toBe(false)
+  })
+
+  it('꼭짓점 각도: 열면 꼭짓점 2…n−1 입력, 1·n은 읽기 전용, 입력하면 1칸', () => {
+    const stores = setup(ROUGH, { target: 'outer' })
+    expand(ANGLES_LABEL)
+    expect(field('꼭짓점 2').value).toBe('90')
+    expect(field('꼭짓점 3').value).toBe('90')
+    expect(within(editor()).queryByLabelText('꼭짓점 1')).toBeNull()
+    expect(within(editor()).queryByLabelText('꼭짓점 4')).toBeNull()
+    typeEnter(field('꼭짓점 2'), '100')
+    expect(stores.doc.getState().canUndo).toBe(true)
+    expect(field('꼭짓점 2').value).toBe('100')
+  })
+
+  it('전체 크기 가로를 바꾸면 그 축만 비율대로', () => {
+    const stores = setup({ ...ROUGH, outer: { kind: 'polygon', points: [[0, 0], [600, 0], [600, 300], [0, 300]] } }, { target: 'outer' })
+    typeEnter(field('가로'), '300')
+    expect(outerPoints(stores)).toEqual([[150, 0], [450, 0], [450, 300], [150, 300]])
+  })
+
+  it('꼭짓점을 고르면 표가 접혀 있어도 그 꼭짓점 x·y 칸이 보인다', () => {
+    setup(ROUGH, { target: 'outer', vertex: 2 })
+    const box = screen.getByTestId('tent-selected-vertex')
+    expect(within(box).getByText('3번 꼭짓점')).toBeTruthy()
+    expect(within(box).getByLabelText('X')).toBeTruthy()
+  })
+})
+
+describe('TentEditor 벽에 붙이기(Plan 4.1 §2.4)', () => {
+  it('외곽 템플릿이 사각형이면 이너에 [뒤·앞·왼쪽·오른쪽], 누르면 그 벽으로(1칸)', () => {
+    const stores = setup(TWO_INNERS, { target: 'i2' })
+    const group = within(editor()).getByRole('group', { name: '벽에 붙이기' })
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['뒤', '앞', '왼쪽', '오른쪽'])
+    fireEvent.click(within(group).getByRole('button', { name: '뒤' }))
+    expect(stores.doc.getState().layout.tent.inners[1]).toMatchObject({ x: 0, y: -100 })
+  })
+
+  it('외곽이 자유 다각형이거나 대상이 외곽이면 줄이 없다', () => {
+    setup(TWO_INNERS, { target: 'outer' })
+    expect(within(editor()).queryByRole('group', { name: '벽에 붙이기' })).toBeNull()
+  })
+})
+
+describe('TentEditor 잠금·만들기 화면(Plan 4.1 §1.1)', () => {
+  it("이너 잠금('inners')이면 이너 행 비활성, [+ 이너] 없음", () => {
+    setup(TWO_INNERS, { before: (s) => s.ui.getState().setTentLock('inners') })
+    expect((listRow(/^이너 1/) as HTMLButtonElement).disabled).toBe(true)
+    expect((listRow(/^외곽/) as HTMLButtonElement).disabled).toBe(false)
+    expect(within(editor()).queryByRole('button', { name: '+ 이너' })).toBeNull()
+  })
+
+  it("외곽 잠금('outer')이면 외곽 행 비활성, 외곽 없음이면 외곽 행 자체가 없다", () => {
+    setup(TWO_INNERS, { before: (s) => s.ui.getState().setTentLock('outer') })
+    expect((listRow(/^외곽/) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('외곽 없음이면 외곽 행이 없다', () => {
+    setup({ ...TWO_INNERS, inners: [] }, { before: (s) => s.ui.getState().setOuterPending(true) })
+    expect(within(editor()).queryByRole('button', { name: /^외곽/ })).toBeNull()
+  })
+
+  it("context 'maker'면 [텐트 바꾸기]·목록의 [+ 이너]가 없다", () => {
+    setup(TWO_INNERS, { context: 'maker' })
+    expect(within(editor()).queryByRole('button', { name: '텐트 바꾸기' })).toBeNull()
+    expect(within(editor()).queryByRole('button', { name: '+ 이너' })).toBeNull()
   })
 })

@@ -4,8 +4,10 @@ import { shapeFromTemplate } from '../../core/templates'
 import {
   applyTemplateField,
   editableTemplate,
+  parsePolygonFieldId,
   parseTargetKey,
   parseVertexFieldId,
+  polygonFieldId,
   samePoint,
   setSquare,
   shapeKindLabel,
@@ -125,5 +127,18 @@ describe('템플릿 칸 반영', () => {
   it('같은 점 판정은 0.05cm 안', () => {
     expect(samePoint([10, 20], [10.04, 19.96])).toBe(true)
     expect(samePoint([10, 20], [10.1, 20])).toBe(false)
+  })
+})
+
+describe('polygonFieldId(Plan 4.1)', () => {
+  it('변·각도는 번호, 가로·세로는 번호 없이, 역함수로 되살린다', () => {
+    expect(polygonFieldId('outer', 'e', 2)).toBe('outer@e2')
+    expect(polygonFieldId({ innerId: 'a#b' }, 'a', 1)).toBe('inner:a#b@a1')
+    expect(polygonFieldId('outer', 'w')).toBe('outer@w')
+    expect(parsePolygonFieldId('outer@e2')).toEqual({ target: 'outer', kind: 'e', index: 2 })
+    expect(parsePolygonFieldId('inner:x@h')).toEqual({ target: { innerId: 'x' }, kind: 'h', index: 0 })
+    expect(parsePolygonFieldId('outer@e')).toBeNull()
+    expect(parsePolygonFieldId('outer@z1')).toBeNull()
+    expect(parsePolygonFieldId('outer#1')).toBeNull()
   })
 })

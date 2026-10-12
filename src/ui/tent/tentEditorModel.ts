@@ -35,6 +35,32 @@ export function parseVertexFieldId(id: string): { target: TentTarget; index: num
   return { target, index }
 }
 
+/** 자유 다각형 칸 종류: 변 길이(e), 꼭짓점 각도(a), 전체 가로(w)·세로(h) */
+export type PolygonFieldKind = 'e' | 'a' | 'w' | 'h'
+
+/**
+ * 자유 다각형 칸 targetId: '<대상 키>@<종류><번호>'(번호는 0부터, 가로·세로는 번호 없음).
+ * 꼭짓점 좌표 칸('#')과 섞이지 않게 다른 구분자를 씁니다.
+ */
+export function polygonFieldId(target: TentTarget, kind: PolygonFieldKind, index = 0): string {
+  return `${targetKey(target)}@${kind}${kind === 'w' || kind === 'h' ? '' : String(index)}`
+}
+
+/** polygonFieldId의 역. 알 수 없는 글자면 null */
+export function parsePolygonFieldId(id: string): { target: TentTarget; kind: PolygonFieldKind; index: number } | null {
+  const at = id.lastIndexOf('@')
+  if (at < 0) return null
+  const target = parseTargetKey(id.slice(0, at))
+  const rest = id.slice(at + 1)
+  const kind = rest.charAt(0)
+  if (target === null) return null
+  if (kind === 'w' || kind === 'h') return rest.length === 1 ? { target, kind, index: 0 } : null
+  if (kind !== 'e' && kind !== 'a') return null
+  const index = Number(rest.slice(1))
+  if (rest.length < 2 || !Number.isInteger(index) || index < 0) return null
+  return { target, kind, index }
+}
+
 /** 표시 이름: 외곽은 '외곽', 이너는 그 이름. 없는 이너면 null */
 export function targetName(tent: Tent, target: TentTarget): string | null {
   if (target === 'outer') return '외곽'
