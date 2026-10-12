@@ -1,4 +1,4 @@
-// 셸에서 쓰는 선 아이콘(24×24, currentColor). 장식이므로 aria-hidden이고, 이름은 버튼의 aria-label이 맡습니다.
+// 셸·고르기·만들기 화면에서 쓰는 선 아이콘(24×24, currentColor). 장식이므로 aria-hidden이고, 이름은 버튼의 aria-label이나 글자가 맡습니다.
 import type { ReactNode } from 'react'
 
 export type IconProps = { size?: number }
@@ -100,6 +100,90 @@ export function CheckIcon(p: IconProps) {
   return (
     <Svg {...p}>
       <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </Svg>
+  )
+}
+
+/** 뒤로(‹). 만들기 화면 상단 바 */
+export function BackIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m15 5-7 7 7 7" />
+    </Svg>
+  )
+}
+
+/** 앞으로(›). 휴대폰 카드 오른쪽 끝 */
+export function ChevronRightIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m9 5 7 7-7 7" />
+    </Svg>
+  )
+}
+
+/** 폴더. 고르기 화면 "내 배치" */
+export function FolderIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M3.5 7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
+    </Svg>
+  )
+}
+
+/** 휴지통. 이너 삭제 */
+export function TrashIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l.8 11.6a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9L17.5 7M10.5 11v5.5M13.5 11v5.5" />
+    </Svg>
+  )
+}
+
+/** 모양: 사각형 */
+export function ShapeRectIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="6" width="17" height="12" rx="1" />
+    </Svg>
+  )
+}
+
+/** 모양: 사다리꼴(뒷변이 짧고 앞변이 아래, §4.8) */
+export function ShapeTrapezoidIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M7.5 6h9l4 12h-17z" />
+    </Svg>
+  )
+}
+
+/** 모양: 정N각형(육각, 한 변이 아래 수평, §4.8) */
+export function ShapeNgonIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 19.5h8l4-7.5-4-7.5H8L4 12z" />
+    </Svg>
+  )
+}
+
+/** 모양: 원 */
+export function ShapeCircleIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="8" />
+    </Svg>
+  )
+}
+
+/** 모양: 자유 다각형(꼭짓점 점 포함) */
+export function ShapeFreeIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M5 18.5 4 8l7.5-4L20 9.5l-3 9z" />
+      <circle cx="4" cy="8" r="1.4" fill="currentColor" />
+      <circle cx="20" cy="9.5" r="1.4" fill="currentColor" />
+      <circle cx="17" cy="18.5" r="1.4" fill="currentColor" />
     </Svg>
   )
 }
