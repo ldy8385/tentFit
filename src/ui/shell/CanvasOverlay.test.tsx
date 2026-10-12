@@ -1,12 +1,19 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
 import { createLayout, type Layout, type Tent } from '../../core/model'
 import { addItem, makeItem } from '../../core/ops/items'
 import { fitView, layoutBBox } from '../../view/viewport'
 import { tunnelLayout } from '../area/testLayouts'
-import { CanvasOverlay, EMPTY_BODY_DESKTOP, EMPTY_BODY_MOBILE, EMPTY_TITLE, MODE_CHIP_COLLAPSE_MS } from './CanvasOverlay'
+import {
+  CanvasOverlay,
+  EMPTY_BODY_DESKTOP,
+  EMPTY_BODY_MOBILE,
+  EMPTY_TITLE,
+  MODE_CHIP_COLLAPSE_MS,
+  SWAP_TENT_BUTTON,
+} from './CanvasOverlay'
 import {
   EMPTY_CARD_BOTTOM_GAP_PX,
   EMPTY_CARD_DOCKED_HEIGHT_PX,
@@ -15,6 +22,9 @@ import {
   emptyCardPlacement,
   tentScreenBox,
 } from './emptyCardPlacement'
+
+// 텐트 바꾸기 대화상자가 열리면 목록을 불러옵니다. 이 파일은 "열렸는지"만 보므로 끝나지 않는 Promise로 둡니다.
+vi.mock('../../app/tentCatalog', () => ({ loadTentCatalog: () => new Promise(() => {}) }))
 
 const TENT: Tent = { name: '시험 텐트', outer: { kind: 'rect', w: 400, h: 300 }, inners: [] }
 const PLACE_TEXT = '배치 모드 · 텐트는 잠겨 있어요'
@@ -60,6 +70,19 @@ describe('CanvasOverlay — PC', () => {
     expect(screen.queryByRole('button', { name: '물건 추가' })).toBeNull()
     addMat(stores)
     expect(screen.queryByTestId('empty-card')).toBeNull()
+  })
+
+  it('안내 카드 버튼은 [텐트 바꾸기]만이고, 누르면 텐트 바꾸기 대화상자를 연다(배치 모드 그대로)', () => {
+    const stores = renderOverlay('desktop')
+    const card = screen.getByTestId('empty-card')
+    expect(within(card).getAllByRole('button').map((b) => b.textContent)).toEqual([SWAP_TENT_BUTTON])
+    fireEvent.click(within(card).getByRole('button', { name: SWAP_TENT_BUTTON }))
+    expect(stores.ui.getState().editorDialog).toBe('swapTent')
+    expect(stores.ui.getState().mode).toBe('place')
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('텐트 바꾸기')
+    expect(document.body.contains(dialog)).toBe(true)
+    expect(screen.getByTestId('canvas-overlay').contains(dialog)).toBe(false)
   })
 
   it('측정 중이거나 텐트 편집 모드면 안내 카드를 숨긴다', () => {
@@ -134,6 +157,22 @@ describe('CanvasOverlay — 모바일', () => {
     renderOverlay('mobile')
     expect(screen.queryByRole('button', { name: '확대' })).toBeNull()
     expect(screen.queryByRole('button', { name: '맞춤 보기' })).toBeNull()
+  })
+
+  it('빈 안내 카드 버튼은 [물건 추가]·[텐트 바꾸기] 순서이고, [텐트 바꾸기]는 대화상자를 연다', () => {
+    const stores = renderOverlay('mobile')
+    const card = screen.getByTestId('empty-card')
+    expect(within(card).getAllByRole('button').map((b) => b.textContent)).toEqual(['물건 추가', SWAP_TENT_BUTTON])
+    fireEvent.click(within(card).getByRole('button', { name: SWAP_TENT_BUTTON }))
+    expect(stores.ui.getState().editorDialog).toBe('swapTent')
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('물건이 있으면 카드(와 [텐트 바꾸기])가 없다', () => {
+    const stores = renderOverlay('mobile')
+    addMat(stores)
+    expect(screen.queryByTestId('empty-card')).toBeNull()
+    expect(screen.queryByRole('button', { name: SWAP_TENT_BUTTON })).toBeNull()
   })
 
   it('빈 안내 카드는 모바일 문구와 [물건 추가]를 보여 주고, 누르면 라이브러리 시트를 연다', () => {

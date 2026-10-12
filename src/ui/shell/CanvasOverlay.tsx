@@ -1,6 +1,7 @@
 // 캔버스 위 컨트롤(화면에만 있고 PNG에는 넣지 않음, 스펙 §4.1·§4.3·§4.6·§4.7-10).
-// 모드 안내 칩(모바일은 3초 뒤 접힘), 축척 막대, PC 확대·축소·맞춤 버튼, 물건 0개 안내 카드, 토스트(「빈 공간이 부족해요」 등).
-// 스냅 상태 칩은 Plan 5, 안내 카드의 [텐트 바꾸기]는 Task 11에서 더합니다.
+// 모드 안내 칩(모바일은 3초 뒤 접힘), 축척 막대, PC 확대·축소·맞춤 버튼, 물건 0개 안내 카드, 토스트(「빈 공간이 부족해요」 등),
+// 텐트 바꾸기 대화상자·만들기 오버레이 자리(SwapTentDialog, body로 포털). 스냅 상태 칩은 Plan 5.
+// 안내 카드의 [텐트 바꾸기]는 물건 0개·배치 모드·측정 아님에서만 보입니다(§4.7-8 예외, §4.7-10).
 // 아래쪽 컨트롤은 시트 높이(insets.bottom)만큼 올려서 시트에 가리지 않게 합니다.
 // 휴대폰 안내 카드는 가운데가 아니라 아래쪽(겹치면 위쪽)에 붙여 텐트를 가리지 않게 합니다(emptyCardPlacement).
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
@@ -9,6 +10,7 @@ import { fitToLayout, zoomByStep, ZOOM_STEP } from '../../app/viewActions'
 import type { Mode } from '../../store/ui'
 import { ZOOM_MAX, ZOOM_MIN } from '../../view/viewport'
 import { ToastView } from '../common/Toast'
+import { openSwapTent, SwapTentDialog } from '../tent/SwapTentDialog'
 import { emptyCardPlacement, tentScreenBox } from './emptyCardPlacement'
 import { FitIcon, MinusIcon, PlusIcon, PlusSquareIcon, PointerIcon } from './icons'
 import { scaleBar } from './scaleBar'
@@ -27,6 +29,8 @@ export const EMPTY_TITLE = '아직 놓은 물건이 없어요'
 /** 스펙 §4.7-10은 「라이브러리에서 누르거나 끌어다 놓으면 추가돼요」. 라이브러리 끌어다 놓기가 아직 없어 앞부분만 씁니다. */
 export const EMPTY_BODY_DESKTOP = '라이브러리에서 누르면 추가돼요'
 export const EMPTY_BODY_MOBILE = '아래 [+물건]으로 매트나 의자를 놓아 보세요'
+/** 빈 안내 카드의 텐트 바꾸기 버튼(§4.7-10) */
+export const SWAP_TENT_BUTTON = '텐트 바꾸기'
 
 type Variant = 'desktop' | 'mobile'
 
@@ -131,6 +135,11 @@ function EmptyCard(p: { variant: Variant }) {
         </span>
         <p className="shell-empty__title">{EMPTY_TITLE}</p>
         <p className="shell-empty__body">{EMPTY_BODY_DESKTOP}</p>
+        <div className="shell-empty__actions">
+          <button type="button" className="shell-empty__btn shell-empty__btn--secondary" onClick={() => openSwapTent(stores)}>
+            {SWAP_TENT_BUTTON}
+          </button>
+        </div>
       </div>
     )
   }
@@ -146,6 +155,9 @@ function EmptyCard(p: { variant: Variant }) {
         >
           <PlusIcon size={18} />
           물건 추가
+        </button>
+        <button type="button" className="shell-empty__btn shell-empty__btn--secondary" onClick={() => openSwapTent(stores)}>
+          {SWAP_TENT_BUTTON}
         </button>
       </div>
     </div>
@@ -180,6 +192,7 @@ export function CanvasOverlay(p: { variant: Variant }) {
       {p.variant === 'desktop' && <ZoomControls zoom={zoom} />}
       {showEmpty && <EmptyCard variant={p.variant} />}
       <ToastHost />
+      <SwapTentDialog />
     </div>
   )
 }

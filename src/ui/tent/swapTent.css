@@ -1,0 +1,32 @@
+/* 텐트 바꾸기 대화상자·만들기 오버레이를 담는 자리(Task 11). body에 포털하므로 편집기 상단 바(10)·툴바(25)·
+   시트(20) 위에 오도록 쌓임 맥락을 하나 만듭니다. 대화상자·만들기 화면의 모양은 각 컴포넌트가 그립니다. */
+.tf-swap-host {
+  position: relative;
+  z-index: 60;
+}
+
+.tf-swap__cancel,
+.tf-swap__retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.tf-swap__retry {
+  margin-top: var(--sp-3);
+}
+
+.tf-swap__cancel:focus-visible,
+.tf-swap__retry:focus-visible {
+  outline: 2px solid var(--select);
+  outline-offset: 2px;
+}
