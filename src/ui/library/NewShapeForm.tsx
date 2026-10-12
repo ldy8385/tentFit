@@ -1,9 +1,11 @@
-import { useId, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { CATEGORY_LABELS, ITEM_CATEGORIES, LIMITS, round1, type ColorKey, type ItemCategory, type Shape } from '../../core/model'
 import { nextColor } from '../../core/ops/items'
 import { addCustomItem } from '../../app/actions'
 import { useStores } from '../../app/stores'
-import { INPUT_FONT_PX, checkNumber, checkText, type Checked } from '../fields/numberInput'
+import { FormInput, formEnterKeyDown } from '../fields/formInput'
+import { NAME_MAX_LENGTH } from '../fields/limits'
+import { INPUT_FONT_PX, checkNumber, checkText } from '../fields/numberInput'
 import { ColorSwatches } from '../panels/ColorSwatches'
 import { dimsText } from '../panels/itemDims'
 import { ShapeSwatch } from './ShapeSwatch'
@@ -12,7 +14,6 @@ import '../panels/panels.css'
 import './newShape.css'
 
 const [LEN_MIN, LEN_MAX] = LIMITS.length
-const NAME_MAX = 40
 /** 스펙 §4.7-3 기본값 */
 const DEFAULT_NAME = '새 도형'
 const DEFAULT_W = '100'
@@ -20,56 +21,6 @@ const DEFAULT_H = '50'
 const DEFAULT_D = '50'
 
 type FormShape = 'rect' | 'circle'
-
-/**
- * 폼 안의 입력칸. 모양과 문구는 Task 6 입력칸(`tf-field`, checkNumber·checkText 문구)과 같고,
- * 문서가 아니라 폼 값을 바꾸므로 입력할 때마다 검사해 오류를 바로 보여 줍니다.
- */
-function FormInput(p: {
-  label: string
-  value: string
-  onChange(v: string): void
-  check: Checked<unknown>
-  unit?: string
-  numeric?: boolean
-  maxLength?: number
-  /** 마지막 입력칸이면 'done', 아니면 'next'(휴대폰 키보드의 Enter 표시) */
-  last?: boolean
-}) {
-  const id = useId()
-  const errorId = useId()
-  const invalid = !p.check.ok
-  return (
-    <div className="tf-field">
-      <label className="tf-field__label" htmlFor={id}>
-        {p.label}
-      </label>
-      <div className="tf-field__box" data-invalid={invalid}>
-        <input
-          id={id}
-          className={p.numeric === true ? 'tf-field__input tf-num' : 'tf-field__input'}
-          type="text"
-          inputMode={p.numeric === true ? 'decimal' : undefined}
-          enterKeyHint={p.last === true ? 'done' : 'next'}
-          autoComplete="off"
-          spellCheck={false}
-          maxLength={p.maxLength}
-          style={{ fontSize: INPUT_FONT_PX }}
-          value={p.value}
-          aria-invalid={invalid}
-          aria-describedby={invalid ? errorId : undefined}
-          onChange={(e) => p.onChange(e.target.value)}
-        />
-        {p.unit !== undefined && <span className="tf-field__unit">{p.unit}</span>}
-      </div>
-      {!p.check.ok && (
-        <span id={errorId} className="tf-field__error" role="alert">
-          {p.check.error}
-        </span>
-      )}
-    </div>
-  )
-}
 
 /**
  * 새 도형 폼(스펙 §4.7-3, O2: 사각형·원). 확정 전에는 캔버스에 아무것도 그리지 않습니다(D35).
@@ -119,27 +70,8 @@ export function NewShapeForm(p: { onDone(): void; onCancel(): void; inSheet?: bo
     if (next === 'RUG') setCountsArea(false)
   }
 
-  /**
-   * 입력칸·select·스위치의 Enter는 폼을 제출하지 않습니다(암시적 제출로 물건이 생기지 않게, D35).
-   * 확정은 [캔버스에 추가] 버튼으로만 합니다. 글자 입력칸이면 다음 입력칸으로 옮기고, 마지막 칸이면 포커스를 풀어
-   * 키보드를 내립니다. 한글 조합을 끝내는 Enter는 칸을 옮기지 않습니다.
-   */
-  const onKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
-    if (e.key !== 'Enter') return
-    const target = e.target
-    if (target instanceof HTMLSelectElement) {
-      e.preventDefault()
-      return
-    }
-    if (!(target instanceof HTMLInputElement)) return
-    e.preventDefault()
-    if (target.type !== 'text') return
-    if (e.nativeEvent.isComposing) return
-    const fields = [...e.currentTarget.querySelectorAll<HTMLInputElement>('input[type="text"]')]
-    const next = fields[fields.indexOf(target) + 1]
-    if (next === undefined) target.blur()
-    else next.focus()
-  }
+  // 입력칸·select·스위치의 Enter는 폼을 제출하지 않습니다(암시적 제출로 물건이 생기지 않게, D35).
+  // 확정은 [캔버스에 추가] 버튼으로만 합니다. 규칙은 텐트 만들기 화면과 같은 formEnterKeyDown 한 곳에 있습니다.
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -149,7 +81,7 @@ export function NewShapeForm(p: { onDone(): void; onCancel(): void; inSheet?: bo
   }
 
   return (
-    <form className="tf-ns" aria-label="새 도형 만들기" onSubmit={submit} onKeyDown={onKeyDown} noValidate>
+    <form className="tf-ns" aria-label="새 도형 만들기" onSubmit={submit} onKeyDown={formEnterKeyDown} noValidate>
       {p.inSheet !== true && (
         <header className="tf-ns__head">
           <h2 className="tf-ns__title">새 도형 만들기</h2>
@@ -179,7 +111,7 @@ export function NewShapeForm(p: { onDone(): void; onCancel(): void; inSheet?: bo
           </div>
         </div>
 
-        <FormInput label="이름" value={name} onChange={setName} check={nameCheck} maxLength={NAME_MAX} />
+        <FormInput label="이름" value={name} onChange={setName} check={nameCheck} maxLength={NAME_MAX_LENGTH} />
 
         {kind === 'rect' ? (
           <div className="tf-row2">
