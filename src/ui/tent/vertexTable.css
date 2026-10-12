@@ -1,0 +1,146 @@
+/* 꼭짓점 좌표 표(시안 07 좌표 표, 스펙 §4.4-3). 입력칸 글자 16px·누름 영역 44px(검토 L172·L173). 선택 행 = accent-soft. */
+.tf-vt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tf-vt__head,
+.tf-vt__line {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 6px;
+}
+
+.tf-vt__head {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+
+.tf-vt__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tf-vt__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-sm);
+}
+
+.tf-vt__row[data-selected='true'] {
+  background: var(--accent-soft);
+}
+
+.tf-vt__num {
+  min-width: 32px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tf-vt__row[data-selected='true'] .tf-vt__num {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.tf-vt__cell {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+}
+
+.tf-vt__cell:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.tf-vt__cell[data-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.tf-vt__cell[data-disabled='true'] {
+  background: var(--bg-subtle);
+  color: var(--text-tertiary);
+}
+
+.tf-vt__input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 4px 0 8px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 16px;
+  text-align: right;
+}
+
+.tf-vt__sign {
+  flex: none;
+  width: 32px;
+  height: 42px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* 보이는 버튼은 32px이지만 누름 영역은 위아래로 44px(칸 높이)입니다. */
+.tf-vt__sign:disabled,
+.tf-vt__del:disabled,
+.tf-vt__add:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.tf-vt__del {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.tf-vt__error {
+  padding-left: 38px;
+}
+
+.tf-vt__add {
+  min-height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
