@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editHash, parseHash } from './router'
+import { editHash, parseHash, PICK_HASH } from './router'
 
 describe('parseHash', () => {
   it("'#/edit/<id>'는 편집기", () => {
@@ -7,8 +7,29 @@ describe('parseHash', () => {
     expect(parseHash('#/edit/abc-123/')).toEqual({ name: 'edit', layoutId: 'abc-123' })
   })
 
+  it("'#/pick'(뒤 슬래시 허용)은 텐트 고르기", () => {
+    expect(parseHash('#/pick')).toEqual({ name: 'pick' })
+    expect(parseHash('#/pick/')).toEqual({ name: 'pick' })
+    expect(parseHash(PICK_HASH)).toEqual({ name: 'pick' })
+    expect(PICK_HASH).toBe('#/pick')
+  })
+
   it('그 밖은 모두 시작', () => {
-    for (const h of ['', '#', '#/', '#/edit', '#/edit/', '#/edit/a/b', '#/pick', '#edit/abc', '#/edit/%20', '#/edit/%E0%A4%A']) {
+    for (const h of [
+      '',
+      '#',
+      '#/',
+      '#/edit',
+      '#/edit/',
+      '#/edit/a/b',
+      '#edit/abc',
+      '#/edit/%20',
+      '#/edit/%E0%A4%A',
+      '#pick',
+      '#/pick/abc',
+      '#/pick//',
+      '#/picker',
+    ]) {
       expect(parseHash(h)).toEqual({ name: 'start' })
     }
   })
