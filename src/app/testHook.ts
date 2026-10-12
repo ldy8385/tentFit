@@ -29,6 +29,9 @@ export type TentfitTestHook = {
 
 /** 캔버스(테스트 id 'canvas-host')가 쓰는 DOM 요소. 셸이 정합니다. */
 export const CANVAS_HOST_TEST_ID = 'canvas-host'
+/** 만들기 화면의 훅 이름·캔버스 test id(Plan 4.1 판단 Q16). 텐트 바꾸기에서 열어도 편집기 훅을 덮지 않습니다. */
+export const MAKER_HOOK_KEY = '__tentfitMaker'
+export const MAKER_CANVAS_HOST_TEST_ID = 'maker-canvas-host'
 
 function dataOf<T extends object>(state: T): DataOf<T> {
   const out: Record<string, unknown> = {}
@@ -39,24 +42,29 @@ function dataOf<T extends object>(state: T): DataOf<T> {
 }
 
 /** Konva Stage의 그리기 영역(.konvajs-content) 왼쪽 위. 없으면 캔버스 호스트, 그것도 없으면 (0,0) */
-function canvasOrigin(): { left: number; top: number } {
-  const host = document.querySelector(`[data-testid="${CANVAS_HOST_TEST_ID}"]`)
+function canvasOrigin(hostTestId: string): { left: number; top: number } {
+  const host = document.querySelector(`[data-testid="${hostTestId}"]`)
   const surface = host?.querySelector('.konvajs-content') ?? host
   if (!surface) return { left: 0, top: 0 }
   const r = surface.getBoundingClientRect()
   return { left: r.left, top: r.top }
 }
 
-type HookWindow = { __tentfit?: TentfitTestHook }
+type HookWindow = Record<string, TentfitTestHook | undefined>
 
-/** window.__tentfit을 설치하고, 지우는 함수를 돌려줍니다. */
-export function installTestHook(stores: Stores): () => void {
+/**
+ * window[key](기본 __tentfit)를 설치하고, 지우는 함수를 돌려줍니다.
+ * hostTestId는 worldToClient가 기준으로 쓸 캔버스 호스트(기본 'canvas-host').
+ */
+export function installTestHook(stores: Stores, opts?: { key?: string; hostTestId?: string }): () => void {
+  const key = opts?.key ?? '__tentfit'
+  const hostTestId = opts?.hostTestId ?? CANVAS_HOST_TEST_ID
   const hook: TentfitTestHook = {
     getDoc: () => dataOf(stores.doc.getState()),
     getUi: () => dataOf(stores.ui.getState()),
     worldToClient(x, y) {
       const [sx, sy] = worldToScreen(stores.ui.getState().view, [x, y])
-      const o = canvasOrigin()
+      const o = canvasOrigin(hostTestId)
       return { x: o.left + sx, y: o.top + sy }
     },
     fitView: () => fitToLayout(stores),
@@ -67,9 +75,9 @@ export function installTestHook(stores: Stores): () => void {
     },
   }
   const w = window as unknown as HookWindow
-  w.__tentfit = hook
+  w[key] = hook
   return () => {
-    if (w.__tentfit === hook) delete w.__tentfit
+    if (w[key] === hook) delete w[key]
   }
 }
 

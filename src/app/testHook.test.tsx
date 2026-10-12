@@ -89,6 +89,24 @@ describe('installTestHook', () => {
     remove()
   })
 
+  it('Plan 4.1: 이름·캔버스 test id를 받으면 그 이름으로 설치하고(편집기 훅은 그대로) 그 캔버스 기준으로 좌표를 바꾼다', () => {
+    const editor = installTestHook(createStores(createLayout(TENT, { name: '편집기' })))
+    const stores = createStores(createLayout(TENT, { name: '만들기' }))
+    const host = document.createElement('div')
+    host.dataset.testid = 'maker-canvas-host'
+    document.body.appendChild(host)
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 20, 300, 300))
+    const remove = installTestHook(stores, { key: '__tentfitMaker', hostTestId: 'maker-canvas-host' })
+    const maker = (window as unknown as { __tentfitMaker?: TentfitTestHook }).__tentfitMaker
+    expect(maker?.getDoc().layout.name).toBe('만들기')
+    expect(hookOf()!.getDoc().layout.name).toBe('편집기')
+    expect(maker?.worldToClient(0, 0)).toEqual({ x: 10, y: 20 })
+    remove()
+    expect((window as unknown as { __tentfitMaker?: TentfitTestHook }).__tentfitMaker).toBeUndefined()
+    expect(hookOf()).toBeDefined()
+    editor()
+  })
+
   it('다른 훅이 이미 바꿔 놓았으면 지우지 않는다', () => {
     const a = installTestHook(createStores(createLayout(TENT, { name: 'A' })))
     const removeB = installTestHook(createStores(createLayout(TENT, { name: 'B' })))

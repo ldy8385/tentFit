@@ -365,6 +365,17 @@ describe('MobileShell 텐트 시트(§4.4-3)', () => {
     expect(screen.queryByTestId('sheet-tent')).toBeNull()
   })
 
+  it('Plan 4.1: 그리는 중에는 텐트 시트를 닫고(캔버스를 넓게), 그리기가 끝나 대상이 있으면 다시 연다', () => {
+    const { stores } = renderShell(TENT_INNERS)
+    tentMode(stores, 'A')
+    expect(stores.ui.getState().mobileSheet).toBe('tent')
+    act(() => stores.ui.getState().startDrawing({ innerId: 'A' }))
+    expect(stores.ui.getState().mobileSheet).toBe('none')
+    expect(screen.queryByTestId('sheet-tent')).toBeNull()
+    act(() => stores.ui.getState().endDrawing())
+    expect(stores.ui.getState().mobileSheet).toBe('tent')
+  })
+
   it('R14: 텐트 시트 ×(이름 「선택 해제」)는 대상을 해제하고 시트를 닫는다(모드는 그대로)', () => {
     const { stores } = renderShell(TENT_INNERS)
     tentMode(stores, 'A')
