@@ -115,7 +115,7 @@ export async function makerStep(page: Page): Promise<string | null> {
 }
 
 /** 도구 줄의 예시 모양 하나를 누릅니다(단계 ① = 외곽, 단계 ② = 이너 추가). */
-export async function pickExample(page: Page, name: '사각형' | '사다리꼴' | '정N각형' | '원'): Promise<void> {
+export async function pickExample(page: Page, name: '사각형' | '사다리꼴' | '육각형' | '정N각형' | '원'): Promise<void> {
   await press(makerTools(page).getByRole('button', { name, exact: true }))
   await nextFrames(page)
 }

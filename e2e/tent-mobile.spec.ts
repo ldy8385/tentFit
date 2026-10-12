@@ -84,7 +84,7 @@ test.describe('고르기·만들기 화면(390×844)', () => {
     await expect(tentMaker(page).getByRole('button', { name: '취소', exact: true })).toHaveCount(0)
     await expect(makerTools(page)).toBeInViewport()
     // 최종 리뷰: 도구 다섯 개가 스크롤 없이 모두 보임([자유 그리기] 포함)
-    for (const name of ['사각형', '사다리꼴', '정N각형', '원', '자유 그리기']) {
+    for (const name of ['사각형', '사다리꼴', '육각형', '정N각형', '원', '자유 그리기']) {
       await expect(makerTools(page).getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 })
     }
     await expect(makerSheet(page)).toBeVisible()

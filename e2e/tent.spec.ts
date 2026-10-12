@@ -212,6 +212,37 @@ test.describe('텐트 만들기 화면(그리기 두 단계, Plan 4.1)', () => {
     expect(await onMakerHistoryEntry(page)).toBe(false)
   })
 
+  test('업체 도면대로: 외곽 [육각형] 가로 260·세로 225·윗·아랫변 130 → [다음] → 이너 [사다리꼴] 윗변 123·아랫변 243·세로 103 → 뒤 벽 → 이탈 없음 → 시작', async ({
+    page,
+  }) => {
+    await openPickScreen(page)
+    await openTentMaker(page)
+    await pickExample(page, '육각형')
+    await setPanelNumber(makerPanel(page), '가로', 260)
+    await setPanelNumber(makerPanel(page), '세로', 225)
+    await setPanelNumber(makerPanel(page), '윗·아랫변', 130)
+    await expect
+      .poll(() => makerOuter(page))
+      .toEqual({ kind: 'polygon', points: [[-65, -112.5], [65, -112.5], [130, 0], [65, 112.5], [-65, 112.5], [-130, 0]] })
+
+    await makerNext(page)
+    await pickExample(page, '사다리꼴')
+    await setPanelNumber(makerPanel(page), '윗변(뒤)', 123)
+    await setPanelNumber(makerPanel(page), '아랫변(앞)', 243)
+    await setPanelNumber(makerPanel(page), '세로', 103)
+    await makerPanel(page).getByRole('group', { name: '벽에 붙이기' }).getByRole('button', { name: '뒤', exact: true }).click()
+    await expect.poll(async () => (await getDoc(page, MAKER_HOOK)).layout.tent.inners[0]).toMatchObject({ x: 0, y: -61, rotation: 0 })
+    const made = (await getDoc(page, MAKER_HOOK)).layout
+    expect(made.tent.inners[0]?.template).toEqual({ kind: 'trapezoid', front: 243, back: 123, depth: 103, offset: 0 })
+    expect(computeStats(made).innerEscapes).toEqual([]) // 도면처럼 육각형 위쪽 절반 안에 들어감
+
+    await makerConfirm(page).click()
+    await waitReady(page)
+    const tent = (await getDoc(page)).layout.tent
+    expect(tent.outerTemplate).toEqual({ kind: 'hexagon', w: 260, h: 225, edge: 130 })
+    expect(tent.inners[0]).toMatchObject({ x: 0, y: -61 })
+  })
+
   test('[취소]·‹(단계 ①)·브라우저 뒤로 가기(단계 ②에서도)는 배치를 만들지 않고 항목을 남기지 않는다. 단계 ②의 ‹는 단계 ①로', async ({
     page,
   }) => {

@@ -451,14 +451,15 @@ function TemplateFields(p: {
       )
     }
     case 'trapezoid':
+      // 업체 도면처럼 윗변·아랫변·세로로 부릅니다(괄호는 벽에 붙이기의 뒤·앞과 같은 방향).
       return (
         <div className="tf-tent__dims">
           <div className="tf-row2">
-            {len('앞변', 'front', t.front)}
-            {len('뒷변', 'back', t.back)}
+            {len('윗변(뒤)', 'back', t.back)}
+            {len('아랫변(앞)', 'front', t.front)}
           </div>
           <div className="tf-row2">
-            {len('깊이', 'depth', t.depth)}
+            {len('세로', 'depth', t.depth)}
             <NumberField
               label="치우침"
               unit="cm"
@@ -471,7 +472,19 @@ function TemplateFields(p: {
               onCommit={p.onField('offset')}
             />
           </div>
-          <p className="tf-hint">+면 뒷변이 오른쪽으로</p>
+          <p className="tf-hint">+면 윗변이 오른쪽으로</p>
+        </div>
+      )
+    case 'hexagon':
+      // 업체 도면식: 가로(좌우 꼭짓점 끝↔끝)·세로(윗변↔아랫변)·윗·아랫변 길이
+      return (
+        <div className="tf-tent__dims">
+          <div className="tf-row2">
+            {len('가로', 'w', t.w)}
+            {len('세로', 'h', t.h)}
+          </div>
+          {len('윗·아랫변', 'edge', t.edge)}
+          <p className="tf-hint">가로는 좌우 꼭짓점 끝↔끝, 세로는 윗변↔아랫변</p>
         </div>
       )
     case 'ngon':

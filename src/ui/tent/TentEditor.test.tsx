@@ -217,7 +217,7 @@ describe('TentEditor 템플릿 대상', () => {
     expect(stores.doc.getState().layout.tent.outer).toEqual({ kind: 'circle', d: 450 })
   })
 
-  it('사다리꼴은 앞변·뒷변·깊이·치우침([±])과 도움말', () => {
+  it('사다리꼴은 도면 용어로 윗변(뒤)·아랫변(앞)·세로·치우침([±])과 도움말', () => {
     const stores = setup(
       {
         name: '사다리꼴',
@@ -227,9 +227,12 @@ describe('TentEditor 템플릿 대상', () => {
       },
       { target: 'outer' },
     )
-    for (const label of ['앞변', '뒷변', '깊이', '치우침']) expect(field(label)).toBeTruthy()
+    for (const label of ['윗변(뒤)', '아랫변(앞)', '세로', '치우침']) expect(field(label)).toBeTruthy()
+    expect(field('윗변(뒤)').value).toBe('200')
+    expect(field('아랫변(앞)').value).toBe('300')
+    expect(field('세로').value).toBe('250')
     expect(within(editor()).getByRole('button', { name: '치우침 부호 바꾸기' })).toBeTruthy()
-    expect(within(editor()).getByText('+면 뒷변이 오른쪽으로')).toBeTruthy()
+    expect(within(editor()).getByText('+면 윗변이 오른쪽으로')).toBeTruthy()
     typeEnter(field('치우침'), '30')
     expect(stores.doc.getState().layout.tent.outerTemplate).toEqual({ kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 30 })
   })
@@ -408,7 +411,7 @@ describe('TentEditor 예시 모양 메뉴(Plan 4.1 §3)', () => {
   it('[+ 이너 ▾] 항목: 사각형·사다리꼴·정N각형·원·자유 그리기, 자유 그리기는 새 이너 그리기를 시작', () => {
     const stores = setup(TWO_INNERS)
     fireEvent.click(within(editor()).getByRole('button', { name: '+ 이너' }))
-    expect(within(editor()).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['사각형', '사다리꼴', '정N각형', '원', '자유 그리기'])
+    expect(within(editor()).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['사각형', '사다리꼴', '육각형', '정N각형', '원', '자유 그리기'])
     fireEvent.click(within(editor()).getByRole('menuitem', { name: '자유 그리기' }))
     expect(stores.ui.getState().drawing).toEqual({ goal: 'newInner', points: [] })
   })
@@ -539,7 +542,7 @@ describe('최종 리뷰 수정(Plan 4.1)', () => {
     const stores = setup(TWO_INNERS, { variant: 'sheet', target: 'i2' })
     expect(within(editor()).queryByRole('button', { name: '모양 바꾸기' })).toBeNull()
     const group = within(editor()).getByRole('group', { name: '모양 바꾸기' })
-    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['사각형', '사다리꼴', '정N각형', '원'])
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['사각형', '사다리꼴', '육각형', '정N각형', '원'])
     expect((within(group).getByRole('button', { name: '사각형' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(within(group).getByRole('button', { name: '원' }))
     expect(stores.doc.getState().layout.tent.inners[1]!.shape).toEqual({ kind: 'circle', d: 100 })
@@ -572,5 +575,27 @@ describe('변 번호 안내(소유자 피드백: 변 1·2·3이 어디인지)', 
     expand(ANGLES_LABEL)
     act(() => field('꼭짓점 3').focus())
     expect(stores.ui.getState().polygonFocus).toEqual({ kind: 'vertex', index: 2 })
+  })
+})
+
+describe('육각형 칸(업체 도면식: 가로·세로·윗·아랫변)', () => {
+  const HEX: Tent = { name: '육각', outer: { kind: 'rect', w: 1, h: 1 }, outerTemplate: { kind: 'hexagon', w: 260, h: 225, edge: 130 }, inners: [] }
+
+  it('가로·세로·윗·아랫변 칸, 값을 바꾸면 템플릿에 반영, 윗변이 가로보다 길면 오류', () => {
+    const stores = setup(HEX, { target: 'outer' })
+    expect(field('가로').value).toBe('260')
+    expect(field('세로').value).toBe('225')
+    expect(field('윗·아랫변').value).toBe('130')
+    typeEnter(field('윗·아랫변'), '140')
+    expect(stores.doc.getState().layout.tent.outerTemplate).toEqual({ kind: 'hexagon', w: 260, h: 225, edge: 140 })
+    act(() => field('윗·아랫변').blur())
+    typeEnter(field('윗·아랫변'), '300')
+    expect(within(editor()).getByRole('alert').textContent).toBe('윗·아랫변은 가로보다 길 수 없어요')
+  })
+
+  it('육각형 외곽이면 이너에 [벽에 붙이기: 뒤 · 앞]', () => {
+    setup({ ...HEX, inners: [rectInner('i1', '이너 1', 100, 60, 0, 0)] }, { target: 'i1' })
+    const group = within(editor()).getByRole('group', { name: '벽에 붙이기' })
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['뒤', '앞'])
   })
 })

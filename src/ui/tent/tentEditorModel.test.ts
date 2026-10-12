@@ -142,3 +142,11 @@ describe('polygonFieldId(Plan 4.1)', () => {
     expect(parsePolygonFieldId('outer#1')).toBeNull()
   })
 })
+
+describe('육각형(업체 도면식)', () => {
+  it('모양 이름과 칸 반영', () => {
+    expect(shapeKindLabel({ kind: 'polygon', points: [] }, { kind: 'hexagon', w: 260, h: 225, edge: 130 })).toBe('육각형')
+    expect(applyTemplateField({ kind: 'hexagon', w: 260, h: 225, edge: 130 }, 'edge', 140)).toEqual({ kind: 'hexagon', w: 260, h: 225, edge: 140 })
+    expect(applyTemplateField({ kind: 'hexagon', w: 260, h: 225, edge: 130 }, 'w', 300)).toEqual({ kind: 'hexagon', w: 300, h: 225, edge: 130 })
+  })
+})

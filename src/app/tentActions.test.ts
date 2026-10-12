@@ -27,6 +27,7 @@ import {
   undoDrawPoint,
   ZERO_EDGE_MESSAGE,
   ANGLE_FLIP_MESSAGE,
+  HEXAGON_EDGE_MESSAGE,
   deleteInnerAction,
   deleteTargetVertex,
   enterTentMode,
@@ -779,5 +780,17 @@ describe('최종 리뷰 수정(Plan 4.1)', () => {
     ui().setDrawPoints([[0, 0], [100, 0]])
     swapTentAction(stores, tentOf([]))
     expect(ui().drawing).toBeNull()
+  })
+})
+
+describe('육각형 템플릿 입력(업체 도면식)', () => {
+  it('윗·아랫변이 가로보다 길면 칸 오류, 기록 없음', () => {
+    expect(setTargetTemplate(stores, 'outer', { kind: 'hexagon', w: 260, h: 225, edge: 300 })).toEqual({
+      ok: false,
+      error: HEXAGON_EDGE_MESSAGE,
+    })
+    expect(canUndo()).toBe(false)
+    expect(setTargetTemplate(stores, 'outer', { kind: 'hexagon', w: 660, h: 320, edge: 300 })).toEqual({ ok: true })
+    expect(tent().outer.kind).toBe('polygon')
   })
 })

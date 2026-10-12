@@ -48,6 +48,8 @@ function normalizeTemplate(t: ShapeTemplate): ShapeTemplate {
     }
     case 'circle':
       return { kind: 'circle', d: clampLen(t.d) }
+    case 'hexagon':
+      return { kind: 'hexagon', w: clampLen(t.w), h: clampLen(t.h), edge: clampLen(t.edge) }
   }
 }
 
@@ -62,6 +64,8 @@ function sameTemplate(a: ShapeTemplate, b: ShapeTemplate): boolean {
       return b.kind === 'ngon' && a.n === b.n && a.sizeBy === b.sizeBy && a.size === b.size
     case 'circle':
       return b.kind === 'circle' && a.d === b.d
+    case 'hexagon':
+      return b.kind === 'hexagon' && a.w === b.w && a.h === b.h && a.edge === b.edge
   }
 }
 

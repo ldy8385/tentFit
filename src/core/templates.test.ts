@@ -181,7 +181,9 @@ describe('붙일 위치 선택지(설계 §2.4)', () => {
     expect(ATTACH_SIDE_LABELS).toEqual({ front: '앞', back: '뒤', left: '왼쪽', right: '오른쪽' })
     expect(attachSidesFor({ kind: 'rect', w: 620, h: 320 })).toEqual(['back', 'front', 'left', 'right'])
     expect(attachSidesFor({ kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 0 })).toEqual(['back', 'front'])
-    expect(attachSidesFor({ kind: 'ngon', n: 6, sizeBy: 'diameter', size: 400 })).toEqual([])
+    expect(attachSidesFor({ kind: 'ngon', n: 6, sizeBy: 'diameter', size: 400 })).toEqual(['back', 'front'])
+    expect(attachSidesFor({ kind: 'ngon', n: 5, sizeBy: 'diameter', size: 400 })).toEqual(['front'])
+    expect(attachSidesFor({ kind: 'hexagon', w: 260, h: 225, edge: 130 })).toEqual(['back', 'front'])
     expect(attachSidesFor({ kind: 'circle', d: 400 })).toEqual([])
     expect(attachSidesFor(undefined)).toEqual([])
   })
@@ -265,6 +267,33 @@ describe('attachBBoxToWall(설계 §2.4: 월드 bbox를 벽에 맞닿게, 벽 �
     const trap: ShapeTemplate = { kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 0 }
     expect(attachBBoxToWall(trap, bbox, 'left')).toBeNull()
     expect(attachBBoxToWall({ kind: 'circle', d: 400 }, bbox, 'back')).toBeNull()
-    expect(attachBBoxToWall({ kind: 'ngon', n: 6, sizeBy: 'diameter', size: 400 }, bbox, 'front')).toBeNull()
+    expect(attachBBoxToWall({ kind: 'ngon', n: 5, sizeBy: 'diameter', size: 400 }, bbox, 'back')).toBeNull()
+    expect(attachBBoxToWall({ kind: 'hexagon', w: 260, h: 225, edge: 130 }, bbox, 'left')).toBeNull()
+  })
+})
+
+describe('육각형 템플릿(업체 도면식: 가로·세로·윗·아랫변)', () => {
+  it('가로 = 좌우 꼭짓점 끝↔끝, 세로 = 윗변↔아랫변, 윗·아랫변 = edge. 꼭짓점 순서: 윗변 왼쪽부터 시계 방향', () => {
+    expect(shapeFromTemplate({ kind: 'hexagon', w: 260, h: 225, edge: 130 })).toEqual({
+      kind: 'polygon',
+      points: [[-65, -112.5], [65, -112.5], [130, 0], [65, 112.5], [-65, 112.5], [-130, 0]],
+    })
+  })
+
+  it('기본값: 외곽 가로 400·세로 346.4·변 200(정육각형), 이너는 s 기준, bbox 이어받기는 변 = 가로/2', () => {
+    expect(defaultOuterTemplate('hexagon')).toEqual({ kind: 'hexagon', w: 400, h: 346.4, edge: 200 })
+    expect(defaultInnerTemplate('hexagon', { kind: 'rect', w: 600, h: 300 })).toEqual({ kind: 'hexagon', w: 180, h: 155.9, edge: 90 })
+    expect(templateFromBBox('hexagon', 300, 200)).toEqual({ kind: 'hexagon', w: 300, h: 200, edge: 150 })
+  })
+
+  it('육각형·짝수 정N각형 외곽의 뒤(윗변)·앞(아랫변)에 bbox를 붙인다', () => {
+    const hex: ShapeTemplate = { kind: 'hexagon', w: 260, h: 225, edge: 130 }
+    const bbox = { minX: -121.5, maxX: 121.5, minY: 0, maxY: 103 }
+    expect(attachBBoxToWall(hex, bbox, 'back')).toEqual({ dx: 0, dy: -112.5 })
+    expect(attachBBoxToWall(hex, bbox, 'front')).toEqual({ dx: 0, dy: 9.5 })
+    const ngon: ShapeTemplate = { kind: 'ngon', n: 6, sizeBy: 'side', size: 130 }
+    const top = attachBBoxToWall(ngon, { minX: -10, maxX: 10, minY: 0, maxY: 20 }, 'back')
+    expect(top?.dx).toBeCloseTo(0, 6)
+    expect(top?.dy).toBeCloseTo(-112.6, 1)
   })
 })

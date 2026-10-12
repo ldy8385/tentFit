@@ -223,6 +223,36 @@
                       "kind",
                       "d"
                     ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "hexagon"
+                      },
+                      "w": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "h": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "edge": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "w",
+                      "h",
+                      "edge"
+                    ]
                   }
                 ]
               },
@@ -444,6 +474,36 @@
                           "required": [
                             "kind",
                             "d"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "hexagon"
+                            },
+                            "w": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "h": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "edge": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "w",
+                            "h",
+                            "edge"
                           ]
                         }
                       ]

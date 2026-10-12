@@ -158,11 +158,20 @@ export function ShapeTrapezoidIcon(p: IconProps) {
   )
 }
 
-/** 모양: 정N각형(육각, 한 변이 아래 수평, §4.8) */
+/** 모양: 육각형(업체 도면식 가로·세로·윗·아랫변, 윗·아랫변 수평) */
+export function ShapeHexagonIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M7.5 6h9l5 6-5 6h-9l-5-6z" />
+    </Svg>
+  )
+}
+
+/** 모양: 정N각형(팔각으로 그려 육각형 예시와 구분, 한 변이 아래 수평, §4.8) */
 export function ShapeNgonIcon(p: IconProps) {
   return (
     <Svg {...p}>
-      <path d="M8 19.5h8l4-7.5-4-7.5H8L4 12z" />
+      <path d="M9.5 4h5l5 5v6l-5 5h-5l-5-5V9z" />
     </Svg>
   )
 }

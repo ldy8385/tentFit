@@ -57,6 +57,8 @@ export const ShapeTemplateSchema = z.discriminatedUnion('kind', [
     size: LengthSchema,
   }),
   z.object({ kind: z.literal('circle'), d: LengthSchema }),
+  /** 육각형(업체 도면식): 가로 = 좌우 꼭짓점 끝↔끝, 세로 = 윗변↔아랫변, edge = 윗·아랫변 길이(Plan 4.1 소유자 피드백) */
+  z.object({ kind: z.literal('hexagon'), w: LengthSchema, h: LengthSchema, edge: LengthSchema }),
 ])
 
 export const PlacedSchema = z.object({

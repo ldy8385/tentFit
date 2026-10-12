@@ -435,6 +435,13 @@ describe('같은 값이면 쓰지 않음(Review Focus 3, P2 보류 Minor)', () =
     expect(patchCount(ngon, (d) => setOuterTemplate(d, { kind: 'ngon', n: 6, sizeBy: 'side', size: 200 }))).toBeGreaterThan(0)
   })
 
+  it('setOuterTemplate: 육각형도 같은 값이면 패치 0, 범위로 자른다', () => {
+    const hex = run(layoutOf(), (d) => setOuterTemplate(d, { kind: 'hexagon', w: 260, h: 225, edge: 130 }))
+    expect(hex.tent.outerTemplate).toEqual({ kind: 'hexagon', w: 260, h: 225, edge: 130 })
+    expect(patchCount(hex, (d) => setOuterTemplate(d, { kind: 'hexagon', w: 260.04, h: 225, edge: 130 }))).toBe(0)
+    expect(patchCount(hex, (d) => setOuterTemplate(d, { kind: 'hexagon', w: 260, h: 225, edge: 120 }))).toBeGreaterThan(0)
+  })
+
   it('setInnerTemplate: 같은 값이면 패치 0, 다르면 패치 있음, 없는 이너는 0', () => {
     const l = layoutOf()
     expect(patchCount(l, (d) => setInnerTemplate(d, 'in1', { kind: 'rect', w: 300, h: 300 }))).toBe(0)

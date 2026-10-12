@@ -66,6 +66,22 @@ function ngonPoints(n: number, diameter: number): Pt[] {
   return centerAndRound(pts)
 }
 
+/**
+ * 육각형(업체 도면식): 가로 w = 좌우 꼭짓점 끝↔끝, 세로 h = 윗변↔아랫변, edge = 윗·아랫변 길이.
+ * 꼭짓점 순서: 윗변 왼쪽 → 윗변 오른쪽 → 오른쪽 꼭짓점 → 아랫변 오른쪽 → 아랫변 왼쪽 → 왼쪽 꼭짓점.
+ */
+function hexagonPoints(w: number, h: number, edge: number): Pt[] {
+  const e = edge / 2
+  return centerAndRound([
+    [-e, -h / 2],
+    [e, -h / 2],
+    [w / 2, 0],
+    [e, h / 2],
+    [-e, h / 2],
+    [-w / 2, 0],
+  ])
+}
+
 /** 템플릿 → 도형(§4.8). 템플릿이 원본이고 도형은 여기서 만든 값입니다. */
 export function shapeFromTemplate(t: ShapeTemplate): Shape {
   switch (t.kind) {
@@ -81,6 +97,8 @@ export function shapeFromTemplate(t: ShapeTemplate): Shape {
       const diameter = t.sizeBy === 'diameter' ? t.size : ngonDiameterFromSide(t.n, t.size)
       return { kind: 'polygon', points: ngonPoints(t.n, diameter) }
     }
+    case 'hexagon':
+      return { kind: 'polygon', points: hexagonPoints(t.w, t.h, t.edge) }
   }
 }
 
@@ -114,12 +132,26 @@ export const ATTACH_SIDE_LABELS: Readonly<Record<AttachSide, string>> = Object.f
   right: '오른쪽',
 })
 
-/** 붙일 위치 선택지: 사각형 템플릿 = 뒤·앞·왼쪽·오른쪽 순, 사다리꼴 = 뒤·앞, 그 밖(정N각형·원·템플릿 없음) = [] */
+/**
+ * 붙일 위치 선택지: 사각형 템플릿 = 뒤·앞·왼쪽·오른쪽 순, 사다리꼴·육각형·짝수 정N각형 = 뒤(윗변)·앞(아랫변),
+ * 홀수 정N각형 = 앞(아랫변만 수평), 원·템플릿 없음 = []
+ */
 export function attachSidesFor(outer: ShapeTemplate | undefined): AttachSide[] {
   if (outer === undefined) return []
   if (outer.kind === 'rect') return ['back', 'front', 'left', 'right']
-  if (outer.kind === 'trapezoid') return ['back', 'front']
+  if (outer.kind === 'trapezoid' || outer.kind === 'hexagon') return ['back', 'front']
+  if (outer.kind === 'ngon') return Math.round(outer.n) % 2 === 0 ? ['back', 'front'] : ['front']
   return []
+}
+
+/** 다각형에서 y가 가장 작은(top) 또는 큰 수평 변의 가운데. 수평 변이 아니면(꼭짓점 하나) null */
+function horizontalEdgeMid(points: readonly Pt[], top: boolean): { cx: number; cy: number } | null {
+  const ys = points.map((p) => p[1])
+  const y = top ? Math.min(...ys) : Math.max(...ys)
+  const on = points.filter((p) => Math.abs(p[1] - y) < 0.05)
+  if (on.length !== 2) return null
+  const [a, b] = on as [Pt, Pt]
+  return { cx: (a[0] + b[0]) / 2, cy: y }
 }
 
 /** 길이를 LIMITS.length(1~5000)로 자르고 0.1cm로 반올림합니다. */
@@ -158,8 +190,17 @@ function wallOf(outer: ShapeTemplate, side: AttachSide): Wall | null {
     if (side === 'front') return { cx: (fl[0] + fr[0]) / 2, cy: fl[1], dx: 0, dy: -1 }
     return null
   }
+  if ((outer.kind === 'hexagon' || outer.kind === 'ngon') && (side === 'back' || side === 'front') && attachSidesFor(outer).includes(side)) {
+    const shape = shapeFromTemplate(outer)
+    if (shape.kind !== 'polygon') return null
+    const mid = horizontalEdgeMid(shape.points, side === 'back')
+    return mid === null ? null : { ...mid, dx: 0, dy: side === 'back' ? 1 : -1 }
+  }
   return null
 }
+
+/** 정육각형의 세로(윗변↔아랫변) / 가로(꼭짓점↔꼭짓점) = √3/2 */
+const HEX_RATIO = Math.sqrt(3) / 2
 
 /** 예시 모양 종류(설계 2026-10-12 §2.1) */
 export type TemplateKind = ShapeTemplate['kind']
@@ -180,6 +221,8 @@ export function defaultOuterTemplate(kind: TemplateKind): ShapeTemplate {
       return { kind: 'ngon', n: 6, sizeBy: 'diameter', size: 400 }
     case 'circle':
       return { kind: 'circle', d: 400 }
+    case 'hexagon':
+      return { kind: 'hexagon', w: 400, h: round1(400 * HEX_RATIO), edge: 200 }
   }
 }
 
@@ -195,6 +238,8 @@ export function defaultInnerTemplate(kind: TemplateKind, outer: Shape): ShapeTem
       return { kind: 'ngon', n: 6, sizeBy: 'diameter', size: s }
     case 'circle':
       return { kind: 'circle', d: s }
+    case 'hexagon':
+      return { kind: 'hexagon', w: s, h: round1(s * HEX_RATIO), edge: round1(s / 2) }
   }
 }
 
@@ -214,6 +259,8 @@ export function templateFromBBox(kind: TemplateKind, w: number, h: number): Shap
       return { kind: 'ngon', n: 6, sizeBy: 'diameter', size: Math.min(W, H) }
     case 'circle':
       return { kind: 'circle', d: Math.min(W, H) }
+    case 'hexagon':
+      return { kind: 'hexagon', w: W, h: H, edge: clampLength(W / 2) }
   }
 }
 

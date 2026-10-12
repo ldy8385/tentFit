@@ -97,6 +97,8 @@ export function shapeKindLabel(shape: Shape, template: ShapeTemplate | undefined
       return template?.kind === 'ngon' ? `정${template.n}각형` : '정N각형'
     case 'circle':
       return '원'
+    case 'hexagon':
+      return '육각형'
     case 'polygon':
       return '자유 다각형'
   }
@@ -116,7 +118,7 @@ export function shapeSummary(shape: Shape, template: ShapeTemplate | undefined):
 }
 
 /** 템플릿 숫자 칸 이름 */
-export type TemplateField = 'w' | 'h' | 'front' | 'back' | 'depth' | 'offset' | 'n' | 'size' | 'd'
+export type TemplateField = 'w' | 'h' | 'front' | 'back' | 'depth' | 'offset' | 'n' | 'size' | 'd' | 'edge'
 
 /**
  * 템플릿 숫자 칸 하나를 바꾼 새 템플릿. 그 템플릿에 없는 칸이면 그대로 돌려줍니다.
@@ -135,6 +137,9 @@ export function applyTemplateField(t: ShapeTemplate, field: TemplateField, value
       return t
     case 'circle':
       return field === 'd' ? { ...t, d: value } : t
+    case 'hexagon':
+      if (field === 'w' || field === 'h' || field === 'edge') return { ...t, [field]: value }
+      return t
   }
 }
 
