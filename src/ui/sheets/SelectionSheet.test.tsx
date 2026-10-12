@@ -51,9 +51,10 @@ describe('SelectionSheet 1개', () => {
     expect(screen.queryByLabelText('가로')).toBeNull() // 접힌 상태
   })
 
-  it('× = 선택 해제, 시트도 닫힘(mobileSheet none)', () => {
+  it('×(이름 「선택 해제」, R14) = 선택 해제, 시트도 닫힘(mobileSheet none)', () => {
     const stores = setup([item('a')], ['a'])
-    fireEvent.click(screen.getByRole('button', { name: '닫기' }))
+    expect(screen.queryByRole('button', { name: '닫기' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '선택 해제' }))
     expect(stores.ui.getState().selection).toEqual([])
     expect(stores.ui.getState().mobileSheet).toBe('none')
     expect(screen.queryByTestId('selection-sheet')).toBeNull()

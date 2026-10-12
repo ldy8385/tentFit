@@ -169,13 +169,75 @@ describe('NumberField 버튼과 화살표', () => {
     expect(screen.getByRole('alert').textContent).toBe('0~5,000 사이로 입력해 주세요')
   })
 
-  it('화살표 위·아래는 step만큼(Shift는 10배) 바꿔 바로 반영한다', () => {
+  it('보류 Minor #11: 화살표 위·아래는 글자만 step만큼(Shift는 10배) 바꾸고, Enter 때 한 번 반영한다', () => {
     const onCommit = vi.fn()
     render(<NumberField {...props({ onCommit })} />)
     act(() => input().focus())
     fireEvent.keyDown(input(), { key: 'ArrowUp' })
-    expect(onCommit).toHaveBeenLastCalledWith('a', 91)
+    fireEvent.keyDown(input(), { key: 'ArrowUp' })
+    fireEvent.keyDown(input(), { key: 'ArrowUp' })
+    expect(input().value).toBe('93')
     fireEvent.keyDown(input(), { key: 'ArrowDown', shiftKey: true })
-    expect(onCommit).toHaveBeenLastCalledWith('a', 80)
+    expect(input().value).toBe('83')
+    expect(onCommit).not.toHaveBeenCalled()
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith('a', 83)
+  })
+
+  it('보류 Minor #11: 화살표로 바꾼 값은 blur 때 한 번 반영하고, 범위 끝에서 멈춘다', () => {
+    const onCommit = vi.fn()
+    render(<NumberField {...props({ value: 4995, onCommit })} />)
+    act(() => input().focus())
+    fireEvent.keyDown(input(), { key: 'ArrowUp', shiftKey: true })
+    expect(input().value).toBe('5000')
+    act(() => input().blur())
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith('a', 5000)
+  })
+})
+
+describe('NumberField 반영 거부(§4.4-8·§6.9)', () => {
+  it('onCommit이 오류 문구를 돌려주면 문서 값으로 되돌리고 그 문구를 보여 준다', () => {
+    const onCommit = vi.fn(() => '이너 1과(와) 이너 2이(가) 5mm 넘게 겹쳐요')
+    render(<NumberField {...props({ onCommit })} />)
+    act(() => input().focus())
+    fireEvent.change(input(), { target: { value: '520' } })
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith('a', 520)
+    expect(input().value).toBe('90')
+    expect(screen.getByRole('alert').textContent).toBe('이너 1과(와) 이너 2이(가) 5mm 넘게 겹쳐요')
+    expect(input().getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('onCommit이 아무것도 돌려주지 않으면 오류가 없다', () => {
+    const onCommit = vi.fn(() => undefined)
+    render(<NumberField {...props({ onCommit })} />)
+    act(() => input().focus())
+    fireEvent.change(input(), { target: { value: '120' } })
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('보류 Minor #12: a에서 난 오류는 대상이 b로 바뀐 칸에 보이지 않는다', () => {
+    const onCommit = vi.fn()
+    const { rerender } = render(<NumberField {...props({ onCommit })} />)
+    act(() => input().focus())
+    fireEvent.change(input(), { target: { value: '99999' } })
+    act(() => input().blur())
+    expect(screen.getByRole('alert').textContent).toBe('1~5,000 사이로 입력해 주세요')
+    rerender(<NumberField {...props({ onCommit, targetId: 'b', value: 60 })} />)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(input().getAttribute('aria-invalid')).toBe('false')
+    expect(input().value).toBe('60')
+  })
+
+  it('보류 Minor #12: 포커스 때 대상(a)에 반영이 거부되고 대상이 b로 바뀌어 있으면 b 칸에 오류를 띄우지 않는다', () => {
+    const onCommit = vi.fn(() => '변끼리 교차해요')
+    const { rerender } = render(<NumberField {...props({ onCommit })} />)
+    act(() => input().focus())
+    fireEvent.change(input(), { target: { value: '120' } })
+    rerender(<NumberField {...props({ onCommit, targetId: 'b', value: 60 })} />)
+    act(() => input().blur())
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith('a', 120)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

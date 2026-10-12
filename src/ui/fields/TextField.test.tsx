@@ -59,4 +59,20 @@ describe('TextField', () => {
     expect(onCommit).toHaveBeenCalledExactlyOnceWith('a', '작은 테이블')
     expect(input().value).toBe('자충매트')
   })
+
+  it('disabled면 입력칸이 잠기고 반영하지 않는다', () => {
+    render(<TextField label="이름" value="이너 1" targetId="a" disabled onCommit={vi.fn()} />)
+    expect(input().disabled).toBe(true)
+  })
+
+  it('onCommit이 오류 문구를 돌려주면 되돌리고 그 문구를 보여 준다', () => {
+    const onCommit = vi.fn(() => '이미 있는 이름이에요')
+    render(<TextField label="이름" value="이너 1" targetId="a" onCommit={onCommit} />)
+    act(() => input().focus())
+    fireEvent.change(input(), { target: { value: '이너 2' } })
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith('a', '이너 2')
+    expect(input().value).toBe('이너 1')
+    expect(screen.getByRole('alert').textContent).toBe('이미 있는 이름이에요')
+  })
 })

@@ -1,5 +1,5 @@
 // 모바일 선택 시트(스펙 §4.2): 요약 줄(이름 · 치수 · 회전) + [90도][복제][삭제]. 펼치면 상세 속성.
-// × = 선택 해제이고 시트도 함께 닫힙니다(D29). 여러 개면 제목이 'N개 선택됨'이고 펼치면 선택 칩·회전 입력입니다.
+// × = 선택 해제이고 시트도 함께 닫힙니다(D29). 그래서 ×의 이름도 「선택 해제」입니다(R14, 보류 Minor #19). 여러 개면 제목이 'N개 선택됨'이고 펼치면 선택 칩·회전 입력입니다.
 // [순서]는 Plan 6이 더합니다.
 import type { JSX } from 'react'
 import { useMemo, useState } from 'react'
@@ -36,6 +36,7 @@ export function SelectionSheet(): JSX.Element {
     <BottomSheet
       title={single ? first.name : `${items.length}개 선택됨`}
       onClose={closeSheet}
+      closeLabel="선택 해제"
       expanded={expanded}
       onToggleExpand={() => setExpanded((v) => !v)}
       testId="selection-sheet"

@@ -12,13 +12,16 @@ export function TextField(p: {
   value: string
   targetId: string
   maxLength?: number
-  onCommit(targetId: string, value: string): void
+  disabled?: boolean
+  /** 반영. 오류 문구를 돌려주면 반영되지 않은 것으로 보고 칸에 보여 줍니다. */
+  onCommit(targetId: string, value: string): string | void
 }): JSX.Element {
   const inputId = useId()
   const errorId = useId()
   const field = useDraftField<string>({
     value: p.value,
     targetId: p.targetId,
+    disabled: p.disabled,
     format: asIs,
     check: checkText,
     onCommit: p.onCommit,
@@ -29,7 +32,7 @@ export function TextField(p: {
       <label className="tf-field__label" htmlFor={inputId}>
         {p.label}
       </label>
-      <div className="tf-field__box" data-invalid={field.error !== null}>
+      <div className="tf-field__box" data-invalid={field.error !== null} data-disabled={p.disabled === true}>
         <input
           id={inputId}
           className="tf-field__input"
@@ -39,6 +42,7 @@ export function TextField(p: {
           maxLength={p.maxLength}
           style={{ fontSize: INPUT_FONT_PX }}
           value={field.text}
+          disabled={p.disabled}
           aria-invalid={field.error !== null}
           aria-describedby={field.error !== null ? errorId : undefined}
           onChange={field.onChange}

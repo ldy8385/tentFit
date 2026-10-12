@@ -1,4 +1,5 @@
 // 숫자 입력칸(스펙 §4.2 모바일 입력 규칙, §6.9). 문서는 바꾸지 않고 onCommit(대상 id, 값)만 부릅니다.
+// onCommit이 오류 문구를 돌려주면(결과가 규칙을 깸, §4.4-8) 칸을 되돌리고 그 문구를 보여 줍니다.
 import { useId, type JSX } from 'react'
 import './fields.css'
 import { INPUT_FONT_PX, checkNumber, flipSignText, formatNumber, stepText } from './numberInput'
@@ -13,11 +14,12 @@ export type NumberFieldProps = {
   targetId: string
   min: number
   max: number
-  /** 화살표 위·아래로 바꾸는 양(기본 1, Shift면 10배) */
+  /** 화살표 위·아래로 바꾸는 양(기본 1, Shift면 10배). 글자만 바꾸고 blur·Enter 때 한 번 반영합니다. */
   step?: number
   /** true면 [±] 버튼(iOS 숫자 키패드에 − 없음) */
   allowNegative?: boolean
-  onCommit(targetId: string, value: number): void
+  /** 반영. 오류 문구를 돌려주면 반영되지 않은 것으로 보고 칸에 보여 줍니다. */
+  onCommit(targetId: string, value: number): string | void
   disabled?: boolean
 }
 
@@ -68,7 +70,7 @@ export function NumberField(p: NumberFieldProps): JSX.Element {
               e.preventDefault()
               const size = (p.step ?? 1) * (e.shiftKey ? 10 : 1)
               const next = stepText(field.text, e.key === 'ArrowUp' ? size : -size, p.min, p.max)
-              if (next !== null) field.commitText(next)
+              if (next !== null) field.setText(next)
               return
             }
             field.onKeyDown(e)
