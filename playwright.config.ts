@@ -3,6 +3,8 @@ import { defineConfig } from '@playwright/test'
 /**
  * 화면 테스트(스펙 §13.4). 테스트 빌드(`vite --mode test`)만 window.__tentfit을 노출하므로 그 모드로 개발 서버를 띄웁니다.
  * 평소 개발 서버(5173)와 겹치지 않게 포트를 4321로 고정합니다. CDP 터치(e2e/helpers.ts)를 쓰므로 chromium만 돌립니다.
+ * 프로젝트(화면 크기)마다 편집기 파일과 텐트 흐름 파일(Plan 4)을 함께 돌립니다. 새 spec 파일은 꼭 한 프로젝트에 넣으세요
+ * (scripts/e2e-config.test.ts가 확인).
  */
 const PORT = 4321
 const BASE_URL = `http://localhost:${PORT}`
@@ -24,22 +26,22 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      testMatch: 'editor.spec.ts',
+      testMatch: ['editor.spec.ts', 'tent.spec.ts'],
       use: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
     },
     {
       name: 'mobile',
-      testMatch: 'mobile.spec.ts',
+      testMatch: ['mobile.spec.ts', 'tent-mobile.spec.ts'],
       use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
     },
     {
       name: 'mobile-small',
-      testMatch: 'mobile-small.spec.ts',
+      testMatch: ['mobile-small.spec.ts', 'tent-small.spec.ts'],
       use: { viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
     },
     {
       name: 'mobile-landscape',
-      testMatch: 'mobile-landscape.spec.ts',
+      testMatch: ['mobile-landscape.spec.ts', 'tent-landscape.spec.ts'],
       use: { viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
     },
   ],

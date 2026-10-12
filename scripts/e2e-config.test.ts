@@ -1,5 +1,5 @@
-// Playwright 화면 테스트 설정이 계약(Plan 3 Task 13)·스펙 §12·§13.4와 어긋나지 않는지 확인합니다.
-import { readFileSync } from 'node:fs'
+// Playwright 화면 테스트 설정이 계약(Plan 3 Task 13, Plan 4 Task 13)·스펙 §12·§13.4와 어긋나지 않는지 확인합니다.
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ESLint } from 'eslint'
@@ -29,14 +29,15 @@ describe('Playwright 설정(playwright.config.ts)', () => {
     const projects = config.projects ?? []
     expect(projects.map((p) => p.name)).toEqual(['desktop', 'mobile', 'mobile-small', 'mobile-landscape'])
     const [desktop, mobile, small, landscape] = projects
-    expect(desktop?.testMatch).toBe('editor.spec.ts')
+    // Plan 4: 프로젝트마다 편집기 파일 + 텐트 흐름 파일
+    expect(desktop?.testMatch).toEqual(['editor.spec.ts', 'tent.spec.ts'])
     expect(desktop?.use).toEqual({
       viewport: { width: 1440, height: 900 },
       deviceScaleFactor: 1,
       isMobile: false,
       hasTouch: false,
     })
-    expect(mobile?.testMatch).toBe('mobile.spec.ts')
+    expect(mobile?.testMatch).toEqual(['mobile.spec.ts', 'tent-mobile.spec.ts'])
     expect(mobile?.use).toEqual({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 3,
@@ -44,15 +45,34 @@ describe('Playwright 설정(playwright.config.ts)', () => {
       hasTouch: true,
     })
     // 최종 리뷰: 작은 휴대폰에서 펼친 시트, 가로로 돌린 휴대폰의 셸
-    expect(small?.testMatch).toBe('mobile-small.spec.ts')
+    expect(small?.testMatch).toEqual(['mobile-small.spec.ts', 'tent-small.spec.ts'])
     expect(small?.use).toEqual({ viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
-    expect(landscape?.testMatch).toBe('mobile-landscape.spec.ts')
+    expect(landscape?.testMatch).toEqual(['mobile-landscape.spec.ts', 'tent-landscape.spec.ts'])
     expect(landscape?.use).toEqual({
       viewport: { width: 844, height: 390 },
       deviceScaleFactor: 3,
       isMobile: true,
       hasTouch: true,
     })
+  })
+
+  it('e2e/의 spec 파일은 빠짐없이, 정확히 한 프로젝트가 돌린다(새 파일을 넣고 프로젝트에 안 넣으면 아무도 안 돌림)', () => {
+    const specs = readdirSync(join(root, 'e2e'))
+      .filter((f) => f.endsWith('.spec.ts'))
+      .sort()
+    expect(specs).toEqual([
+      'editor.spec.ts',
+      'mobile-landscape.spec.ts',
+      'mobile-small.spec.ts',
+      'mobile.spec.ts',
+      'tent-landscape.spec.ts',
+      'tent-mobile.spec.ts',
+      'tent-small.spec.ts',
+      'tent.spec.ts',
+    ])
+    const owners = (spec: string) =>
+      (config.projects ?? []).filter((p) => Array.isArray(p.testMatch) && p.testMatch.includes(spec)).map((p) => p.name)
+    for (const spec of specs) expect({ spec, owners: owners(spec) }).toEqual({ spec, owners: [expect.any(String)] })
   })
 
   it('html 보고서를 열지 않고 playwright-report/에 남긴다(CI 아티팩트)', () => {
@@ -126,5 +146,12 @@ describe('Playwright 부산물', () => {
 
   it('README 명령 표에 pnpm e2e가 있다', () => {
     expect(read('README.md')).toMatch(/^\| `pnpm e2e` \| .+ \|$/m)
+  })
+
+  it('README가 텐트 흐름 화면 테스트 파일과 도우미를 안내한다', () => {
+    const readme = read('README.md')
+    for (const name of ['e2e/tent.spec.ts', 'e2e/tent-mobile.spec.ts', 'e2e/tent-small.spec.ts', 'e2e/tent-landscape.spec.ts', 'e2e/tentFlows.ts']) {
+      expect(readme).toContain(name)
+    }
   })
 })

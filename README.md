@@ -30,7 +30,8 @@ Node 22.12 이상과 pnpm 10.8.1(`package.json`의 `packageManager`)을 씁니�
 - `clipper2-ts`는 `src/core/geom.ts`만 import합니다.
 - `konva`, `react-konva`, `react`, `react-dom`, `clipper2-ts`는 정확한 버전으로 고정하고, 앞의 넷은 함께만 올립니다.
 - 테스트는 모듈 옆에 둡니다. 순수 TS는 `*.test.ts`(node 환경), React 컴포넌트는 `*.test.tsx`이고 파일 첫 줄에 `// @vitest-environment happy-dom`을 씁니다. Testing Library 화면 정리는 `src/test/setup.ts`가 테스트마다 합니다.
-- 화면 테스트는 `e2e/*.spec.ts`입니다. 앱 상태는 테스트 빌드만 노출하는 `window.__tentfit`으로 읽고, 입력은 마우스·키보드·터치(CDP)로 넣습니다(`e2e/helpers.ts`, 휴대폰 셸 공통 조작은 `e2e/mobileFlows.ts`).
+- 화면 테스트는 `e2e/*.spec.ts`입니다. 앱 상태는 테스트 빌드만 노출하는 `window.__tentfit`(편집기)·`window.__tentfitApp`(배치 목록)으로 읽고, 입력은 마우스·키보드·터치(CDP)로 넣습니다(`e2e/helpers.ts`, 휴대폰 셸 공통 조작은 `e2e/mobileFlows.ts`, 텐트 고르기·만들기·편집·바꾸기 조작은 `e2e/tentFlows.ts`).
+- 프로젝트(화면 크기)마다 편집기 파일과 텐트 흐름 파일을 함께 돌립니다: desktop = `e2e/editor.spec.ts`·`e2e/tent.spec.ts`, mobile = `e2e/mobile.spec.ts`·`e2e/tent-mobile.spec.ts`, mobile-small = `e2e/mobile-small.spec.ts`·`e2e/tent-small.spec.ts`, mobile-landscape = `e2e/mobile-landscape.spec.ts`·`e2e/tent-landscape.spec.ts`. 새 spec 파일은 `playwright.config.ts`의 한 프로젝트 `testMatch`에 꼭 넣습니다(`scripts/e2e-config.test.ts`가 확인). 흔들림은 `pnpm exec playwright test --repeat-each=3`으로 봅니다.
 - 커밋 메시지는 `feat: …`, `fix: …`, `chore: …`, `test: …` 형식의 한국어입니다.
 
 ## 문서
