@@ -13,7 +13,8 @@ import {
   type ShapeTemplate,
   type Tent,
 } from '../model'
-import { shapeRing, transformRing } from '../geom'
+import { ringBBox, shapeRing, transformRing } from '../geom'
+import { centerPolygon } from '../polygonEdit'
 import { newInnerSide, shapeFromTemplate, shapesEqual } from '../templates'
 import { innersOverlap, validateTent, type Issue } from '../validate'
 import type { Zones } from '../zones'
@@ -147,6 +148,13 @@ export function targetWorldRing(layout: Layout, target: TentTarget): Pt[] {
   return transformRing(localRing(inner.shape), inner.x, inner.y, inner.rotation)
 }
 
+/** 편집 대상의 로컬 고리(이너는 회전 전). 다각형은 점 그대로, 사각형은 shapeRing 순서. 원·없는 이너는 []. */
+export function targetLocalRing(layout: Layout, target: TentTarget): Pt[] {
+  const shape = target === 'outer' ? layout.tent.outer : findInner(layout.tent, target.innerId)?.shape
+  if (shape === undefined || shape.kind === 'circle') return []
+  return localRing(shape)
+}
+
 /** 월드 좌표를 대상의 로컬 좌표로: 이동을 빼고 반대로 돌립니다(transformRing의 역변환). */
 function toLocal(ref: TargetRef, world: Pt): Pt {
   return rotateAround([world[0] - ref.x, world[1] - ref.y], [0, 0], -ref.rotation)
@@ -218,14 +226,28 @@ function nextInnerName(tent: Tent): string {
  * zones는 지금 d.tent로 만든 buildZones 결과여야 합니다.
  */
 export function addInner(d: Layout, zones: Zones): { ok: true; id: string } | { ok: false; reason: 'no-space' } {
+  const side = newInnerSide(d.tent.outer)
+  return addInnerFromTemplate(d, zones, { kind: 'rect', w: side, h: side }, newId())
+}
+
+/**
+ * 예시 모양 이너(설계 2026-10-12 §2.1): 템플릿 도형을 가장 큰 바닥 조각(zones.pieces[0])의 polylabel에, 회전 0, 이름 "이너 N".
+ * 바닥 조각이 없거나 다른 이너와 겹치면 추가하지 않고 no-space. id는 부르는 쪽이 한 번 만들어 넘깁니다(미리보기·커밋이 같은 id).
+ */
+export function addInnerFromTemplate(
+  d: Layout,
+  zones: Zones,
+  template: ShapeTemplate,
+  id: string,
+): { ok: true; id: string } | { ok: false; reason: 'no-space' } {
   const piece = zones.pieces[0]
   if (!piece) return { ok: false, reason: 'no-space' }
-  const side = newInnerSide(d.tent.outer)
+  const tpl = normalizeTemplate(template)
   const inner: Inner = {
-    id: newId(),
+    id,
     name: nextInnerName(d.tent),
-    shape: { kind: 'rect', w: side, h: side },
-    template: { kind: 'rect', w: side, h: side },
+    shape: shapeFromTemplate(tpl),
+    template: tpl,
     x: clampCoord(piece.label[0]),
     y: clampCoord(piece.label[1]),
     rotation: 0,
@@ -236,6 +258,63 @@ export function addInner(d: Layout, zones: Zones): { ok: true; id: string } | { 
   }
   d.tent.inners.push(inner)
   return { ok: true, id: inner.id }
+}
+
+/** 그린 이너(설계 §2.2): x·y = 월드 bbox 가운데, 도형 = 그 기준 로컬 다각형, 회전 0, 이름 "이너 N", 템플릿 없음. 겹침 판정은 부르는 쪽. */
+export function addInnerFromPolygon(d: Layout, worldPoints: readonly Pt[], id: string): void {
+  const { center, points } = centerPolygon(worldPoints)
+  d.tent.inners.push({
+    id,
+    name: nextInnerName(d.tent),
+    shape: { kind: 'polygon', points: points.map((p) => roundPt(p)) },
+    x: clampCoord(center[0]),
+    y: clampCoord(center[1]),
+    rotation: 0,
+  })
+}
+
+/**
+ * 대상 도형을 자유 다각형으로(템플릿 버림, 설계 §2.2 다시 그리기·§2.3 cm 맞추기). space 'world'면 대상 로컬로 바꿉니다
+ * (외곽 = 그대로, 이너 = 이동 빼고 반대로 회전 — x·y·회전은 그대로). 원도 다각형이 됩니다.
+ * 템플릿이 없고 반올림한 점이 지금과 같으면 아무것도 쓰지 않습니다.
+ */
+export function setTargetPolygon(d: Layout, target: TentTarget, points: readonly Pt[], space: 'world' | 'local'): void {
+  const ref = resolve(d, target)
+  if (!ref) return
+  const local = points.map((p) => roundPt(space === 'world' ? toLocal(ref, p) : [p[0], p[1]]))
+  const hasTemplate = target === 'outer' ? d.tent.outerTemplate !== undefined : findInner(d.tent, target.innerId)?.template !== undefined
+  if (!hasTemplate && shapesEqual(ref.shape, { kind: 'polygon', points: local }, 0)) return
+  ref.writePolygon(local)
+}
+
+/**
+ * 모양 바꾸기(설계 §3): 대상을 다른 예시 템플릿으로. 외곽은 setOuterTemplate 그대로(외곽은 위치가 없어 원점 가운데).
+ * 이너는 보이는 가운데(로컬 bbox 가운데의 월드 자리)를 지키도록 x·y를 먼저 옮기고 템플릿을 씁니다(회전 그대로).
+ */
+export function setTargetShapeTemplate(d: Layout, target: TentTarget, t: ShapeTemplate): void {
+  if (target === 'outer') {
+    setOuterTemplate(d, t)
+    return
+  }
+  const inner = findInner(d.tent, target.innerId)
+  if (!inner) return
+  const ring = localRing(inner.shape)
+  const bb = ringBBox(ring)
+  const c: Pt = inner.shape.kind === 'circle' ? [0, 0] : [(bb.minX + bb.maxX) / 2, (bb.minY + bb.maxY) / 2]
+  const off = rotateAround(c, [0, 0], inner.rotation)
+  moveInnerTo(d, inner.id, inner.x + off[0], inner.y + off[1])
+  setInnerTemplate(d, inner.id, t)
+}
+
+/** 이너를 절대 위치로 옮깁니다(0.1cm 반올림). 같은 자리면 아무것도 쓰지 않습니다. */
+export function moveInnerTo(d: Layout, innerId: string, x: number, y: number): void {
+  const inner = findInner(d.tent, innerId)
+  if (!inner) return
+  const nx = clampCoord(x)
+  const ny = clampCoord(y)
+  if (inner.x === nx && inner.y === ny) return
+  inner.x = nx
+  inner.y = ny
 }
 
 /** 이너를 (dx, dy)만큼 옮깁니다. 둘 다 0이면 아무것도 쓰지 않습니다. */

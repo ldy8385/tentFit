@@ -4,8 +4,13 @@ import { worldRing } from './geom'
 import type { Inner, Pt, Shape, ShapeTemplate } from './model'
 import {
   ATTACH_SIDE_LABELS,
+  attachBBoxToWall,
   attachedInner,
   attachSidesFor,
+  defaultInnerTemplate,
+  defaultOuterTemplate,
+  round10,
+  templateFromBBox,
   newInnerSide,
   ngonDiameterFromSide,
   ngonSideFromDiameter,
@@ -332,5 +337,68 @@ describe('newInnerSide(§4.4-4 새 이너 한 변)', () => {
     expect(newInnerSide({ kind: 'circle', d: 300 })).toBe(180)
     expect(newInnerSide({ kind: 'polygon', points: [[0, 0], [500, 0], [500, 150], [0, 150]] })).toBe(90)
     expect(newInnerSide({ kind: 'polygon', points: [] })).toBe(10)
+  })
+})
+
+describe('예시 모양 기본값(설계 §2.1)', () => {
+  it('외곽: 사각형 400×300, 사다리꼴 400/300/300, 정6각형 지름 400, 원 400', () => {
+    expect(defaultOuterTemplate('rect')).toEqual({ kind: 'rect', w: 400, h: 300 })
+    expect(defaultOuterTemplate('trapezoid')).toEqual({ kind: 'trapezoid', front: 400, back: 300, depth: 300, offset: 0 })
+    expect(defaultOuterTemplate('ngon')).toEqual({ kind: 'ngon', n: 6, sizeBy: 'diameter', size: 400 })
+    expect(defaultOuterTemplate('circle')).toEqual({ kind: 'circle', d: 400 })
+  })
+
+  it('이너: s = newInnerSide(외곽), 사다리꼴 뒷변 = round10(0.7s)', () => {
+    const outer: Shape = { kind: 'rect', w: 600, h: 300 }
+    expect(newInnerSide(outer)).toBe(180)
+    expect(defaultInnerTemplate('rect', outer)).toEqual({ kind: 'rect', w: 180, h: 180 })
+    expect(defaultInnerTemplate('trapezoid', outer)).toEqual({ kind: 'trapezoid', front: 180, back: 130, depth: 180, offset: 0 })
+    expect(defaultInnerTemplate('ngon', outer)).toEqual({ kind: 'ngon', n: 6, sizeBy: 'diameter', size: 180 })
+    expect(defaultInnerTemplate('circle', outer)).toEqual({ kind: 'circle', d: 180 })
+    expect(defaultInnerTemplate('trapezoid', { kind: 'rect', w: 10, h: 10 })).toMatchObject({ front: 10, back: 10 })
+  })
+
+  it('round10은 10cm 단위 반올림', () => {
+    expect(round10(124)).toBe(120)
+    expect(round10(125)).toBe(130)
+    expect(round10(126)).toBe(130)
+  })
+})
+
+describe('templateFromBBox(설계 §3 모양 바꾸기: 로컬 bbox w×h 이어받기)', () => {
+  it('사각형 w×h, 사다리꼴 앞·뒤 w·깊이 h, 정6각형·원 지름 min(w,h)', () => {
+    expect(templateFromBBox('rect', 300, 200)).toEqual({ kind: 'rect', w: 300, h: 200 })
+    expect(templateFromBBox('trapezoid', 300, 200)).toEqual({ kind: 'trapezoid', front: 300, back: 300, depth: 200, offset: 0 })
+    expect(templateFromBBox('ngon', 300, 200)).toEqual({ kind: 'ngon', n: 6, sizeBy: 'diameter', size: 200 })
+    expect(templateFromBBox('circle', 300, 200)).toEqual({ kind: 'circle', d: 200 })
+  })
+
+  it('1~5000으로 자르고 0.1cm 반올림', () => {
+    expect(templateFromBBox('rect', 0.04, 9000)).toEqual({ kind: 'rect', w: 1, h: 5000 })
+    expect(templateFromBBox('rect', 300.04, 199.96)).toEqual({ kind: 'rect', w: 300, h: 200 })
+  })
+})
+
+describe('attachBBoxToWall(설계 §2.4: 월드 bbox를 벽에 맞닿게, 벽 가운데로)', () => {
+  const rect: ShapeTemplate = { kind: 'rect', w: 620, h: 320 }
+  const bbox = { minX: 0, maxX: 100, minY: -30, maxY: 70 }
+
+  it('사각형 외곽 네 벽', () => {
+    expect(attachBBoxToWall(rect, bbox, 'back')).toEqual({ dx: -50, dy: -130 })
+    expect(attachBBoxToWall(rect, bbox, 'front')).toEqual({ dx: -50, dy: 90 })
+    expect(attachBBoxToWall(rect, bbox, 'left')).toEqual({ dx: -310, dy: -20 })
+    expect(attachBBoxToWall(rect, bbox, 'right')).toEqual({ dx: 210, dy: -20 })
+  })
+
+  it('사다리꼴 offset 100의 뒷변 가운데(x 75, y −125)', () => {
+    const trap: ShapeTemplate = { kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 100 }
+    expect(attachBBoxToWall(trap, { minX: 0, maxX: 100, minY: 0, maxY: 50 }, 'back')).toEqual({ dx: 25, dy: -125 })
+  })
+
+  it('그 모양에 그 벽이 없으면 null', () => {
+    const trap: ShapeTemplate = { kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 0 }
+    expect(attachBBoxToWall(trap, bbox, 'left')).toBeNull()
+    expect(attachBBoxToWall({ kind: 'circle', d: 400 }, bbox, 'back')).toBeNull()
+    expect(attachBBoxToWall({ kind: 'ngon', n: 6, sizeBy: 'diameter', size: 400 }, bbox, 'front')).toBeNull()
   })
 })

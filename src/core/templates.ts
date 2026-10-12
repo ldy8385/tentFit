@@ -194,6 +194,86 @@ export function attachedInner(
   }
 }
 
+/** 예시 모양 종류(설계 2026-10-12 §2.1) */
+export type TemplateKind = ShapeTemplate['kind']
+
+/** 10cm 단위 반올림 */
+export function round10(v: number): number {
+  return Math.round(v / 10) * 10
+}
+
+/** 외곽 예시 기본값(설계 §2.1, 원점 가운데) */
+export function defaultOuterTemplate(kind: TemplateKind): ShapeTemplate {
+  switch (kind) {
+    case 'rect':
+      return { kind: 'rect', w: 400, h: 300 }
+    case 'trapezoid':
+      return { kind: 'trapezoid', front: 400, back: 300, depth: 300, offset: 0 }
+    case 'ngon':
+      return { kind: 'ngon', n: 6, sizeBy: 'diameter', size: 400 }
+    case 'circle':
+      return { kind: 'circle', d: 400 }
+  }
+}
+
+/** 이너 예시 기본값(설계 §2.1): s = newInnerSide(외곽), 사다리꼴 뒷변 = round10(0.7s)(최소 10) */
+export function defaultInnerTemplate(kind: TemplateKind, outer: Shape): ShapeTemplate {
+  const s = newInnerSide(outer)
+  switch (kind) {
+    case 'rect':
+      return { kind: 'rect', w: s, h: s }
+    case 'trapezoid':
+      return { kind: 'trapezoid', front: s, back: Math.max(NEW_INNER_MIN, round10(s * 0.7)), depth: s, offset: 0 }
+    case 'ngon':
+      return { kind: 'ngon', n: 6, sizeBy: 'diameter', size: s }
+    case 'circle':
+      return { kind: 'circle', d: s }
+  }
+}
+
+/**
+ * 모양 바꾸기(설계 §3): 지금 로컬 bbox w×h를 이어받은 다른 예시 템플릿.
+ * 사각형 w×h, 사다리꼴 앞·뒤 w·깊이 h·치우침 0, 정6각형 지름 min(w,h), 원 지름 min(w,h). 1~5000으로 자르고 0.1cm 반올림.
+ */
+export function templateFromBBox(kind: TemplateKind, w: number, h: number): ShapeTemplate {
+  const W = clampLength(w)
+  const H = clampLength(h)
+  switch (kind) {
+    case 'rect':
+      return { kind: 'rect', w: W, h: H }
+    case 'trapezoid':
+      return { kind: 'trapezoid', front: W, back: W, depth: H, offset: 0 }
+    case 'ngon':
+      return { kind: 'ngon', n: 6, sizeBy: 'diameter', size: Math.min(W, H) }
+    case 'circle':
+      return { kind: 'circle', d: Math.min(W, H) }
+  }
+}
+
+export type BBoxLike = { minX: number; minY: number; maxX: number; maxY: number }
+
+/**
+ * 벽에 붙이기(설계 §2.4): 월드 bbox를 그 벽에 맞닿게, 벽 가운데에 오게 옮길 이동량.
+ * 벽 = 외곽 템플릿 도형의 그 변(뒤 = y 최소, 앞 = y 최대, 왼쪽 = x 최소, 오른쪽 = x 최대), 가운데 = 그 변 중점.
+ * 그 모양에 그 벽이 없으면 null. 반올림하지 않습니다(옮기는 레시피가 반올림).
+ */
+export function attachBBoxToWall(outer: ShapeTemplate, bbox: BBoxLike, side: AttachSide): { dx: number; dy: number } | null {
+  const wall = wallOf(outer, side)
+  if (wall === null) return null
+  const midX = (bbox.minX + bbox.maxX) / 2
+  const midY = (bbox.minY + bbox.maxY) / 2
+  switch (side) {
+    case 'back':
+      return { dx: wall.cx - midX, dy: wall.cy - bbox.minY }
+    case 'front':
+      return { dx: wall.cx - midX, dy: wall.cy - bbox.maxY }
+    case 'left':
+      return { dx: wall.cx - bbox.minX, dy: wall.cy - midY }
+    case 'right':
+      return { dx: wall.cx - bbox.maxX, dy: wall.cy - midY }
+  }
+}
+
 /** 새 이너 한 변의 최댓값(cm)·외곽 짧은 변에 대한 비율·최솟값(§4.4-4) */
 const NEW_INNER_MAX = 200
 const NEW_INNER_RATIO = 0.6

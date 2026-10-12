@@ -2,21 +2,27 @@ import { describe, expect, it } from 'vitest'
 import { enablePatches, produce, produceWithPatches } from 'immer'
 import { createLayout, round1, type Inner, type Item, type Layout, type Pt, type Tent } from '../model'
 import { area, region, ringArea, ringBBox, subtract, worldRing } from '../geom'
-import { newInnerSide } from '../templates'
+import { newInnerSide, shapeFromTemplate } from '../templates'
 import { buildZones, type Zones } from '../zones'
 import {
   addInner,
+  addInnerFromPolygon,
+  addInnerFromTemplate,
   deleteInner,
   deleteVertex,
   insertVertex,
   moveInner,
+  moveInnerTo,
   renameInner,
   rotateInner,
   setCircleDiameter,
   setInnerTemplate,
   setOuterTemplate,
+  setTargetPolygon,
+  setTargetShapeTemplate,
   setVertex,
   swapTent,
+  targetLocalRing,
   targetWorldRing,
   tentIssues,
 } from './tent'
@@ -479,5 +485,138 @@ describe('같은 값이면 쓰지 않음(Review Focus 3, P2 보류 Minor)', () =
     const l = layoutOf(goldenTent([]))
     const { next } = runAdd(l, buildZones(l.tent))
     expect(at(next.tent.inners, 0).shape).toEqual({ kind: 'rect', w: newInnerSide(l.tent.outer), h: newInnerSide(l.tent.outer) })
+  })
+})
+
+describe('예시·그린 이너, 대상 다각형, 모양 바꾸기, 절대 이동(Plan 4.1)', () => {
+  function patchCount(l: Layout, fn: (d: Layout) => unknown): number {
+    const [, patches] = produceWithPatches(l, (d) => {
+      fn(d)
+    })
+    return patches.length
+  }
+
+  function polyInner(id: string, points: Pt[], x: number, y: number, rotation = 0): Inner {
+    return { id, name: `이너 ${id}`, shape: { kind: 'polygon', points }, x, y, rotation }
+  }
+
+  it('addInnerFromTemplate: 템플릿 도형을 가장 큰 바닥 조각 라벨에, 받은 id로', () => {
+    const l = layoutOf(goldenTent([]))
+    const zones = buildZones(l.tent)
+    const label = at(zones.pieces, 0).label
+    const tpl = { kind: 'trapezoid', front: 180, back: 130, depth: 180, offset: 0 } as const
+    let res: ReturnType<typeof addInnerFromTemplate> | undefined
+    const next = produce(l, (d) => {
+      res = addInnerFromTemplate(d, zones, tpl, 'new-1')
+    })
+    expect(res).toEqual({ ok: true, id: 'new-1' })
+    expect(at(next.tent.inners, 0)).toEqual({
+      id: 'new-1',
+      name: '이너 1',
+      template: tpl,
+      shape: shapeFromTemplate(tpl),
+      x: round1(label[0]),
+      y: round1(label[1]),
+      rotation: 0,
+    })
+  })
+
+  it('addInnerFromTemplate: 다른 이너와 겹치면 no-space, 아무것도 쓰지 않음', () => {
+    const l = layoutOf(goldenTent([rectInner('a', 250, 300, -175, 0), rectInner('b', 250, 300, 175, 0)]))
+    const zones = buildZones(l.tent)
+    let res: ReturnType<typeof addInnerFromTemplate> | undefined
+    const next = produce(l, (d) => {
+      res = addInnerFromTemplate(d, zones, { kind: 'circle', d: 180 }, 'x')
+    })
+    expect(res).toEqual({ ok: false, reason: 'no-space' })
+    expect(next).toBe(l)
+  })
+
+  it('addInnerFromPolygon: x·y = 월드 bbox 가운데, 로컬 다각형, 회전 0, 템플릿 없음', () => {
+    const world: Pt[] = [[100, -100], [250, -100], [250, 50], [100, 50]]
+    const next = run(layoutOf(), (d) => addInnerFromPolygon(d, world, 'drawn'))
+    const added = innerOf(next, 'drawn')
+    expect(added).toEqual({
+      id: 'drawn',
+      name: '이너 2',
+      shape: { kind: 'polygon', points: [[-75, -75], [75, -75], [75, 75], [-75, 75]] },
+      x: 175,
+      y: -25,
+      rotation: 0,
+    })
+    expect(worldRing(added)).toEqual(world)
+  })
+
+  it('setTargetPolygon world: 돌린 이너도 월드 점 그대로 보이게 로컬로 바꾸고 템플릿을 버린다', () => {
+    const l = layoutOf(goldenTent([rectInner('in1', 300, 300, 150, 0, { rotation: 90 })]))
+    const world: Pt[] = [[100, -100], [250, -100], [250, 50], [100, 50]]
+    const next = run(l, (d) => setTargetPolygon(d, { innerId: 'in1' }, world, 'world'))
+    const inner = innerOf(next, 'in1')
+    expect(inner.template).toBeUndefined()
+    expect(inner).toMatchObject({ x: 150, y: 0, rotation: 90 })
+    worldRing(inner).forEach((p, i) => {
+      expect(Math.abs(p[0] - world[i]![0])).toBeLessThanOrEqual(0.1)
+      expect(Math.abs(p[1] - world[i]![1])).toBeLessThanOrEqual(0.1)
+    })
+  })
+
+  it('setTargetPolygon: 외곽은 월드 그대로, outerTemplate 버림. 원 이너도 다각형이 된다', () => {
+    const world: Pt[] = [[-300, -150], [300, -150], [300, 150], [0, 200], [-300, 150]]
+    const next = run(layoutOf(), (d) => setTargetPolygon(d, 'outer', world, 'world'))
+    expect(next.tent.outer).toEqual({ kind: 'polygon', points: world })
+    expect(next.tent.outerTemplate).toBeUndefined()
+    const circle = rectInner('c', 1, 1, 0, 0)
+    circle.shape = { kind: 'circle', d: 100 }
+    circle.template = { kind: 'circle', d: 100 }
+    const bell = run(layoutOf(goldenTent([circle])), (d) => setTargetPolygon(d, { innerId: 'c' }, [[-50, -50], [50, -50], [0, 50]], 'local'))
+    expect(innerOf(bell, 'c').shape).toEqual({ kind: 'polygon', points: [[-50, -50], [50, -50], [0, 50]] })
+  })
+
+  it('setTargetPolygon: 템플릿 없이 반올림 후 같은 점이면 패치 0, 템플릿이 있으면 같은 점이어도 쓴다', () => {
+    const pts: Pt[] = [[-50, -50], [50, -50], [0, 50]]
+    const l = layoutOf(goldenTent([polyInner('p', pts, 0, 0)]))
+    expect(patchCount(l, (d) => setTargetPolygon(d, { innerId: 'p' }, [[-50.04, -50], [50, -49.96], [0, 50]], 'local'))).toBe(0)
+    expect(patchCount(l, (d) => setTargetPolygon(d, { innerId: 'p' }, [[-50, -50], [50.1, -50], [0, 50]], 'local'))).toBeGreaterThan(0)
+    const rect = layoutOf(goldenTent([rectInner('r', 100, 100, 0, 0)]))
+    const ring = targetLocalRing(rect, { innerId: 'r' })
+    expect(patchCount(rect, (d) => setTargetPolygon(d, { innerId: 'r' }, ring, 'local'))).toBeGreaterThan(0)
+    expect(patchCount(l, (d) => setTargetPolygon(d, { innerId: 'zz' }, pts, 'local'))).toBe(0)
+  })
+
+  it('setTargetShapeTemplate: 이너는 보이는 가운데(로컬 bbox 가운데의 월드 자리)를 지키고 회전은 그대로', () => {
+    const l = layoutOf(goldenTent([polyInner('p', [[0, 0], [200, 0], [200, 100], [0, 100]], 10, 20, 90)]))
+    const next = run(l, (d) => setTargetShapeTemplate(d, { innerId: 'p' }, { kind: 'rect', w: 200, h: 100 }))
+    expect(innerOf(next, 'p')).toMatchObject({
+      x: -40,
+      y: 120,
+      rotation: 90,
+      shape: { kind: 'rect', w: 200, h: 100 },
+      template: { kind: 'rect', w: 200, h: 100 },
+    })
+  })
+
+  it('setTargetShapeTemplate: 같은 템플릿이면 패치 0, 외곽은 setOuterTemplate과 같다', () => {
+    const l = layoutOf()
+    expect(patchCount(l, (d) => setTargetShapeTemplate(d, { innerId: 'in1' }, { kind: 'rect', w: 300, h: 300 }))).toBe(0)
+    const a = run(l, (d) => setTargetShapeTemplate(d, 'outer', { kind: 'circle', d: 500 }))
+    const b = run(l, (d) => setOuterTemplate(d, { kind: 'circle', d: 500 }))
+    expect(a).toEqual(b)
+  })
+
+  it('moveInnerTo: 같은 자리면 패치 0, 아니면 반올림해 옮김', () => {
+    const l = layoutOf()
+    expect(patchCount(l, (d) => moveInnerTo(d, 'in1', 150, 0))).toBe(0)
+    expect(patchCount(l, (d) => moveInnerTo(d, 'in1', 150.04, -0.02))).toBe(0)
+    expect(innerOf(run(l, (d) => moveInnerTo(d, 'in1', 12.34, -56.78)), 'in1')).toMatchObject({ x: 12.3, y: -56.8 })
+    expect(patchCount(l, (d) => moveInnerTo(d, 'zz', 1, 1))).toBe(0)
+  })
+
+  it('targetLocalRing: 다각형은 점 그대로, 사각형은 shapeRing, 원·없는 이너는 []', () => {
+    const pts: Pt[] = [[0, 0], [10, 0], [0, 10]]
+    const l = layoutOf(goldenTent([polyInner('p', pts, 5, 5, 30)]))
+    expect(targetLocalRing(l, { innerId: 'p' })).toEqual(pts)
+    expect(targetLocalRing(l, 'outer')).toHaveLength(4)
+    expect(targetLocalRing(layoutOf({ name: 'b', outer: { kind: 'circle', d: 300 }, inners: [] }), 'outer')).toEqual([])
+    expect(targetLocalRing(l, { innerId: 'zz' })).toEqual([])
   })
 })
