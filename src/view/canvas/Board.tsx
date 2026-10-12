@@ -5,6 +5,8 @@
 // - 텐트 편집 모드(§4.4)는 Konva 끌기를 쓰지 않습니다. 누름 대상은 tentGesture.classifyTentPress(순수 판정, R10·R19),
 //   이너·꼭짓점 끌기는 컨트롤러가 포인터 이동으로 직접 계산해 미리보기(화면 상태)만 그리고, 손을 뗄 때
 //   tentActions로 한 번 커밋합니다. 잘못된 결과·두 번째 손가락·취소는 커밋 0(§4.4-8·§4.5).
+// - 자유 그리기(Plan 4.1, 설계 2026-10-12 §2.2): 그리는 중 누름은 텐트 대상 판정을 타지 않고 빈 곳(화면 이동)으로 다룹니다.
+//   점은 판정기의 tap 출력으로만 찍고(끌기·두 손가락·취소는 점 없음), 고무줄·길이 배지는 화면 상태(overlay)입니다.
 import Konva from 'konva'
 import type { Box } from 'konva/lib/shapes/Transformer'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
@@ -14,13 +16,16 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStats, useZones } from '../../app/derived'
 import { useDoc, useStores, useUi, type Stores } from '../../app/stores'
 import {
+  appendDrawPoint,
   commitInnerMove,
+  finishDrawing,
   insertTargetVertex,
   selectTentTargetFromCanvas,
   setTargetVertex,
   tentControlsEnabled,
 } from '../../app/tentActions'
 import { LIMITS, normAngle, round1, type Item, type Pt, type Shape } from '../../core/model'
+import { drawGridOrigin } from '../../core/polygonEdit'
 import { expandSelection } from '../../core/ops/groups'
 import { applyTransform, moveItems } from '../../core/ops/items'
 import { toPointerKind, type PointerKind } from '../../store/ui'
@@ -29,7 +34,9 @@ import { THEME } from '../../ui/theme'
 import { GestureArbiter, TAP_SLOP, type GestureOutput, type PointerSample } from '../gestures'
 import { buildScene } from '../scene'
 import { INVALID_EDIT_STYLE } from '../tentEdit'
-import { layoutBBox, screenToWorld, wheelAction, type View } from '../viewport'
+import { fitBBoxFor, screenToWorld, wheelAction, worldToScreen, type View } from '../viewport'
+import { drawTapEffect, lengthLabel, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
+import { DrawLayer } from './DrawLayer'
 import { itemsInRect, rectFromCorners } from './marquee'
 import { GridShape, ItemShape, TentContent, WarningMarks } from './nodes'
 import {
@@ -74,6 +81,8 @@ type Overlay = {
   badge: { text: string; x: number; y: number } | null
   /** 텐트 끌기 미리보기(문서 밖 화면 상태, §8). 손을 떼거나 되돌리면 null */
   tentPreview: TentPreview | null
+  /** 그리는 중 고무줄 끝(화면 px — 휠 이동 뒤에도 포인터에 붙어 있게 월드가 아니라 화면 좌표). 안 보이면 null */
+  drawPointer: { screen: Pt; pointer: PointerKind } | null
 }
 
 type Session = { kind: 'drag'; leadId: string; ids: string[] } | { kind: 'transform'; ids: string[] }
@@ -158,6 +167,10 @@ class BoardController {
   private tentDragLive = false
   /** 마지막 자동 맞춤 보기. 사용자가 보기를 바꾸지 않았으면 크기가 바뀔 때 다시 맞춥니다. */
   private autoFit: View | null = null
+  /** 이번 누름이 자유 그리기 중에 시작됐음(탭 = 점, 끌기 = 화면 이동, 텐트 대상 판정 안 함) */
+  private pressInDraw = false
+  /** 첫 포인터를 누른 화면 점(고무줄을 탭/끌기 경계 안에서만 보이게) */
+  private pressStart: Pt | null = null
 
   constructor(
     private readonly stores: Stores,
@@ -233,7 +246,11 @@ class BoardController {
       this.tentPrev = null
       this.tentDrag = null
       this.tentDragLive = false
-      if (tentMode) {
+      this.pressInDraw = tentMode && ui.drawing !== null && tentControlsEnabled(ui)
+      this.pressStart = p
+      if (this.pressInDraw) {
+        if (!panOverride) this.showRubber(p, kind)
+      } else if (tentMode) {
         if (!panOverride) onNode = this.pressTent(p, kind, e.pointerId)
       } else {
         const hit = panOverride ? null : this.hitAt(p)
@@ -247,14 +264,20 @@ class BoardController {
       if (panOverride) this.lock()
     }
     // 텐트 모드의 바닥·외곽선 끌기는 포인터 종류와 상관없이 화면 이동입니다(R10, 마우스도 범위 선택 아님).
-    this.handle(this.arbiter.down(sample, onNode, this.pressInTent ? 'pan' : 'marquee'))
-    if (this.arbiter.pointerCount >= 2) this.lock()
+    this.handle(this.arbiter.down(sample, onNode, this.pressInTent || this.pressInDraw ? 'pan' : 'marquee'))
+    if (this.arbiter.pointerCount >= 2) {
+      this.lock()
+      this.hideRubber()
+    }
     // 판정하지 않는 버튼(펜 지우개 등)은 누름으로 치지 않습니다(떼기 처리가 오지 않음).
     if (this.arbiter.pointerCount === 0) ui.setCanvasPressed(false)
   }
 
   readonly onPointerMove = (e: PointerEvent): void => {
-    if (this.arbiter.pointerCount === 0) return
+    if (this.arbiter.pointerCount === 0) {
+      this.hoverRubber(e)
+      return
+    }
     const p = this.local(e)
     const before = this.arbiter.pointerCount
     const outs = this.arbiter.move({
@@ -271,6 +294,7 @@ class BoardController {
     }
     this.handle(outs)
     this.dragTent(e.pointerId, p)
+    if (this.pressInDraw) this.trackRubber(p, toPointerKind(e.pointerType))
   }
 
   readonly onPointerUp = (e: PointerEvent): void => {
@@ -290,6 +314,10 @@ class BoardController {
     if (this.arbiter.pointerCount === 0) {
       this.tentHit = null
       this.tentPrev = null
+      // 터치 고무줄은 누르는 동안만 보입니다(마우스·펜은 hover로 이어짐). setTimeout(afterAllUp)보다 먼저 지웁니다.
+      if (this.pressInDraw && this.overlay.getState().drawPointer?.pointer === 'touch') this.hideRubber()
+      this.pressInDraw = false
+      this.pressStart = null
       this.afterAllUp()
     }
   }
@@ -298,7 +326,10 @@ class BoardController {
   readonly cancelAll = (): void => {
     this.handle(this.arbiter.cancel())
     if (this.session || this.isKonvaBusy() || this.tentDrag !== null) this.cancelNodeGesture()
-    this.overlay.setState({ marquee: null })
+    // 그린 점은 지우지 않습니다(앞 탭들에서 이미 찍힘). 이번 누름의 고무줄만 지웁니다.
+    this.overlay.setState({ marquee: null, drawPointer: null })
+    this.pressInDraw = false
+    this.pressStart = null
     this.afterAllUp()
   }
 
@@ -306,7 +337,7 @@ class BoardController {
   private recoverStale(): void {
     this.handle(this.arbiter.cancel())
     if (this.session || this.isKonvaBusy() || this.tentDrag !== null) this.cancelNodeGesture()
-    this.overlay.setState({ marquee: null })
+    this.overlay.setState({ marquee: null, drawPointer: null })
     this.suppress = false
     this.unlock()
   }
@@ -316,6 +347,7 @@ class BoardController {
     if (e.touches.length < 2) return
     if (this.session || this.isKonvaBusy() || this.tentDrag !== null) this.cancelNodeGesture()
     this.lock()
+    this.hideRubber()
   }
 
   readonly onWheel = (e: WheelEvent): void => {
@@ -346,6 +378,55 @@ class BoardController {
 
   readonly onHover = (inside: boolean): void => {
     this.hover = inside
+    // 캔버스 밖(그리기 막대·패널)으로 나가면 hover 고무줄을 지웁니다.
+    if (!inside && this.arbiter.pointerCount === 0) this.hideRubber()
+  }
+
+  // ── 자유 그리기(Plan 4.1) ──────────────────────────────────────────────
+
+  private drawingActive(): boolean {
+    const ui = this.stores.ui.getState()
+    return ui.mode === 'tent' && ui.drawing !== null && tentControlsEnabled(ui)
+  }
+
+  private showRubber(screen: Pt, pointer: PointerKind): void {
+    this.overlay.setState({ drawPointer: { screen: [screen[0], screen[1]], pointer } })
+  }
+
+  private hideRubber(): void {
+    if (this.overlay.getState().drawPointer !== null) this.overlay.setState({ drawPointer: null })
+  }
+
+  /** 누르지 않은 마우스·펜이 캔버스 위에서 움직일 때(hover) 고무줄. 리스너가 window라 캔버스 밖 이동은 hover로 거릅니다. */
+  private hoverRubber(e: PointerEvent): void {
+    const pointer = toPointerKind(e.pointerType)
+    if (!this.drawingActive() || !rubberVisible({ pointer, hovering: this.hover, pressing: false, moved: false })) {
+      this.hideRubber()
+      return
+    }
+    this.showRubber(this.local(e), pointer)
+  }
+
+  /** 누르는 동안: 한 손가락·경계 안이면 고무줄을 포인터에, 경계를 넘거나(화면 이동) 두 손가락이면 숨깁니다. */
+  private trackRubber(p: Pt, pointer: PointerKind): void {
+    const start = this.pressStart
+    const moved = start === null || pressMoved(start, p, pointer)
+    const visible = this.arbiter.pointerCount === 1 && !this.locked && rubberVisible({ pointer, hovering: this.hover, pressing: true, moved })
+    if (visible) this.showRubber(p, pointer)
+    else this.hideRubber()
+  }
+
+  /**
+   * 그리는 중 탭: 첫 점 근처면 닫기(finishDrawing), 아니면 점(appendDrawPoint — 맞춤·교차 판정·문구는 그쪽).
+   * 누르는 사이 다른 손가락으로 [그리기 완료]·[그리기 취소]를 눌러 그리기가 끝났으면 탭을 버립니다(대상 선택으로 새지 않게).
+   */
+  private onDrawTap(o: { x: number; y: number; pointer: PointerKind }): void {
+    const ui = this.stores.ui.getState()
+    const drawing = ui.drawing
+    if (drawing === null || !tentControlsEnabled(ui)) return
+    const effect = drawTapEffect(drawing, [o.x, o.y], o.pointer, ui.view)
+    if (effect.kind === 'close') finishDrawing(this.stores)
+    else appendDrawPoint(this.stores, effect.raw)
   }
 
   readonly onVisibility = (): void => {
@@ -378,7 +459,8 @@ class BoardController {
           ui.zoomAt(o.factor, [o.cx, o.cy])
           break
         case 'tap':
-          if (this.pressInTent) this.onTentTap()
+          if (this.pressInDraw) this.onDrawTap(o)
+          else if (this.pressInTent) this.onTentTap()
           else this.onTap(o.onNode, o.shift)
           break
         case 'marquee':
@@ -451,7 +533,7 @@ class BoardController {
     // 측정 중 등 텐트 컨트롤이 잠기면 누름은 빈 곳(화면 이동)이고 탭도 아무것도 하지 않습니다.
     if (!tentControlsEnabled(ui)) return false
     const layout = this.stores.doc.getState().layout
-    const hit = classifyTentPress(layout, ui.tentTarget, ui.view, p, kind)
+    const hit = classifyTentPress(layout, ui.tentTarget, ui.view, p, kind, ui.tentLock, ui.outerPending)
     this.tentHit = hit
     const cur: TentSelection = { target: ui.tentTarget, vertexIndex: ui.vertexIndex }
     const next = pressSelection(hit, cur)
@@ -752,7 +834,7 @@ class BoardController {
     const ui = this.stores.ui.getState()
     if (!(ui.size.width > 0 && ui.size.height > 0)) return
     if (this.autoFit !== null && !sameView(ui.view, this.autoFit)) return
-    ui.fitTo(layoutBBox(this.stores.doc.getState().layout))
+    ui.fitTo(fitBBoxFor(this.stores.doc.getState().layout, ui.outerPending))
     this.autoFit = this.stores.ui.getState().view
   }
 }
@@ -765,6 +847,54 @@ function TentEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | nul
   const view = useUi((s) => s.view)
   const preview = useStore(props.overlay, (s) => s.tentPreview)
   return <TentLayer layout={layout} target={target} vertexIndex={vertexIndex} view={view} preview={preview} />
+}
+
+/** 그리는 중 표시: 찍은 점·열린 선·고무줄(그때 보기로 계산 — 휠 이동에도 포인터를 따라감) */
+function DrawEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | null {
+  const drawing = useUi((s) => s.drawing)
+  const view = useUi((s) => s.view)
+  const outerPending = useUi((s) => s.outerPending)
+  const tent = useDoc((s) => s.layout.tent)
+  const ptr = useStore(props.overlay, (s) => s.drawPointer)
+  if (drawing === null) return null
+  const rubber = ptr === null ? null : rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending))
+  return <DrawLayer drawing={drawing} rubber={rubber} zoom={view.zoom} />
+}
+
+/** 고무줄 길이 배지(DOM — 화면 테스트·낭독이 바로 읽음). 고무줄 가운데 조금 위 */
+function DrawLengthBadge(props: { overlay: StoreApi<Overlay> }): JSX.Element | null {
+  const drawing = useUi((s) => s.drawing)
+  const view = useUi((s) => s.view)
+  const outerPending = useUi((s) => s.outerPending)
+  const tent = useDoc((s) => s.layout.tent)
+  const ptr = useStore(props.overlay, (s) => s.drawPointer)
+  if (drawing === null || ptr === null) return null
+  const r = rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending))
+  if (r.from === null || r.lengthCm === null) return null
+  const a = worldToScreen(view, r.from)
+  const b = worldToScreen(view, r.to)
+  return (
+    <div
+      data-testid="draw-length-badge"
+      style={{
+        position: 'absolute',
+        left: (a[0] + b[0]) / 2,
+        top: (a[1] + b[1]) / 2 - BADGE_GAP_PX,
+        transform: 'translate(-50%, -100%)',
+        padding: '2px 6px',
+        borderRadius: 4,
+        background: THEME['text-primary'],
+        color: THEME['text-inverse'],
+        fontSize: 12,
+        lineHeight: '16px',
+        fontVariantNumeric: 'tabular-nums',
+        whiteSpace: 'nowrap',
+        pointerEvents: 'none',
+      }}
+    >
+      {lengthLabel(r.lengthCm)}
+    </div>
+  )
 }
 
 function BoardOverlay(props: { store: StoreApi<Overlay> }): JSX.Element {
@@ -811,6 +941,7 @@ function BoardOverlay(props: { store: StoreApi<Overlay> }): JSX.Element {
           {badge.text}
         </div>
       )}
+      <DrawLengthBadge overlay={props.store} />
     </>
   )
 }
@@ -827,19 +958,26 @@ export function Board(): JSX.Element {
   const gridVisible = useUi((s) => s.gridVisible)
   const selection = useUi((s) => s.selection)
   const pointer = useUi((s) => s.pointer)
+  const drawing = useUi((s) => s.drawing)
+  const tentLock = useUi((s) => s.tentLock)
+  const outerPending = useUi((s) => s.outerPending)
 
   const hostRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage>(null)
   const trRef = useRef<Konva.Transformer>(null)
   const [activeIds, setActiveIds] = useState<ReadonlySet<string>>(EMPTY_IDS)
   const [overlay] = useState(() =>
-    createStore<Overlay>()(() => ({ marquee: null, badge: null, tentPreview: null })),
+    createStore<Overlay>()(() => ({ marquee: null, badge: null, tentPreview: null, drawPointer: null })),
   )
   const ctl = useMemo(() => new BoardController(stores, overlay, setActiveIds), [stores, overlay])
 
   const scene = useMemo(
-    () => buildScene({ layout, zones, stats, view, mode, scopeGroupId, gridVisible, size }),
-    [layout, zones, stats, view, mode, scopeGroupId, gridVisible, size],
+    () => buildScene({ layout, zones, stats, view, mode, scopeGroupId, gridVisible, size, outerPending }),
+    [layout, zones, stats, view, mode, scopeGroupId, gridVisible, size, outerPending],
+  )
+  const dim = useMemo(
+    () => tentDim(tentLock, drawing, layout.tent.inners.map((it) => it.id)),
+    [tentLock, drawing, layout.tent.inners],
   )
   const zoom = view.zoom
   const selected = useMemo(() => new Set(selection), [selection])
@@ -951,6 +1089,7 @@ export function Board(): JSX.Element {
       ref={hostRef}
       className="canvas-host"
       data-testid="board"
+      data-drawing={drawing !== null ? 'true' : undefined}
       style={{
         position: 'relative',
         width: '100%',
@@ -976,7 +1115,7 @@ export function Board(): JSX.Element {
         </Layer>
         {/* 텐트 입력은 Konva 히트가 아니라 컨트롤러의 순수 판정으로 받습니다(외곽은 채움이 없음, R19). */}
         <Layer listening={false}>
-          <TentContent scene={scene} zoom={zoom} />
+          <TentContent scene={scene} zoom={zoom} dim={dim} />
         </Layer>
         <Layer>
           {scene.items.map((n) => (
@@ -994,8 +1133,9 @@ export function Board(): JSX.Element {
         </Layer>
         <Layer listening={false}>
           <WarningMarks items={scene.items} inners={scene.inners} zoom={zoom} hidden={activeIds} />
-          {/* 텐트 편집 핸들·선택 테두리·끌기 미리보기(경고 표시 위). 입력은 받지 않습니다. */}
-          {mode === 'tent' && <TentEditLayer overlay={overlay} />}
+          {/* 텐트 편집 핸들·선택 테두리·끌기 미리보기(경고 표시 위). 입력은 받지 않습니다.
+              그리는 중에는 핸들 대신 그리는 선(누르면 점이 되므로 핸들을 보이지 않음). */}
+          {mode === 'tent' && (drawing !== null ? <DrawEditLayer overlay={overlay} /> : <TentEditLayer overlay={overlay} />)}
         </Layer>
         <Layer>
           <Transformer

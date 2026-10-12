@@ -6,6 +6,7 @@ import { Circle, Group, Line, Rect, Shape as KShape, Text } from 'react-konva'
 import type { Pt, Shape } from '../../core/model'
 import { THEME } from '../../ui/theme'
 import type { GridLevel, InnerNode, ItemNode, PieceNode, Scene } from '../scene'
+import type { TentDim } from './drawGesture'
 import { itemWorldBBox } from './marquee'
 
 export const FONT_FAMILY = THEME['font-sans'] || 'sans-serif'
@@ -152,16 +153,28 @@ function PieceFill(props: { piece: PieceNode }): JSX.Element {
   )
 }
 
-/** 텐트 레이어: 전실(바닥) 면 → 이너(반투명 면 + 실선) → 외곽 굵은 실선 → 라벨 */
-export function TentContent(props: { scene: Scene; zoom: number }): JSX.Element {
+/** 흐림 없음 */
+const NO_DIM: TentDim = { outer: false, innerIds: new Set() }
+
+/**
+ * 텐트 레이어: 전실(바닥) 면 → 이너(반투명 면 + 실선) → 외곽 굵은 실선 → 라벨.
+ * dim: 만들기 화면 단계의 잠긴 쪽·다시 그리는 원본은 흐리게(Plan 4.1). scene.tentVisible이 false면(외곽 없음) 그리지 않습니다.
+ */
+export function TentContent(props: { scene: Scene; zoom: number; dim?: TentDim }): JSX.Element | null {
   const { scene, zoom } = props
+  const dim = props.dim ?? NO_DIM
+  if (!scene.tentVisible) return null
+  const outerOpacity = dim.outer ? DIM_OPACITY : 1
+  const innerOpacity = (id: string) => (dim.innerIds.has(id) ? DIM_OPACITY : 1)
   return (
     <>
-      {scene.pieces.map((p) => (
-        <PieceFill key={p.key} piece={p} />
-      ))}
+      <Group opacity={outerOpacity}>
+        {scene.pieces.map((p) => (
+          <PieceFill key={p.key} piece={p} />
+        ))}
+      </Group>
       {scene.inners.map((n) => (
-        <Group key={n.id} id={`inner:${n.id}`} name="inner" x={n.x} y={n.y} rotation={n.rotation}>
+        <Group key={n.id} id={`inner:${n.id}`} name="inner" x={n.x} y={n.y} rotation={n.rotation} opacity={innerOpacity(n.id)}>
           <Geom
             shape={n.shape}
             fill={THEME['inner-fill']}
@@ -179,30 +192,30 @@ export function TentContent(props: { scene: Scene; zoom: number }): JSX.Element 
         strokeWidth={OUTER_STROKE_PX}
         strokeScaleEnabled={false}
         perfectDrawEnabled={false}
+        opacity={outerOpacity}
       />
-      {zoom > 0 &&
-        scene.pieces
-          .filter((p) => p.label.visible)
-          .map((p) => (
-            <ScreenLabel
-              key={`label:${p.key}`}
-              text={p.label.text}
-              at={[p.label.x, p.label.y]}
-              zoom={zoom}
-              color={THEME['text-secondary']}
-            />
-          ))}
+      {zoom > 0 && (
+        <Group opacity={outerOpacity}>
+          {scene.pieces
+            .filter((p) => p.label.visible)
+            .map((p) => (
+              <ScreenLabel
+                key={`label:${p.key}`}
+                text={p.label.text}
+                at={[p.label.x, p.label.y]}
+                zoom={zoom}
+                color={THEME['text-secondary']}
+              />
+            ))}
+        </Group>
+      )}
       {zoom > 0 &&
         scene.inners
           .filter((n) => n.label.visible)
           .map((n) => (
-            <ScreenLabel
-              key={`label:${n.id}`}
-              text={n.label.text}
-              at={[n.label.x, n.label.y]}
-              zoom={zoom}
-              color={THEME['inner-stroke']}
-            />
+            <Group key={`label:${n.id}`} opacity={innerOpacity(n.id)}>
+              <ScreenLabel text={n.label.text} at={[n.label.x, n.label.y]} zoom={zoom} color={THEME['inner-stroke']} />
+            </Group>
           ))}
     </>
   )

@@ -64,3 +64,8 @@ textarea {
 .canvas-host {
   touch-action: none;
 }
+
+/* 자유 그리기 중 캔버스 커서(Plan 4.1). 스페이스 끌기의 인라인 cursor가 이깁니다. */
+.canvas-host[data-drawing='true'] {
+  cursor: crosshair;
+}
