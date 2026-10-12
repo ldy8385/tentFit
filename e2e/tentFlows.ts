@@ -1,15 +1,25 @@
-// 텐트 흐름(고르기·만들기·텐트 편집·텐트 바꾸기, Plan 4) 화면 테스트가 함께 쓰는 조작.
+// 텐트 흐름(고르기·만들기·텐트 편집·텐트 바꾸기, Plan 4·4.1) 화면 테스트가 함께 쓰는 조작.
 // 버튼은 프로젝트에 맞춰 누르고(터치 프로젝트는 tap, PC는 click), 캔버스는 마우스(PC) 또는 CDP 터치(휴대폰)로 누릅니다.
 // 텐트 꼭짓점·이너의 화면 좌표는 문서(window.__tentfit.getDoc)에서 월드 좌표를 읽어 worldToClient로 바꿉니다.
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import type { Inner, Pt, Tent } from '../src/core/model'
 import { targetWorldRing, type TentTarget } from '../src/core/ops/tent'
-import { dragBetween, Fingers, getDoc, getUi, nextFrames, touchDrag, worldToClient, type ClientPt } from './helpers'
+import {
+  dragBetween,
+  EDITOR_HOOK,
+  Fingers,
+  getDoc,
+  getUi,
+  MAKER_HOOK,
+  nextFrames,
+  touchDrag,
+  worldToClient,
+  type ClientPt,
+  type HookKey,
+} from './helpers'
 
 /** 펼친 시트 위로 남기는 캔버스 높이(sheets.css: 요약 칩 56 + 보일 영역 88 + 여백 32) */
 export const MIN_CANVAS_ABOVE_SHEET_PX = 176
-/** 만들기 화면에서 입력칸에 포커스한 동안의 미리보기 높이 상한(약 140px, makerLayout.PREVIEW_FOCUSED_PX + 여유) */
-export const MAKER_PREVIEW_FOCUSED_MAX_PX = 160
 
 /** presets/tents/generic.json의 예시 텐트 이름 */
 export const TUNNEL = '터널 4인 예시' // 외곽 620×320, 이너 1(220×300) 중심 (−200, 0)
@@ -58,29 +68,40 @@ export async function openPickScreen(page: Page): Promise<void> {
   await expect(pickCard(page, TUNNEL)).toBeVisible({ timeout: 15_000 })
 }
 
-/** 요소와 그 안의 스크롤 영역이 가로로 넘치는 양(px). 0이면 가로 스크롤 없음. 문서 전체 폭도 함께 봅니다. */
-export async function horizontalOverflowPx(target: Locator): Promise<number> {
-  return target.evaluate((root) => {
+/**
+ * 요소와 그 안의 스크롤 영역이 가로로 넘치는 양(px). 0이면 가로 스크롤 없음. 문서 전체 폭도 함께 봅니다.
+ * allow: 일부러 가로 스크롤하는 영역(만들기 화면 도구 줄, 설계 §1.2)의 선택자 — 그 안은 보지 않습니다.
+ */
+export async function horizontalOverflowPx(target: Locator, allow?: string): Promise<number> {
+  return target.evaluate((root, allowed) => {
     let worst = document.documentElement.scrollWidth - window.innerWidth
     for (const el of [root, ...Array.from(root.querySelectorAll('*'))]) {
+      if (allowed !== null && el.closest(allowed) !== null) continue
       const style = getComputedStyle(el)
       if (el === root || style.overflowX === 'auto' || style.overflowX === 'scroll') {
         worst = Math.max(worst, el.scrollWidth - el.clientWidth)
       }
     }
     return worst
-  })
+  }, allow ?? null)
 }
 
 // ── 텐트 만들기 화면 ───────────────────────────────────────
 
 export const tentMaker = (page: Page) => page.getByTestId('tent-maker')
-export const makerPreview = (page: Page) => page.getByTestId('tent-maker-preview')
-/** 확정 버튼(접근 이름 = 전체 문구. 휴대폰은 짧은 글자만 보임) */
+/** 단계 ②의 확정 버튼(접근 이름 = 전체 문구. 휴대폰은 짧은 글자만 보임) */
 export const makerConfirm = (page: Page, name: '이 텐트로 시작' | '이 텐트로 바꾸기' = '이 텐트로 시작') =>
   tentMaker(page).getByRole('button', { name, exact: true })
-/** 만들기 화면의 입력칸(라벨 또는 접근 이름, 예: '세로', '이너 1 깊이') */
+/** 단계 ①의 주 버튼 [다음] */
+export const makerNextButton = (page: Page) => tentMaker(page).getByRole('button', { name: '다음', exact: true })
+/** 만들기 화면의 입력칸(라벨, 예: '텐트 이름', '변 1') */
 export const makerField = (page: Page, label: string) => tentMaker(page).getByLabel(label, { exact: true })
+/** 도구 줄(예시 4종·자유 그리기) */
+export const makerTools = (page: Page) => tentMaker(page).getByRole('toolbar', { name: '모양 도구' })
+/** 만들기 화면의 텐트 패널(PC 오른쪽 패널, 휴대폰 시트 안) */
+export const makerPanel = (page: Page) => tentMaker(page).getByTestId('tent-editor')
+/** 휴대폰 만들기 화면의 늘 보이는 시트 */
+export const makerSheet = (page: Page) => page.getByTestId('tent-maker-sheet')
 
 /** 고르기 화면 [직접 만들기] → 만들기 화면이 열릴 때까지 */
 export async function openTentMaker(page: Page): Promise<void> {
@@ -88,13 +109,49 @@ export async function openTentMaker(page: Page): Promise<void> {
   await expect(tentMaker(page)).toBeVisible()
 }
 
-/** 만들기 화면 숫자 칸에 값을 넣고 Enter로 반영합니다(Enter = 반영 후 다음 칸, 마지막 칸이면 blur). */
-export async function setMakerNumber(page: Page, label: string, value: number): Promise<void> {
-  const field = makerField(page, label)
+/** 지금 단계('1' 외곽 · '2' 이너) */
+export async function makerStep(page: Page): Promise<string | null> {
+  return tentMaker(page).getAttribute('data-step')
+}
+
+/** 도구 줄의 예시 모양 하나를 누릅니다(단계 ① = 외곽, 단계 ② = 이너 추가). */
+export async function pickExample(page: Page, name: '사각형' | '사다리꼴' | '정N각형' | '원'): Promise<void> {
+  await press(makerTools(page).getByRole('button', { name, exact: true }))
+  await nextFrames(page)
+}
+
+/** 도구 줄 [자유 그리기] */
+export async function startMakerDrawing(page: Page): Promise<void> {
+  await press(makerTools(page).getByRole('button', { name: '자유 그리기', exact: true }))
+  await expect.poll(async () => (await getUi(page, MAKER_HOOK)).drawing).not.toBeNull()
+}
+
+/** [다음] → 단계 ② */
+export async function makerNext(page: Page): Promise<void> {
+  await press(makerNextButton(page))
+  await expect.poll(() => makerStep(page)).toBe('2')
+}
+
+/** 패널(또는 시트) 숫자 칸에 값을 넣고 Enter로 반영합니다. */
+export async function setPanelNumber(scope: Locator, label: string, value: number): Promise<void> {
+  const field = scope.getByLabel(label, { exact: true })
   await field.fill(String(value))
   await field.press('Enter')
   await expect(field).toHaveValue(String(value))
 }
+
+/** 월드 점(cm)을 캔버스에서 짧게 누름(PC 클릭, 휴대폰 CDP 탭). key = 어느 캔버스(편집기·만들기 화면) */
+export async function tapWorld(page: Page, pt: Pt, key: HookKey = EDITOR_HOOK): Promise<void> {
+  await tapCanvas(page, await worldToClient(page, pt[0], pt[1], key))
+}
+
+/** 그리는 중 점들을 차례로 찍습니다(탭 = 점). */
+export async function drawPoints(page: Page, pts: readonly Pt[], key: HookKey = EDITOR_HOOK): Promise<void> {
+  for (const p of pts) await tapWorld(page, p, key)
+}
+
+/** [그리기 완료](PC 그리기 막대·휴대폰 툴바 공통 이름) */
+export const drawDoneButton = (page: Page) => page.getByRole('button', { name: '그리기 완료', exact: true })
 
 // ── 편집기: 모드·텐트 대상 ───────────────────────────────────
 

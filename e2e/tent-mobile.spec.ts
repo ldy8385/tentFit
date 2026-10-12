@@ -1,6 +1,7 @@
 // 휴대폰(390×844, 터치) 텐트 흐름. playwright.config.ts의 mobile 프로젝트가 mobile.spec.ts와 함께 돌립니다.
 // 캔버스 터치는 CDP(helpers.ts의 Fingers)로, 버튼은 locator.tap()으로 누릅니다.
 import { expect, test, type Page } from '@playwright/test'
+import type { Pt } from '../src/core/model'
 import {
   Fingers,
   fitView,
@@ -8,34 +9,42 @@ import {
   getDoc,
   getUi,
   isCanvasAt,
+  MAKER_HOOK,
   nextFrames,
   openEditorWith,
   pickOpenPoint,
   touchDrag,
   touchSecondFinger,
+  waitMakerReady,
   waitReady,
   worldToClient,
   type ClientPt,
 } from './helpers'
 import {
-  MAKER_PREVIEW_FOCUSED_MAX_PX,
   MIN_CANVAS_ABOVE_SHEET_PX,
   DOME,
   TIPI,
   browserBack,
+  drawDoneButton,
+  drawPoints,
   enterTentModeByUi,
   exitTentModeByUi,
   getTent,
   horizontalOverflowPx,
   innerNamed,
   makerConfirm,
-  makerField,
-  makerPreview,
+  makerNext,
+  makerNextButton,
+  makerPanel,
+  makerSheet,
+  makerTools,
   onMakerHistoryEntry,
   openPickScreen,
   openTentMaker,
+  pickExample,
   pickScreen,
   selectOuter,
+  startMakerDrawing,
   tapCanvas,
   tentMaker,
   tentSheet,
@@ -43,6 +52,13 @@ import {
   toolbar,
   vertexClient,
 } from './tentFlows'
+
+/** 휴대폰 툴바 [+이너 ▾] → 메뉴 항목 */
+async function toolbarInner(page: Page, item: '사각형' | '사다리꼴' | '정N각형' | '원' | '자유 그리기'): Promise<void> {
+  await toolbar(page).getByRole('button', { name: '+이너', exact: true }).tap()
+  await toolbar(page).getByRole('menuitem', { name: item, exact: true }).tap()
+  await nextFrames(page)
+}
 
 /** 텐트 시트가 열리고 셸이 시트 높이를 insets.bottom에 넣은 뒤, 시트 위 영역에 맞춤 보기를 합니다. */
 async function frameAboveTentSheet(page: Page): Promise<void> {
@@ -52,7 +68,7 @@ async function frameAboveTentSheet(page: Page): Promise<void> {
 }
 
 test.describe('고르기·만들기 화면(390×844)', () => {
-  test('고르기 화면은 가로 스크롤이 없고, 만들기 화면 확정 버튼이 보이며, 입력칸 포커스 동안 미리보기가 줄고 그 칸이 보인다', async ({
+  test('만들기 화면: ‹·단계·도구 줄·시트·[다음]이 보이고, 탭 = 점(끌기·두 손가락은 화면만), 변 길이 칸에 포커스해도 그 칸과 [다음]이 보인다', async ({
     page,
   }) => {
     await openPickScreen(page)
@@ -60,23 +76,65 @@ test.describe('고르기·만들기 화면(390×844)', () => {
     expect(await horizontalOverflowPx(pickScreen(page))).toBeLessThanOrEqual(0)
 
     await openTentMaker(page)
+    await waitMakerReady(page)
     await expect(tentMaker(page)).toHaveAttribute('data-layout', 'mobile')
-    // 휴대폰은 [취소] 없이 ‹와 주 버튼 [✓ 시작](접근 이름은 전체 문구)
-    await expect(makerConfirm(page)).toBeInViewport({ ratio: 1 })
+    // 휴대폰은 [취소] 없이 ‹와 주 버튼. 도구 줄은 가로 스크롤(설계 §1.2)이라 그 안은 보지 않습니다.
     await expect(tentMaker(page).getByRole('button', { name: '뒤로', exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(makerNextButton(page)).toBeInViewport({ ratio: 1 })
     await expect(tentMaker(page).getByRole('button', { name: '취소', exact: true })).toHaveCount(0)
-    expect(await horizontalOverflowPx(tentMaker(page))).toBeLessThanOrEqual(0)
+    await expect(makerTools(page)).toBeInViewport()
+    await expect(makerSheet(page)).toBeVisible()
+    expect(await horizontalOverflowPx(tentMaker(page), '.tf-maker__tools')).toBeLessThanOrEqual(0)
 
-    const depth = makerField(page, '이너 1 깊이')
-    await depth.tap()
-    await expect(depth).toBeFocused()
-    await expect.poll(async () => (await makerPreview(page).boundingBox())!.height).toBeLessThanOrEqual(MAKER_PREVIEW_FOCUSED_MAX_PX)
-    expect((await makerPreview(page).boundingBox())!.height).toBeGreaterThanOrEqual(120)
-    await expect(depth).toBeInViewport({ ratio: 1 })
-    await expect(makerConfirm(page)).toBeInViewport({ ratio: 1 })
+    await startMakerDrawing(page)
+    await expect(makerSheet(page)).toHaveCount(0) // 그리는 중에는 시트를 숨김
+    const pts: Pt[] = [
+      [-150, -100],
+      [150, -100],
+      [150, 100],
+    ]
+    await drawPoints(page, pts.slice(0, 2), MAKER_HOOK)
+
+    // 한 손가락 끌기 = 화면 이동, 점 없음
+    const view0 = (await getUi(page, MAKER_HOOK)).view
+    const a = await worldToClient(page, 0, 0, MAKER_HOOK)
+    await touchDrag(page, a, { x: a.x + 40, y: a.y + 30 }, 10)
+    await nextFrames(page)
+    expect((await getUi(page, MAKER_HOOK)).drawing?.points).toEqual(pts.slice(0, 2))
+    expect((await getUi(page, MAKER_HOOK)).view).not.toEqual(view0)
+
+    // 두 손가락 = 확대, 점 없음
+    const zoom0 = (await getUi(page, MAKER_HOOK)).view.zoom
+    const c = await worldToClient(page, 0, 0, MAKER_HOOK)
+    const fingers = await Fingers.open(page)
+    try {
+      await fingers.down(1, { x: c.x - 40, y: c.y })
+      await fingers.down(2, { x: c.x + 40, y: c.y })
+      await fingers.move({ 1: { x: c.x - 80, y: c.y }, 2: { x: c.x + 80, y: c.y } }, 8)
+      await fingers.up(2)
+      await fingers.up(1)
+    } finally {
+      await fingers.detach()
+    }
+    await nextFrames(page)
+    expect((await getUi(page, MAKER_HOOK)).view.zoom).toBeGreaterThan(zoom0)
+    expect((await getUi(page, MAKER_HOOK)).drawing?.points).toEqual(pts.slice(0, 2))
+
+    // 확대로 다음 점이 화면 밖에 있을 수 있어 맞춤 보기로 되돌린 뒤 찍습니다(보기는 기록 밖).
+    await fitView(page, MAKER_HOOK)
+    await drawPoints(page, pts.slice(2), MAKER_HOOK)
+    await drawDoneButton(page).tap()
+    await expect.poll(async () => (await getDoc(page, MAKER_HOOK)).layout.tent.outer.kind).toBe('polygon')
+    await expect(makerSheet(page)).toBeVisible()
+
+    const edge = makerPanel(page).getByLabel('변 1', { exact: true })
+    await edge.tap()
+    await expect(edge).toBeFocused()
+    await expect(edge).toBeInViewport({ ratio: 1 })
+    await expect(makerNextButton(page)).toBeInViewport({ ratio: 1 })
   })
 
-  test('‹는 배치를 만들지 않고, [✓ 시작]은 새 배치를 연 뒤 뒤로 가기 한 번에 고르기 화면', async ({ page }) => {
+  test('‹는 배치를 만들지 않고, 예시 → [다음] → [✓ 시작]은 새 배치를 연 뒤 뒤로 가기 한 번에 고르기 화면', async ({ page }) => {
     await openPickScreen(page)
     await openTentMaker(page)
     await tentMaker(page).getByRole('button', { name: '뒤로', exact: true }).tap()
@@ -85,10 +143,14 @@ test.describe('고르기·만들기 화면(390×844)', () => {
     expect(await getAppLayouts(page)).toHaveLength(0)
 
     await openTentMaker(page)
+    await pickExample(page, '사각형')
+    await makerNext(page)
+    await expect(makerConfirm(page)).toHaveText('✓ 시작')
     await makerConfirm(page).tap()
     await waitReady(page)
     const doc = await getDoc(page)
     expect(doc.layout.name).toBe('내 텐트 배치')
+    expect(doc.layout.tent.outer).toEqual({ kind: 'rect', w: 400, h: 300 })
     expect(doc.canUndo).toBe(false)
     expect((await getUi(page)).mode).toBe('place')
     expect(await getAppLayouts(page)).toHaveLength(1)
@@ -107,7 +169,7 @@ test.describe('텐트 편집 모드(터치)', () => {
     await enterTentModeByUi(page)
   })
 
-  test('툴바는 [+이너] [완료]뿐이고, 대상을 고르면 텐트 시트(× 「선택 해제」)가 열린다. [완료]로 배치 모드', async ({ page }) => {
+  test('툴바는 [+이너 ▾] [완료]뿐이고, 대상을 고르면 텐트 시트(× 「선택 해제」)가 열린다. [완료]로 배치 모드', async ({ page }) => {
     await expect(toolbar(page)).toHaveAttribute('data-mode', 'tent')
     await expect(toolbar(page).getByRole('button')).toHaveText(['이너', '완료'])
     await expect(toolbar(page).getByRole('button', { name: '+이너', exact: true })).toBeVisible()
@@ -121,7 +183,7 @@ test.describe('텐트 편집 모드(터치)', () => {
     expect(cleared.tentTarget).toBeNull()
     expect(cleared.mode).toBe('tent')
 
-    await toolbar(page).getByRole('button', { name: '+이너', exact: true }).tap()
+    await toolbarInner(page, '사각형')
     await expect.poll(async () => (await getTent(page)).inners.length).toBe(2)
     const added = (await getTent(page)).inners[1]!
     expect((await getUi(page)).tentTarget).toEqual({ innerId: added.id })
@@ -130,6 +192,33 @@ test.describe('텐트 편집 모드(터치)', () => {
     await exitTentModeByUi(page)
     await expect(tentSheet(page)).toHaveCount(0)
     await expect(toolbar(page).getByRole('button', { name: '+물건', exact: true })).toBeVisible()
+  })
+
+  test('툴바 [+이너 ▾] → 자유 그리기: 툴바가 [점 되돌리기][완료][그리기 취소]로 바뀌고 시트가 닫히며, 탭 4번 + [완료] = 새 이너(1칸)', async ({
+    page,
+  }) => {
+    await toolbarInner(page, '자유 그리기')
+    await expect(toolbar(page).getByRole('button')).toHaveText(['점 되돌리기', '완료', '그리기 취소'])
+    await expect(tentSheet(page)).toHaveCount(0)
+    const pts: Pt[] = [
+      [100, -100],
+      [250, -100],
+      [250, 100],
+      [100, 100],
+    ]
+    await drawPoints(page, pts)
+    expect((await getUi(page)).drawing?.points).toEqual(pts)
+    expect((await getDoc(page)).canUndo).toBe(false)
+    await toolbar(page).getByRole('button', { name: '점 되돌리기', exact: true }).tap()
+    expect((await getUi(page)).drawing?.points).toEqual(pts.slice(0, 3))
+    await drawPoints(page, pts.slice(3))
+    await drawDoneButton(page).tap()
+    await expect.poll(async () => (await getTent(page)).inners.length).toBe(2)
+    const added = (await getTent(page)).inners[1]!
+    expect(added).toMatchObject({ x: 175, y: 0 })
+    await expect(tentSheet(page)).toBeVisible()
+    await expect(toolbar(page).getByRole('button')).toHaveText(['이너', '완료'])
+    expect((await getDoc(page)).canUndo).toBe(true)
   })
 
   test('Review Focus 1: 꼭짓점을 끄는 중 두 번째 손가락이 닿으면 시작 위치로 되돌리고 기록을 남기지 않는다', async ({ page }) => {
@@ -321,9 +410,8 @@ test('이너 0개 텐트(티피): 요약 칩은 「이너 — · 바닥 0%」이
 test('최종 리뷰: 텐트 모드 토스트는 요약 칩에 가리지 않고 화면 안, 툴바 위에 보인다', async ({ page }) => {
   await openEditorWith(page, DOME)
   await enterTentModeByUi(page)
-  const add = toolbar(page).getByRole('button', { name: '+이너', exact: true })
   for (let i = 0; i < 4 && !(await toast(page).isVisible()); i++) {
-    await add.tap()
+    await toolbarInner(page, '사각형')
     await nextFrames(page, 2)
   }
   await expect(toast(page)).toHaveText('빈 공간이 부족해요')

@@ -1,9 +1,8 @@
 // 작은 휴대폰(375×667, 터치) 텐트 흐름. playwright.config.ts의 mobile-small 프로젝트가 mobile-small.spec.ts와 함께 돌립니다.
 // 가장 낮은 세로 화면이라 고르기 카드·만들기 화면 확정 버튼·키보드용 미리보기 축소·텐트 시트 위 캔버스 띠를 여기서 봅니다.
 import { expect, test } from '@playwright/test'
-import { getUi, isCanvasAt, openEditorWith, worldToClient } from './helpers'
+import { getUi, isCanvasAt, openEditorWith, waitMakerReady, worldToClient } from './helpers'
 import {
-  MAKER_PREVIEW_FOCUSED_MAX_PX,
   MIN_CANVAS_ABOVE_SHEET_PX,
   TUNNEL,
   enterTentModeByUi,
@@ -11,10 +10,15 @@ import {
   innerNamed,
   makerConfirm,
   makerField,
-  makerPreview,
+  makerNext,
+  makerNextButton,
+  makerPanel,
+  makerSheet,
+  makerTools,
   openPickScreen,
   openTentMaker,
   pickCard,
+  pickExample,
   pickScreen,
   tapCanvas,
   tentMaker,
@@ -33,21 +37,33 @@ test('고르기 화면은 가로 스크롤이 없고 카드를 누를 수 있으
   expect(box.height).toBeGreaterThanOrEqual(44)
 
   await openTentMaker(page)
-  await expect(makerConfirm(page)).toBeInViewport({ ratio: 1 })
+  await waitMakerReady(page)
   await expect(tentMaker(page).getByRole('button', { name: '뒤로', exact: true })).toBeInViewport({ ratio: 1 })
-  expect(await horizontalOverflowPx(tentMaker(page))).toBeLessThanOrEqual(0)
+  await expect(tentMaker(page).getByRole('list', { name: '단계' })).toBeInViewport()
+  await expect(makerNextButton(page)).toBeInViewport({ ratio: 1 })
+  await expect(makerTools(page)).toBeInViewport()
+  await expect(makerSheet(page)).toBeVisible()
+  expect(await horizontalOverflowPx(tentMaker(page), '.tf-maker__tools')).toBeLessThanOrEqual(0)
 })
 
-test('만들기 화면에서 아래쪽 입력칸에 포커스하면 미리보기가 약 140px로 줄고 그 칸과 확정 버튼이 보인다', async ({ page }) => {
+test('만들기 화면 시트의 입력칸(이름·치수)에 포커스하면 그 칸과 주 버튼이 보이고, 단계 ②의 [✓ 시작]도 보인다', async ({ page }) => {
   await openPickScreen(page)
   await openTentMaker(page)
-  const before = (await makerPreview(page).boundingBox())!.height
-  const depth = makerField(page, '이너 1 깊이')
-  await depth.tap()
-  await expect(depth).toBeFocused()
-  await expect.poll(async () => (await makerPreview(page).boundingBox())!.height).toBeLessThanOrEqual(MAKER_PREVIEW_FOCUSED_MAX_PX)
-  expect((await makerPreview(page).boundingBox())!.height).toBeLessThanOrEqual(before)
-  await expect(depth).toBeInViewport({ ratio: 1 })
+  const name = makerField(page, '텐트 이름')
+  await name.tap()
+  await expect(name).toBeFocused()
+  await expect(name).toBeInViewport({ ratio: 1 })
+  await expect(makerNextButton(page)).toBeInViewport({ ratio: 1 })
+  await name.blur()
+
+  await pickExample(page, '사각형')
+  const width = makerPanel(page).getByLabel('가로', { exact: true })
+  await width.tap()
+  await expect(width).toBeFocused()
+  await expect(width).toBeInViewport({ ratio: 1 })
+  await expect(makerNextButton(page)).toBeInViewport({ ratio: 1 })
+  await width.blur()
+  await makerNext(page)
   await expect(makerConfirm(page)).toBeInViewport({ ratio: 1 })
 })
 

@@ -1,7 +1,7 @@
-// PC(1440×900, 마우스) 텐트 흐름: 고르기·내 배치·만들기 화면·텐트 편집 모드·텐트 바꾸기·이너 없는 텐트.
+// PC(1440×900, 마우스) 텐트 흐름: 고르기·내 배치·만들기 화면(그리기 두 단계, Plan 4.1)·텐트 편집 모드·텐트 바꾸기·이너 없는 텐트.
 // playwright.config.ts의 desktop 프로젝트가 editor.spec.ts와 함께 돌립니다.
 import { expect, test, type Page } from '@playwright/test'
-import type { Item } from '../src/core/model'
+import type { Item, Pt } from '../src/core/model'
 import { computeStats } from '../src/core/stats'
 import { previewVertexDrag } from '../src/view/tentEdit'
 import {
@@ -9,9 +9,11 @@ import {
   getAppLayouts,
   getDoc,
   getUi,
+  MAKER_HOOK,
   nextFrames,
   openEditorWith,
   statRowPattern,
+  waitMakerReady,
   waitReady,
   worldToClient,
 } from './helpers'
@@ -21,6 +23,8 @@ import {
   TIPI,
   TUNNEL,
   browserBack,
+  drawDoneButton,
+  drawPoints,
   enterTentModeByUi,
   exitTentModeByUi,
   getTent,
@@ -29,16 +33,24 @@ import {
   makeCard,
   makerConfirm,
   makerField,
+  makerNext,
+  makerNextButton,
+  makerPanel,
+  makerStep,
+  makerTools,
   mouseDragHolding,
   near,
   onMakerHistoryEntry,
   openPickScreen,
   openTentMaker,
   pickCard,
+  pickExample,
   pickScreen,
   selectOuter,
-  setMakerNumber,
+  setPanelNumber,
+  startMakerDrawing,
   swapDialog,
+  tapWorld,
   tentEditStatus,
   tentEditor,
   tentMaker,
@@ -101,28 +113,68 @@ test.describe('고르기 화면·내 배치', () => {
   })
 })
 
-test.describe('텐트 만들기 화면', () => {
-  test('사각형 + 뒤 이너 → 치수를 바꾸면 이너가 따라가고, [이 텐트로 시작] → 배치 모드 새 배치 → 물건을 벽 밖으로 끌면 나감 경고', async ({
+/** 만들기 화면 문서의 외곽 */
+async function makerOuter(page: Page) {
+  return (await getDoc(page, MAKER_HOOK)).layout.tent.outer
+}
+
+test.describe('텐트 만들기 화면(그리기 두 단계, Plan 4.1)', () => {
+  test('점 4개로 외곽 → 변 620·620으로 정확한 620×320 → 사각형으로 → [다음] → 예시 이너 → 뒤 벽 → [이 텐트로 시작] → 편집기 → 물건 벽 밖 경고', async ({
     page,
   }) => {
     await openPickScreen(page)
     await openTentMaker(page)
-    // 확정·취소 버튼이 화면 안에 보입니다(4개 크기 규칙).
-    await expect(makerConfirm(page)).toBeInViewport({ ratio: 1 })
+    await waitMakerReady(page)
+    expect(await makerStep(page)).toBe('1')
+    // 처음에는 외곽이 없어 [다음]이 꺼져 있고, 단계 버튼·도구 줄·패널이 화면 안에 보입니다(4개 크기 규칙).
+    await expect(makerNextButton(page)).toBeDisabled()
+    await expect(makerNextButton(page)).toBeInViewport({ ratio: 1 })
     await expect(tentMaker(page).getByRole('button', { name: '취소', exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(makerTools(page)).toBeInViewport({ ratio: 1 })
+    await expect(makerField(page, '텐트 이름')).toBeInViewport({ ratio: 1 })
 
-    // R6 초기값: 사각형 400×300, 이너 1(180×180)이 뒤 벽에 붙음. 사각형은 붙일 위치 4칸(R7).
-    await expect(makerField(page, '가로')).toHaveValue('400')
-    await expect(makerField(page, '세로')).toHaveValue('300')
-    const side = tentMaker(page).getByRole('radiogroup', { name: '이너 1 붙일 위치' })
-    await expect(side.getByRole('radio')).toHaveText(['뒤', '앞', '왼쪽', '오른쪽'])
-    await expect(side.getByRole('radio', { name: '뒤', exact: true })).toHaveAttribute('aria-checked', 'true')
+    // 자유 그리기: 탭 = 점(첫 점 10cm 격자, 다음 점 15°·10cm), 마우스 hover 고무줄 + 길이 배지
+    await startMakerDrawing(page)
+    await expect(page.getByRole('toolbar', { name: '그리기' })).toBeVisible()
+    const pts: Pt[] = [
+      [-300, -150],
+      [300, -150],
+      [300, 170],
+      [-290, 170],
+    ]
+    await drawPoints(page, pts.slice(0, 3), MAKER_HOOK)
+    const hover = await worldToClient(page, -290, 170, MAKER_HOOK)
+    await page.mouse.move(hover.x, hover.y)
+    await expect(page.getByTestId('draw-length-badge')).toHaveText('590 cm')
+    await tapWorld(page, pts[3]!, MAKER_HOOK)
+    expect((await getUi(page, MAKER_HOOK)).drawing?.points).toEqual(pts)
+    expect((await getDoc(page, MAKER_HOOK)).canUndo).toBe(false) // 그리는 점은 기록 밖
+    // 첫 점을 다시 누르면 닫힘 → 첫 외곽은 bbox 가운데가 월드 원점
+    await tapWorld(page, pts[0]!, MAKER_HOOK)
+    await expect.poll(async () => (await getUi(page, MAKER_HOOK)).drawing).toBeNull()
+    expect(await makerOuter(page)).toEqual({ kind: 'polygon', points: [[-300, -160], [300, -160], [300, 160], [-290, 160]] })
+    await expect(makerNextButton(page)).toBeEnabled()
 
-    // 외곽 치수를 바꾸면 붙인 이너가 새 뒤 벽을 따라갑니다(§4.4-1).
-    await setMakerNumber(page, '가로', 500)
-    await setMakerNumber(page, '세로', 400)
-    await expect(makerConfirm(page)).toBeEnabled()
-    expect(await getAppLayouts(page)).toHaveLength(0) // 만들기 화면은 문서 밖(§8)
+    // cm로 정확히: 변 1 = 620, 변 3 = 620(변 2 = 320 그대로) → 닫는 변이 흡수해 정확한 620×320
+    await expect(makerPanel(page).getByLabel('변 3', { exact: true })).toHaveValue('590')
+    await setPanelNumber(makerPanel(page), '변 1', 620)
+    await setPanelNumber(makerPanel(page), '변 3', 620)
+    await expect.poll(() => makerOuter(page)).toEqual({ kind: 'polygon', points: [[-300, -160], [320, -160], [320, 160], [-300, 160]] })
+    await expect(makerPanel(page).getByTestId('tent-edge-closing')).toContainText('320 cm')
+
+    // 벽에 붙이기는 외곽 템플릿이 사각형·사다리꼴일 때(설계 §2.4) → 모양 바꾸기로 사각형(bbox 620×320 이어받음)
+    await makerPanel(page).getByRole('button', { name: '모양 바꾸기', exact: true }).click()
+    await makerPanel(page).getByRole('menuitem', { name: '사각형', exact: true }).click()
+    await expect.poll(() => makerOuter(page)).toEqual({ kind: 'rect', w: 620, h: 320 })
+
+    await makerNext(page)
+    await pickExample(page, '사각형')
+    await expect.poll(async () => (await getDoc(page, MAKER_HOOK)).layout.tent.inners.length).toBe(1)
+    await makerPanel(page).getByRole('group', { name: '벽에 붙이기' }).getByRole('button', { name: '뒤', exact: true }).click()
+    await expect
+      .poll(async () => (await getDoc(page, MAKER_HOOK)).layout.tent.inners[0])
+      .toMatchObject({ x: 0, y: -65, rotation: 0, shape: { kind: 'rect', w: 190, h: 190 } })
+    expect(await getAppLayouts(page)).toHaveLength(0) // 만들기 화면은 보관소 밖
 
     await makerConfirm(page).click()
     await waitReady(page)
@@ -131,31 +183,28 @@ test.describe('텐트 만들기 화면', () => {
     expect(doc.layout.name).toBe('내 텐트 배치')
     expect(doc.layout.sourcePresetId).toBeUndefined()
     expect(doc.canUndo).toBe(false) // 새 배치는 빈 기록
-    expect(doc.layout.tent.outer).toEqual({ kind: 'rect', w: 500, h: 400 })
+    expect(doc.layout.tent.outer).toEqual({ kind: 'rect', w: 620, h: 320 })
     expect(doc.layout.tent.inners).toHaveLength(1)
-    // 뒤 벽 y = −200, 깊이 180 → 이너 중심 y = −110
-    expect(doc.layout.tent.inners[0]).toMatchObject({ x: 0, y: -110, rotation: 0, shape: { kind: 'rect', w: 180, h: 180 } })
+    expect(doc.layout.tent.inners[0]).toMatchObject({ x: 0, y: -65, rotation: 0, shape: { kind: 'rect', w: 190, h: 190 } })
     expect((await getUi(page)).mode).toBe('place')
     expect(await getAppLayouts(page)).toHaveLength(1)
-    // 확정 뒤 만들기 화면 항목이 history에 남지 않습니다.
     expect(await onMakerHistoryEntry(page)).toBe(false)
 
-    // 물건 추가 → 오른쪽 벽(x = 250)에 걸치게 끌기 → 텐트 밖으로 나감 경고(§13.4)
-    // (새 물건은 화면 가운데에 놓여 이너 벽에 걸칠 수 있습니다 — 나감 여부만 봅니다.)
+    // 물건 추가 → 오른쪽 벽(x = 310)에 걸치게 끌기 → 텐트 밖으로 나감 경고(§13.4)
     const item = await addMat(page)
     expect(computeStats((await getDoc(page)).layout).warnings[item.id]?.outside ?? false).toBe(false)
     const from = await worldToClient(page, item.x, item.y)
-    const to = await worldToClient(page, 250, 120)
+    const to = await worldToClient(page, 310, 100)
     await dragBetween(page, from, to)
     await expect
       .poll(async () => computeStats((await getDoc(page)).layout).warnings[item.id]?.outside ?? false)
       .toBe(true)
     const stats = computeStats((await getDoc(page)).layout)
-    expect(stats.warnings[item.id]?.straddles).toEqual([]) // 이너(y −200~−20)와는 떨어져 있음
+    expect(stats.warnings[item.id]?.straddles).toEqual([]) // 이너(y −160~30, x −95~95)와는 떨어져 있음
     await areaSummary(page).getByRole('button', { name: `경고 ${stats.warningCount}건 보기` }).click()
     await expect(page.getByRole('region', { name: '경고 목록' }).getByText('텐트 밖으로 나감')).toBeVisible()
 
-    // 편집기에서 뒤로 가기 한 번이면 고르기 화면 항목입니다(만들기 화면 항목이 끼어 있으면 같은 #/pick의 그 항목에 멈춰 헛돎).
+    // 편집기에서 뒤로 가기 한 번이면 고르기 화면 항목입니다(만들기 화면 항목이 남아 있으면 헛돎).
     await browserBack(page)
     await expect(page).toHaveURL(/#\/pick$/)
     await expect(pickScreen(page)).toBeVisible()
@@ -163,11 +212,13 @@ test.describe('텐트 만들기 화면', () => {
     expect(await onMakerHistoryEntry(page)).toBe(false)
   })
 
-  test('[취소]·‹·브라우저 뒤로 가기는 배치를 만들지 않고, history에 만들기 화면 항목을 남기지 않는다', async ({ page }) => {
+  test('[취소]·‹(단계 ①)·브라우저 뒤로 가기(단계 ②에서도)는 배치를 만들지 않고 항목을 남기지 않는다. 단계 ②의 ‹는 단계 ①로', async ({
+    page,
+  }) => {
     await openPickScreen(page)
 
     await openTentMaker(page)
-    await setMakerNumber(page, '가로', 450)
+    await pickExample(page, '사각형')
     await tentMaker(page).getByRole('button', { name: '취소', exact: true }).click()
     await expect(tentMaker(page)).toHaveCount(0)
     await expect(page).toHaveURL(/#\/pick$/)
@@ -175,12 +226,21 @@ test.describe('텐트 만들기 화면', () => {
     expect(await getAppLayouts(page)).toHaveLength(0)
 
     await openTentMaker(page)
+    await pickExample(page, '원')
+    await makerNext(page)
+    await pickExample(page, '사각형')
+    await tentMaker(page).getByRole('button', { name: '외곽으로', exact: true }).click()
+    expect(await makerStep(page)).toBe('1')
+    expect((await getDoc(page, MAKER_HOOK)).layout.tent.inners).toHaveLength(1) // 이너 유지
+    expect(await onMakerHistoryEntry(page)).toBe(true) // 단계 이동은 history를 건드리지 않음
     await tentMaker(page).getByRole('button', { name: '뒤로', exact: true }).click()
     await expect(tentMaker(page)).toHaveCount(0)
     expect(await onMakerHistoryEntry(page)).toBe(false)
     expect(await getAppLayouts(page)).toHaveLength(0)
 
     await openTentMaker(page)
+    await pickExample(page, '사다리꼴')
+    await makerNext(page)
     await browserBack(page)
     await expect(tentMaker(page)).toHaveCount(0)
     await expect(page).toHaveURL(/#\/pick$/)
@@ -327,6 +387,74 @@ test.describe('텐트 편집 모드', () => {
   })
 })
 
+test.describe('텐트 편집 모드 — 자유 그리기·모양 바꾸기(Plan 4.1)', () => {
+  test.beforeEach(async ({ page }) => {
+    await openEditorWith(page)
+    await enterTentModeByUi(page)
+    await expect(tentEditor(page)).toBeVisible()
+  })
+
+  test('[+ 이너 ▾] → 자유 그리기: 그리는 중 끌기는 화면 이동(점 없음)·실행 취소 꺼짐, 점 4개 + [그리기 완료] = 새 이너 1칸, 원으로 바꾸기 1칸, Ctrl+Z 두 번이면 원래', async ({
+    page,
+  }) => {
+    const original = await getTent(page)
+    await tentEditor(page).getByRole('button', { name: '+ 이너', exact: true }).click()
+    await tentEditor(page).getByRole('menuitem', { name: '자유 그리기', exact: true }).click()
+    expect((await getUi(page)).drawing).toEqual({ goal: 'newInner', points: [] })
+    await expect(page.getByRole('toolbar', { name: '그리기' })).toBeVisible()
+    await expect(page.getByTestId('top-bar').getByRole('button', { name: '실행 취소' })).toBeDisabled()
+
+    // 끌기 = 화면 이동, 점은 찍히지 않음
+    const pan0 = (await getUi(page)).view.panX
+    const a = await worldToClient(page, 150, 100)
+    await dragBetween(page, a, { x: a.x + 80, y: a.y + 40 })
+    expect((await getUi(page)).drawing?.points).toEqual([])
+    expect((await getUi(page)).view.panX).not.toBe(pan0)
+
+    const pts: Pt[] = [
+      [100, -100],
+      [250, -100],
+      [250, 100],
+      [100, 100],
+    ]
+    await drawPoints(page, pts)
+    expect((await getUi(page)).drawing?.points).toEqual(pts)
+    await drawDoneButton(page).click()
+    await expect.poll(async () => (await getTent(page)).inners.length).toBe(2)
+    const added = (await getTent(page)).inners[1]!
+    expect(added).toMatchObject({ x: 175, y: 0, rotation: 0, shape: { kind: 'polygon', points: [[-75, -100], [75, -100], [75, 100], [-75, 100]] } })
+    expect((await getUi(page)).tentTarget).toEqual({ innerId: added.id })
+    await expect(page.getByRole('toolbar', { name: '그리기' })).toHaveCount(0)
+
+    // 모양 바꾸기 → 원(지름 = 짧은 변 150, 가운데 그대로)
+    await tentEditor(page).getByRole('button', { name: '모양 바꾸기', exact: true }).click()
+    await tentEditor(page).getByRole('menuitem', { name: '원', exact: true }).click()
+    await expect.poll(async () => (await getTent(page)).inners[1]?.shape).toEqual({ kind: 'circle', d: 150 })
+    expect((await getTent(page)).inners[1]).toMatchObject({ x: 175, y: 0 })
+
+    await page.keyboard.press('ControlOrMeta+z')
+    await expect.poll(async () => (await getTent(page)).inners[1]?.shape.kind).toBe('polygon')
+    await page.keyboard.press('ControlOrMeta+z')
+    await expect.poll(async () => (await getTent(page)).inners.length).toBe(1)
+    expect(await getTent(page)).toEqual(original)
+    expect((await getDoc(page)).canUndo).toBe(false)
+  })
+
+  test('그리는 중 Ctrl+Z는 점 하나만, Esc는 그리기 취소(문서 그대로)', async ({ page }) => {
+    await tentEditor(page).getByRole('button', { name: '+ 이너', exact: true }).click()
+    await tentEditor(page).getByRole('menuitem', { name: '자유 그리기', exact: true }).click()
+    await drawPoints(page, [
+      [100, -100],
+      [250, -100],
+    ])
+    await page.keyboard.press('ControlOrMeta+z')
+    expect((await getUi(page)).drawing?.points).toEqual([[100, -100]])
+    await page.keyboard.press('Escape')
+    await expect.poll(async () => (await getUi(page)).drawing).toBeNull()
+    expect((await getDoc(page)).canUndo).toBe(false)
+  })
+})
+
 test.describe('텐트 바꾸기', () => {
   test('텐트 편집 패널 [텐트 바꾸기] → 카드: 물건은 그대로·기록 1칸, Ctrl+Z 한 번에 원래 텐트', async ({ page }) => {
     await openEditorWith(page)
@@ -358,7 +486,9 @@ test.describe('텐트 바꾸기', () => {
     expect(back.canUndo).toBe(true)
   })
 
-  test('[텐트 바꾸기] → [직접 만들기] → [이 텐트로 바꾸기]도 기록 1칸, 만들기 화면 항목은 남지 않는다', async ({ page }) => {
+  test('[텐트 바꾸기] → [직접 만들기]에서 외곽을 그려 [이 텐트로 바꾸기]도 기록 1칸, 편집기 문서·훅은 그대로, 만들기 화면 항목은 남지 않는다', async ({
+    page,
+  }) => {
     await openEditorWith(page)
     const original = await getTent(page)
     const editUrl = page.url()
@@ -367,11 +497,29 @@ test.describe('텐트 바꾸기', () => {
     await swapDialog(page).getByTestId('make-tent-card').click()
     await expect(swapDialog(page)).toHaveCount(0)
     await expect(tentMaker(page)).toBeVisible()
+    await waitMakerReady(page)
+
+    // 편집기 캔버스가 뒤에 있어도 만들기 화면 캔버스에 그려집니다(캔버스 두 개, 훅 두 개).
+    await startMakerDrawing(page)
+    await drawPoints(
+      page,
+      [
+        [-250, -150],
+        [250, -150],
+        [250, 150],
+      ],
+      MAKER_HOOK,
+    )
+    await tentMaker(page).getByRole('toolbar', { name: '그리기' }).getByRole('button', { name: '그리기 완료' }).click()
+    await expect.poll(async () => (await getDoc(page, MAKER_HOOK)).layout.tent.outer.kind).toBe('polygon')
+    expect(await getTent(page)).toEqual(original) // 편집기 문서는 그대로
+    await makerNext(page)
     await expect(makerConfirm(page, '이 텐트로 바꾸기')).toBeInViewport({ ratio: 1 })
 
     await makerConfirm(page, '이 텐트로 바꾸기').click()
     await expect(tentMaker(page)).toHaveCount(0)
     await expect.poll(async () => (await getTent(page)).name).toBe('내 텐트')
+    expect((await getTent(page)).outer).toEqual({ kind: 'polygon', points: [[-250, -150], [250, -150], [250, 150]] })
     expect(page.url()).toBe(editUrl)
     expect(await onMakerHistoryEntry(page)).toBe(false)
     const doc = await getDoc(page)
@@ -423,12 +571,19 @@ test('이너 0개 텐트(티피): 면적 현황은 「이너 전체 —」·「�
   expect(errors).toEqual([])
 })
 
-test('화면 크기: 고르기 화면 가로 스크롤 없음, 만들기 화면 확정 버튼이 보인다(1440×900)', async ({ page }) => {
+test('화면 크기: 고르기 화면 가로 스크롤 없음, 만들기 화면 단계 버튼·도구 줄·패널·주 버튼이 보인다(1440×900)', async ({ page }) => {
   await openPickScreen(page)
   expect(await horizontalOverflowPx(pickScreen(page))).toBeLessThanOrEqual(0)
   await expect(pickScreen(page)).toHaveAttribute('data-layout', 'desktop')
   await openTentMaker(page)
   await expect(tentMaker(page)).toHaveAttribute('data-layout', 'desktop')
+  await expect(tentMaker(page).getByRole('list', { name: '단계' })).toBeInViewport({ ratio: 1 })
+  await expect(makerTools(page)).toBeInViewport({ ratio: 1 })
+  await expect(makerPanel(page)).toBeInViewport()
+  await expect(makerNextButton(page)).toBeInViewport({ ratio: 1 })
+  expect(await horizontalOverflowPx(tentMaker(page))).toBeLessThanOrEqual(0)
+  await pickExample(page, '정N각형')
+  await makerNext(page)
   await expect(makerConfirm(page)).toBeInViewport({ ratio: 1 })
   expect(await horizontalOverflowPx(tentMaker(page))).toBeLessThanOrEqual(0)
 })

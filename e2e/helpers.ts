@@ -14,6 +14,12 @@ export type ClientPt = { x: number; y: number }
 
 type TentfitWindow = { __tentfit?: TentfitTestHook }
 type TentfitAppWindow = { __tentfitApp?: TentfitAppHook }
+type HookWindow = Record<string, TentfitTestHook | undefined>
+
+/** 테스트 훅 이름: 편집기(__tentfit) 또는 텐트 만들기 화면(__tentfitMaker, Plan 4.1 — 편집기 훅을 덮지 않음) */
+export type HookKey = '__tentfit' | '__tentfitMaker'
+export const EDITOR_HOOK: HookKey = '__tentfit'
+export const MAKER_HOOK: HookKey = '__tentfitMaker'
 
 /** 편집기 시험이 기본으로 고르는 텐트(presets/tents/generic.json의 generic/tunnel-4p, 외곽 620×320) */
 export const DEFAULT_TENT_NAME = '터널 4인 예시'
@@ -65,29 +71,41 @@ export async function openEditorWith(page: Page, presetName = DEFAULT_TENT_NAME)
   await waitReady(page)
 }
 
+/**
+ * 텐트 만들기 화면의 캔버스 크기가 잡혀 첫 맞춤 보기를 마치고(__tentfitMaker.ready), 만들기 화면 Konva 캔버스가 생길 때까지 기다립니다.
+ */
+export async function waitMakerReady(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () =>
+      (window as unknown as { __tentfitMaker?: TentfitTestHook }).__tentfitMaker?.ready === true &&
+      document.querySelector('[data-testid="maker-canvas-host"] .konvajs-content canvas') !== null,
+  )
+  await nextFrames(page)
+}
+
 /** 보관소의 배치 요약(앱 수준 훅, 라우트와 무관). 만들기 화면 [취소] 뒤 배치가 생기지 않았는지 등을 봅니다. */
 export async function getAppLayouts(page: Page): Promise<LayoutSummary[]> {
   return page.evaluate(() => (window as unknown as TentfitAppWindow).__tentfitApp!.layouts())
 }
 
-/** 문서 스토어의 데이터({ layout, canUndo, canRedo, inGesture }) */
-export async function getDoc(page: Page): Promise<DocSnapshot> {
-  return page.evaluate(() => (window as unknown as TentfitWindow).__tentfit!.getDoc())
+/** 문서 스토어의 데이터({ layout, canUndo, canRedo, inGesture }). key = 만들기 화면이면 MAKER_HOOK */
+export async function getDoc(page: Page, key: HookKey = EDITOR_HOOK): Promise<DocSnapshot> {
+  return page.evaluate((k) => (window as unknown as HookWindow)[k]!.getDoc(), key)
 }
 
 /** 화면 스토어의 데이터({ mode, selection, view, size, insets, mobileSheet, desktopPanel, … }) */
-export async function getUi(page: Page): Promise<UiSnapshot> {
-  return page.evaluate(() => (window as unknown as TentfitWindow).__tentfit!.getUi())
+export async function getUi(page: Page, key: HookKey = EDITOR_HOOK): Promise<UiSnapshot> {
+  return page.evaluate((k) => (window as unknown as HookWindow)[k]!.getUi(), key)
 }
 
-/** 월드 좌표(cm) → 브라우저 창 좌표(px) */
-export async function worldToClient(page: Page, x: number, y: number): Promise<ClientPt> {
-  return page.evaluate(([wx, wy]) => (window as unknown as TentfitWindow).__tentfit!.worldToClient(wx, wy), [x, y] as const)
+/** 월드 좌표(cm) → 브라우저 창 좌표(px). key의 캔버스 기준 */
+export async function worldToClient(page: Page, x: number, y: number, key: HookKey = EDITOR_HOOK): Promise<ClientPt> {
+  return page.evaluate(([wx, wy, k]) => (window as unknown as HookWindow)[k]!.worldToClient(wx, wy), [x, y, key] as const)
 }
 
-/** 맞춤 보기(시트·배너 높이를 뺀 영역)로 되돌립니다. */
-export async function fitView(page: Page): Promise<void> {
-  await page.evaluate(() => (window as unknown as TentfitWindow).__tentfit!.fitView())
+/** 맞춤 보기(시트·배너 높이를 뺀 영역)로 되돌립니다. key = 어느 캔버스(편집기·만들기 화면) */
+export async function fitView(page: Page, key: HookKey = EDITOR_HOOK): Promise<void> {
+  await page.evaluate((k) => (window as unknown as HookWindow)[k]!.fitView(), key)
   await nextFrames(page)
 }
 
