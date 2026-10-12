@@ -1,8 +1,11 @@
 // 화면 테스트 보조 장치(스펙 §13.4). 테스트 빌드(import.meta.env.MODE === 'test')에서만 App이 설치합니다.
 // Playwright의 page.evaluate가 그대로 돌려받을 수 있게 함수 없는 일반 객체만 돌려줍니다.
+// - window.__tentfit: 편집기 훅(배치를 열었을 때만, Editor가 설치)
+// - window.__tentfitApp: 앱 수준 훅(라우트와 무관, App이 설치). 고르기·만들기 화면에서도 배치 목록을 읽습니다.
 import type { DocState } from '../store/doc'
 import type { UiState } from '../store/ui'
 import { worldToScreen } from '../view/viewport'
+import { listLayoutSummaries, type LayoutSummary } from './layoutRepo'
 import type { Stores } from './stores'
 import { fitToLayout } from './viewActions'
 
@@ -67,5 +70,25 @@ export function installTestHook(stores: Stores): () => void {
   w.__tentfit = hook
   return () => {
     if (w.__tentfit === hook) delete w.__tentfit
+  }
+}
+
+/** 앱 수준 훅. 데이터만 돌려줍니다. */
+export type TentfitAppHook = {
+  /** 보관소의 배치 요약(updatedAt 내림차순). 만들기 화면 [취소] 뒤 배치가 생기지 않았는지 등을 봅니다(§13.4). */
+  layouts(): LayoutSummary[]
+}
+
+type AppHookWindow = { __tentfitApp?: TentfitAppHook }
+
+/** window.__tentfitApp을 설치하고, 지우는 함수를 돌려줍니다. */
+export function installAppTestHook(): () => void {
+  const hook: TentfitAppHook = {
+    layouts: () => listLayoutSummaries().map((s) => ({ ...s })),
+  }
+  const w = window as unknown as AppHookWindow
+  w.__tentfitApp = hook
+  return () => {
+    if (w.__tentfitApp === hook) delete w.__tentfitApp
   }
 }

@@ -2,12 +2,12 @@
 // 폭은 768px 이상이지만 높이가 낮아 PC 3단이 아니라 모바일 셸이어야 합니다(스펙 D8, 최종 리뷰 Important).
 import { expect, test } from '@playwright/test'
 import { layoutBBox } from '../src/view/viewport'
-import { fitView, getDoc, getUi, isCanvasAt, waitReady, worldToClient } from './helpers'
+import { fitView, getDoc, getUi, isCanvasAt, openEditorWith, worldToClient } from './helpers'
 import { addMatFromSheet, selectionSheet } from './mobileFlows'
 
+// 빈 앱 → 고르기 화면 → '터널 4인 예시' 카드(tap) → 편집기(스펙 §4.7)
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await waitReady(page)
+  await openEditorWith(page)
 })
 
 test('가로로 돌린 휴대폰은 모바일 셸이고, 시트로 추가한 물건이 캔버스에 보인다', async ({ page }) => {

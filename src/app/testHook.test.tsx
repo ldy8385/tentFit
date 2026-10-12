@@ -2,13 +2,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createLayout, type Tent } from '../core/model'
 import { addItem, makeItem } from '../core/ops/items'
+import { clearLayoutRepo, createLayoutFromTent } from './layoutRepo'
 import { createStores } from './stores'
-import { CANVAS_HOST_TEST_ID, installTestHook, type TentfitTestHook } from './testHook'
+import {
+  CANVAS_HOST_TEST_ID,
+  installAppTestHook,
+  installTestHook,
+  type TentfitAppHook,
+  type TentfitTestHook,
+} from './testHook'
 
 const TENT: Tent = { name: '시험 텐트', outer: { kind: 'rect', w: 400, h: 300 }, inners: [] }
 
 function hookOf(): TentfitTestHook | undefined {
   return (window as unknown as { __tentfit?: TentfitTestHook }).__tentfit
+}
+
+function appHookOf(): TentfitAppHook | undefined {
+  return (window as unknown as { __tentfitApp?: TentfitAppHook }).__tentfitApp
 }
 
 afterEach(() => {
@@ -85,5 +96,41 @@ describe('installTestHook', () => {
     expect(hookOf()!.getDoc().layout.name).toBe('B')
     removeB()
     expect(hookOf()).toBeUndefined()
+  })
+})
+
+describe('installAppTestHook', () => {
+  it('window.__tentfitApp.layouts()는 보관소 배치 요약(데이터만)을 돌려주고, 해제하면 지운다', () => {
+    clearLayoutRepo()
+    const remove = installAppTestHook()
+    expect(appHookOf()!.layouts()).toEqual([])
+    const layout = createLayoutFromTent(TENT)
+    const layouts = appHookOf()!.layouts()
+    expect(layouts).toEqual([{ id: layout.id, name: '시험 텐트 배치', updatedAt: layout.updatedAt, itemCount: 0 }])
+    expect(JSON.parse(JSON.stringify(layouts))).toEqual(layouts)
+    remove()
+    expect(appHookOf()).toBeUndefined()
+    clearLayoutRepo()
+  })
+
+  it('돌려준 목록을 고쳐도 보관소는 그대로다(복사본)', () => {
+    clearLayoutRepo()
+    const remove = installAppTestHook()
+    createLayoutFromTent(TENT)
+    const first = appHookOf()!.layouts()
+    first[0]!.name = '바꿈'
+    expect(appHookOf()!.layouts()[0]!.name).toBe('시험 텐트 배치')
+    remove()
+    clearLayoutRepo()
+  })
+
+  it('다른 앱 훅이 이미 바꿔 놓았으면 지우지 않는다', () => {
+    const a = installAppTestHook()
+    const removeB = installAppTestHook()
+    const b = appHookOf()
+    a()
+    expect(appHookOf()).toBe(b)
+    removeB()
+    expect(appHookOf()).toBeUndefined()
   })
 })

@@ -8,8 +8,8 @@ import {
   getDoc,
   getUi,
   nextFrames,
+  openEditorWith,
   statRowPattern,
-  waitReady,
   worldToClient,
   type ClientPt,
 } from './helpers'
@@ -17,9 +17,9 @@ import {
 /** presets/items.json의 items/mat-single-200x60 */
 const MAT = '캠핑 매트 1인'
 
+// 빈 앱 → 고르기 화면 → '터널 4인 예시' 카드 → 편집기(스펙 §4.7). 아래 좌표는 터널 4인(620×320)을 가정합니다.
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await waitReady(page)
+  await openEditorWith(page)
 })
 
 const library = (page: Page) => page.getByRole('complementary', { name: '라이브러리' })
@@ -49,7 +49,7 @@ async function expectAreaSummaryMatchesDoc(page: Page): Promise<void> {
   await expect(areaSummary(page)).toContainText(statRowPattern(stats.totalFloor))
 }
 
-test('시작하면 새 배치를 만들어 편집 화면으로 가고 기본 텐트를 그린다', async ({ page }) => {
+test('고르기 화면에서 텐트를 고르면 새 배치를 만들어 편집 화면으로 가고 그 텐트를 그린다', async ({ page }) => {
   const doc = await getDoc(page)
   expect(page.url()).toMatch(new RegExp(`#/edit/${doc.layout.id}$`))
   expect(doc.layout.tent.name).toBe('터널 4인 예시')

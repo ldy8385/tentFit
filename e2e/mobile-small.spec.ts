@@ -1,15 +1,15 @@
 // 작은 휴대폰(375×667, 터치). playwright.config.ts의 mobile-small 프로젝트만 이 파일을 돌립니다.
 // 시트를 펼쳐도 캔버스가 남고, 선택한 물건이 그 위 영역에 보이는지 봅니다(최종 리뷰 Important).
 import { expect, test } from '@playwright/test'
-import { isCanvasAt, waitReady, worldToClient } from './helpers'
+import { isCanvasAt, openEditorWith, worldToClient } from './helpers'
 import { addMatFromSheet, selectionSheet } from './mobileFlows'
 
 /** 펼친 시트 위로 남기는 캔버스 높이(sheets.css: 요약 칩 56 + 보일 영역 88 + 여백 32) */
 const MIN_CANVAS_ABOVE_SHEET_PX = 176
 
+// 빈 앱 → 고르기 화면 → '터널 4인 예시' 카드(tap) → 편집기(스펙 §4.7)
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await waitReady(page)
+  await openEditorWith(page)
 })
 
 test('선택 시트를 펼쳐도 캔버스가 176px 이상 남고, 선택한 물건이 시트 위에 보인다', async ({ page }) => {

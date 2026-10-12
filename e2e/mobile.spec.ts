@@ -11,18 +11,24 @@ import {
   nextFrames,
   pickOpenPoint,
   touchDrag,
+  openEditorWith,
   touchSecondFinger,
   visibleInputFontSizes,
-  waitReady,
   worldToClient,
   type ClientPt,
 } from './helpers'
 import { addButton, addMatFromSheet, itemById, librarySheet, MAT, selectionSheet, undoButton } from './mobileFlows'
 
+// 빈 앱 → 고르기 화면 → '터널 4인 예시' 카드(tap) → 편집기(스펙 §4.7)
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await waitReady(page)
+  await openEditorWith(page)
 })
+
+/**
+ * 선택 시트의 ×. Plan 4 Task 12가 이름을 '닫기'에서 '선택 해제'로 바꿉니다(R14). 두 이름 모두 받습니다.
+ * 동작(선택을 풀고 시트를 닫음)은 같습니다.
+ */
+const CLEAR_SELECTION = /^(닫기|선택 해제)$/
 
 /** 매트를 추가해 선택한 채로, 선택 시트 위 영역에 맞춤 보기를 하고 매트 가운데의 창 좌표를 돌려줍니다. */
 async function addMatAndFrame(page: Page): Promise<{ item: Item; at: ClientPt }> {
@@ -43,7 +49,7 @@ test('[+물건] → 라이브러리 시트 카드 → 선택 시트, 시트의 �
   expect(ui.selection).toEqual([item.id])
   expect(ui.mobileSheet).toBe('selection')
 
-  await selectionSheet(page).getByRole('button', { name: '닫기' }).tap()
+  await selectionSheet(page).getByRole('button', { name: CLEAR_SELECTION }).tap()
   await expect(selectionSheet(page)).toBeHidden()
   const closed = await getUi(page)
   expect(closed.selection).toEqual([])
@@ -166,7 +172,7 @@ async function addMatDeselected(page: Page): Promise<Item> {
   const s = await pickOpenPoint(page, { margin: 100 })
   await touchDrag(page, s, { x: s.x + 1, y: s.y + 20 })
   const item = await addMatFromSheet(page)
-  await selectionSheet(page).getByRole('button', { name: '닫기' }).tap()
+  await selectionSheet(page).getByRole('button', { name: CLEAR_SELECTION }).tap()
   await expect(selectionSheet(page)).toBeHidden()
   await nextFrames(page, 3)
   return item

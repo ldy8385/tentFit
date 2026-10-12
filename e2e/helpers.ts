@@ -1,16 +1,22 @@
 // Playwright 화면 테스트 공용 도구.
-// 앱 상태는 테스트 빌드(`vite --mode test`)만 노출하는 window.__tentfit(스펙 §13.4, Task 12 testHook.ts)으로 읽고,
-// 입력은 실제 사용자처럼 마우스·키보드·터치(CDP)로 넣습니다.
-import { expect, type CDPSession, type Page } from '@playwright/test'
-import type { DocSnapshot, TentfitTestHook, UiSnapshot } from '../src/app/testHook'
+// 앱 상태는 테스트 빌드(`vite --mode test`)만 노출하는 window.__tentfit(편집기)·window.__tentfitApp(앱 수준,
+// 스펙 §13.4, src/app/testHook.ts)으로 읽고, 입력은 실제 사용자처럼 마우스·키보드·터치(CDP)로 넣습니다.
+// 앱은 배치가 0개면 텐트 고르기(#/pick)로 시작하므로(스펙 §4.7), 편집기 시험은 openEditorWith로 엽니다.
+import { expect, test, type CDPSession, type Page } from '@playwright/test'
+import type { LayoutSummary } from '../src/app/layoutRepo'
+import type { DocSnapshot, TentfitAppHook, TentfitTestHook, UiSnapshot } from '../src/app/testHook'
 import { formatPercent, type StatRow } from '../src/core/stats'
 
-export type { DocSnapshot, UiSnapshot }
+export type { DocSnapshot, LayoutSummary, UiSnapshot }
 
 /** 브라우저 창 기준 CSS px 좌표(clientX·clientY와 같음) */
 export type ClientPt = { x: number; y: number }
 
 type TentfitWindow = { __tentfit?: TentfitTestHook }
+type TentfitAppWindow = { __tentfitApp?: TentfitAppHook }
+
+/** 편집기 시험이 기본으로 고르는 텐트(presets/tents/generic.json의 generic/tunnel-4p, 외곽 620×320) */
+export const DEFAULT_TENT_NAME = '터널 4인 예시'
 
 /** requestAnimationFrame n번을 기다립니다. Konva는 다음 프레임에 그리므로 화면을 읽기 전에 부릅니다. */
 export async function nextFrames(page: Page, n = 2): Promise<void> {
@@ -42,6 +48,26 @@ export async function waitReady(page: Page): Promise<void> {
       document.querySelector('.konvajs-content canvas') !== null,
   )
   await nextFrames(page)
+}
+
+/**
+ * 빈 앱('/')을 열어 고르기 화면(#/pick)에서 presetName 카드를 고르고(휴대폰 프로젝트는 tap, PC는 click),
+ * 새 배치의 편집기가 준비될 때까지 기다립니다. 새 페이지마다 보관소가 비어 있으므로 늘 '<텐트 이름> 배치'로 시작합니다.
+ */
+export async function openEditorWith(page: Page, presetName = DEFAULT_TENT_NAME): Promise<void> {
+  await page.goto('/')
+  await expect(page).toHaveURL(/#\/pick$/, { timeout: 15_000 })
+  const card = page.getByTestId('pick-screen').getByRole('button', { name: presetName, exact: true })
+  // 텐트 목록은 동적 import 청크라 처음 띄운 개발 서버에서는 늦게 나올 수 있습니다.
+  await expect(card).toBeVisible({ timeout: 15_000 })
+  if (test.info().project.use.hasTouch === true) await card.tap()
+  else await card.click()
+  await waitReady(page)
+}
+
+/** 보관소의 배치 요약(앱 수준 훅, 라우트와 무관). 만들기 화면 [취소] 뒤 배치가 생기지 않았는지 등을 봅니다. */
+export async function getAppLayouts(page: Page): Promise<LayoutSummary[]> {
+  return page.evaluate(() => (window as unknown as TentfitAppWindow).__tentfitApp!.layouts())
 }
 
 /** 문서 스토어의 데이터({ layout, canUndo, canRedo, inGesture }) */
