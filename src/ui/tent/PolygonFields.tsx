@@ -6,6 +6,7 @@
 // 칸 targetId는 '<대상>@<종류><번호>'라 포커스 뒤 대상이 바뀌어도 포커스 때 대상에 반영됩니다(useDraftField 규칙).
 import { useState, type JSX } from 'react'
 import { useStores } from '../../app/stores'
+import type { PolygonFocus } from '../../store/ui'
 import { setTargetEdgeLength, setTargetSize, setTargetVertexAngle, type EditResult } from '../../app/tentActions'
 import { ringBBox } from '../../core/geom'
 import { LIMITS, round1, type Pt } from '../../core/model'
@@ -20,6 +21,8 @@ export const ANGLES_LABEL = '꼭짓점 각도'
 export const COORDS_LABEL = '좌표로 고치기'
 /** 계산값 표시 */
 export const AUTO_TEXT = '자동'
+/** 변 번호 안내(소유자 피드백: 「변 1·2·3이 어디인지」) */
+export const EDGE_HINT = '번호는 캔버스의 변 옆 숫자예요 · 칸을 누르면 그 변이 강조돼요'
 
 const [LEN_MIN, LEN_MAX] = LIMITS.length
 
@@ -75,6 +78,11 @@ export function PolygonFields(p: { target: TentTarget; points: readonly Pt[]; en
   const lenField = (label: string, id: string, value: number) => (
     <NumberField key={id} label={label} unit="cm" value={round1(value)} targetId={id} min={LEN_MIN} max={LEN_MAX} disabled={!enabled} onCommit={commit} />
   )
+  /** 칸에 포커스하는 동안 캔버스가 그 변·꼭짓점을 강조하게 알립니다(focus·blur는 버블링). */
+  const focusProps = (focus: PolygonFocus) => ({
+    onFocus: () => stores.ui.getState().setPolygonFocus(focus),
+    onBlur: () => stores.ui.getState().setPolygonFocus(null),
+  })
 
   return (
     <div className="tf-tent__poly" data-testid="tent-polygon-fields">
@@ -83,9 +91,12 @@ export function PolygonFields(p: { target: TentTarget; points: readonly Pt[]; en
         {lenField('세로', polygonFieldId(target, 'h'), bb.maxY - bb.minY)}
       </div>
       <div className="tf-tent__edges" role="group" aria-label="변 길이">
+        <p className="tf-hint">{EDGE_HINT}</p>
         {lens.map((len, i) =>
           i < n - 1 ? (
-            lenField(`변 ${i + 1}`, polygonFieldId(target, 'e', i), len)
+            <div key={i} {...focusProps({ kind: 'edge', index: i })}>
+              {lenField(`변 ${i + 1}`, polygonFieldId(target, 'e', i), len)}
+            </div>
           ) : (
             <ReadOnlyRow key="closing" label={`변 ${i + 1}`} value={`${formatNumber(round1(len))} cm`} testId="tent-edge-closing" />
           ),
@@ -96,8 +107,8 @@ export function PolygonFields(p: { target: TentTarget; points: readonly Pt[]; en
         <div id={anglesId} className="tf-tent__edges" role="group" aria-label={ANGLES_LABEL}>
           {angles.map((deg, i) =>
             i >= 1 && i <= n - 2 ? (
+              <div key={i} {...focusProps({ kind: 'vertex', index: i })}>
               <NumberField
-                key={i}
                 label={`꼭짓점 ${i + 1}`}
                 unit="°"
                 value={round01(deg)}
@@ -107,6 +118,7 @@ export function PolygonFields(p: { target: TentTarget; points: readonly Pt[]; en
                 disabled={!enabled}
                 onCommit={commit}
               />
+              </div>
             ) : (
               <ReadOnlyRow key={i} label={`꼭짓점 ${i + 1}`} value={`${formatNumber(round01(deg))}°`} />
             ),

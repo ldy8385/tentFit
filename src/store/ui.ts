@@ -23,6 +23,8 @@ export type DrawGoal = 'outer' | 'newInner' | { innerId: string }
 export type Drawing = { goal: DrawGoal; points: Pt[] }
 /** 만들기 화면 단계 잠금(설계 §1.1): 단계 ① = 'inners', 단계 ② = 'outer', 편집기 = 'none' */
 export type TentLock = 'none' | 'outer' | 'inners'
+/** 패널에서 포커스한 자유 다각형 칸(변 길이 = edge, 꼭짓점 각도 = vertex, 번호는 0부터). 캔버스가 그 변·꼭짓점을 강조합니다. */
+export type PolygonFocus = { kind: 'edge' | 'vertex'; index: number }
 export type UiState = {
   mode: Mode
   measuring: boolean
@@ -49,6 +51,8 @@ export type UiState = {
   tentLock: TentLock
   /** 만들기 화면에서 외곽이 아직 없음(문서의 외곽은 자리표시라 그리지도 고르지도 않음, Plan 4.1 판단 Q1) */
   outerPending: boolean
+  /** 패널에서 포커스한 변·꼭짓점 칸(대상이 바뀌거나 모드가 바뀌면 지움) */
+  polygonFocus: PolygonFocus | null
   setSelection(ids: string[]): void
   toggleSelected(id: string): void
   clearSelection(): void
@@ -67,6 +71,7 @@ export type UiState = {
   /** 잠금을 바꾸면 잠긴 쪽 대상을 풀고 그리던 것을 버립니다(단계 전환 = 그리기 끝, 설계 §2.2) */
   setTentLock(lock: TentLock): void
   setOuterPending(pending: boolean): void
+  setPolygonFocus(focus: PolygonFocus | null): void
   /** 토스트를 띄웁니다. id는 부를 때마다 1씩 올라갑니다(같은 문구도 새 토스트) */
   showToast(text: string): void
   /** 지금 토스트의 id가 같을 때만 지웁니다(늦게 도착한 타이머가 새 토스트를 지우지 않게) */
@@ -194,6 +199,7 @@ export function createUiStore(
       drawing: null,
       tentLock: 'none',
       outerPending: false,
+      polygonFocus: null,
 
       setSelection(ids) {
         const next = unique(ids)
@@ -227,6 +233,7 @@ export function createUiStore(
             tentTarget: null,
             vertexIndex: null,
             drawing: null,
+            polygonFocus: null,
             mobileSheet: PLACE_ONLY_SHEETS.has(s.mobileSheet) ? 'none' : s.mobileSheet,
             desktopPanel: s.desktopPanel === 'newShape' ? 'auto' : s.desktopPanel,
           })
@@ -238,6 +245,7 @@ export function createUiStore(
           tentTarget: null,
           vertexIndex: null,
           drawing: null,
+          polygonFocus: null,
           mobileSheet: s.mobileSheet === 'tent' ? 'none' : s.mobileSheet,
         })
       },
@@ -248,8 +256,14 @@ export function createUiStore(
         const nextIndex = next === null ? null : cleanVertexIndex(vertexIndex)
         if (sameTentTarget(s.tentTarget, next) && s.vertexIndex === nextIndex) return
         // 다른 대상을 고르면 그리던 것을 버립니다(설계 §2.2 끝나는 조건).
-        const dropDrawing = s.drawing !== null && !sameTentTarget(s.tentTarget, next)
-        set({ tentTarget: next, vertexIndex: nextIndex, ...(dropDrawing ? { drawing: null } : {}) })
+        const changed = !sameTentTarget(s.tentTarget, next)
+        const dropDrawing = s.drawing !== null && changed
+        set({
+          tentTarget: next,
+          vertexIndex: nextIndex,
+          ...(dropDrawing ? { drawing: null } : {}),
+          ...(changed && s.polygonFocus !== null ? { polygonFocus: null } : {}),
+        })
       },
       pruneTentTarget(layout) {
         const s = get()
@@ -290,6 +304,11 @@ export function createUiStore(
       },
       setOuterPending(pending) {
         if (get().outerPending !== pending) set({ outerPending: pending })
+      },
+      setPolygonFocus(focus) {
+        const cur = get().polygonFocus
+        if (cur === focus || (cur !== null && focus !== null && cur.kind === focus.kind && cur.index === focus.index)) return
+        set({ polygonFocus: focus })
       },
       showToast(text) {
         toastSeq += 1

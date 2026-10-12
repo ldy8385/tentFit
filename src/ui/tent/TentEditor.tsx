@@ -66,7 +66,7 @@ import {
 } from './tentEditorModel'
 
 export type TentEditorVariant = 'panel' | 'sheet'
-export { ANGLES_LABEL, COORDS_LABEL } from './PolygonFields'
+export { ANGLES_LABEL, COORDS_LABEL, EDGE_HINT } from './PolygonFields'
 export { DRAWING_HINT } from './shapeMenu'
 
 /** 꼭짓점 직접 편집 버튼 문구(§4.4-3 원문) */

@@ -121,6 +121,48 @@ export function tentHitAt(layout: Layout, world: Pt, grabWorld: number, lock: Te
   return { kind: 'none' }
 }
 
+/** 변 번호 배지를 변 가운데에서 바깥쪽으로 띄우는 거리(화면 px). 변 가운데 + 핸들(지름 12)과 겹치지 않게. */
+export const EDGE_LABEL_OFFSET_PX = 18
+
+export type EdgeLabel = { index: number; text: string; at: Pt }
+
+/**
+ * 자유 다각형 대상(템플릿 없는 다각형)의 변 번호 배지 자리(Plan 4.1 소유자 피드백 「변 1·2·3이 어디인지」).
+ * 변 i(0부터) = 꼭짓점 i → i+1, 글자 = i+1(패널 「변 i+1」과 같음). 자리 = 변 가운데에서 바깥쪽으로 EDGE_LABEL_OFFSET_PX(화면 px).
+ * 바깥쪽은 다각형 방향(부호 있는 넓이)으로 정합니다. 템플릿 대상·원·사각형·없는 이너면 [](패널에 변 칸이 없음).
+ */
+export function edgeLabels(layout: Layout, target: TentTarget, view: View): EdgeLabel[] {
+  const inner = target === 'outer' ? undefined : findInner(layout, target.innerId)
+  if (target !== 'outer' && inner === undefined) return []
+  const shape = inner?.shape ?? layout.tent.outer
+  const template = inner === undefined ? layout.tent.outerTemplate : inner.template
+  if (shape.kind !== 'polygon' || template !== undefined || !(view.zoom > 0)) return []
+  const ring = targetWorldRing(layout, target)
+  const n = ring.length
+  let s = 0
+  for (let i = 0; i < n; i++) {
+    const a = ring[i] as Pt
+    const b = ring[(i + 1) % n] as Pt
+    s += a[0] * b[1] - b[0] * a[1]
+  }
+  const sigma = s < 0 ? -1 : 1
+  const off = EDGE_LABEL_OFFSET_PX / view.zoom
+  const out: EdgeLabel[] = []
+  for (let i = 0; i < n; i++) {
+    const a = ring[i] as Pt
+    const b = ring[(i + 1) % n] as Pt
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const len = Math.hypot(dx, dy)
+    if (!(len > 0)) continue
+    // y 아래 좌표에서 시계 방향(σ > 0)이면 바깥쪽 법선 = (dy, −dx)/len
+    const nx = (sigma * dy) / len
+    const ny = (sigma * -dx) / len
+    out.push({ index: i, text: String(i + 1), at: [nz((a[0] + b[0]) / 2 + nx * off), nz((a[1] + b[1]) / 2 + ny * off)] })
+  }
+  return out
+}
+
 /** 좌표 표 기준점(D32) = 외곽 바운딩 박스 왼쪽 위 = 격자 원점(snap.gridOriginOf). */
 export function tableOrigin(tent: Tent): Pt {
   return gridOriginOf(tent)

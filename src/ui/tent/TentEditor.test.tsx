@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StoresProvider, createStores, type Stores } from '../../app/stores'
 import { createLayout, type Inner, type Tent } from '../../core/model'
-import { ANGLES_LABEL, COORDS_LABEL, DRAWING_HINT, EMPTY_TARGET_TEXT, FREE_EDIT_LABEL, TentEditor, type TentEditorVariant } from './TentEditor'
+import { ANGLES_LABEL, COORDS_LABEL, DRAWING_HINT, EDGE_HINT, EMPTY_TARGET_TEXT, FREE_EDIT_LABEL, TentEditor, type TentEditorVariant } from './TentEditor'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -554,5 +554,23 @@ describe('최종 리뷰 수정(Plan 4.1)', () => {
     const stores = setup(TWO_INNERS, { target: 'outer' })
     act(() => stores.ui.getState().startDrawing('newInner'))
     expect((within(editor()).getByRole('button', { name: '텐트 바꾸기' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+describe('변 번호 안내(소유자 피드백: 변 1·2·3이 어디인지)', () => {
+  it('변 길이 칸에 포커스하면 그 변을 캔버스에서 강조하도록 알리고(polygonFocus), 떠나면 지운다', () => {
+    const stores = setup(ROUGH, { target: 'outer' })
+    expect(within(editor()).getByText(EDGE_HINT)).toBeTruthy()
+    act(() => field('변 2').focus())
+    expect(stores.ui.getState().polygonFocus).toEqual({ kind: 'edge', index: 1 })
+    act(() => field('변 2').blur())
+    expect(stores.ui.getState().polygonFocus).toBeNull()
+  })
+
+  it('꼭짓점 각도 칸에 포커스하면 그 꼭짓점을 알린다', () => {
+    const stores = setup(ROUGH, { target: 'outer' })
+    expand(ANGLES_LABEL)
+    act(() => field('꼭짓점 3').focus())
+    expect(stores.ui.getState().polygonFocus).toEqual({ kind: 'vertex', index: 2 })
   })
 })

@@ -846,7 +846,8 @@ function TentEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | nul
   const vertexIndex = useUi((s) => s.vertexIndex)
   const view = useUi((s) => s.view)
   const preview = useStore(props.overlay, (s) => s.tentPreview)
-  return <TentLayer layout={layout} target={target} vertexIndex={vertexIndex} view={view} preview={preview} />
+  const focus = useUi((s) => s.polygonFocus)
+  return <TentLayer layout={layout} target={target} vertexIndex={vertexIndex} view={view} preview={preview} focus={focus} />
 }
 
 /** 그리는 중 표시: 찍은 점·열린 선·고무줄(그때 보기로 계산 — 휠 이동에도 포인터를 따라감) */

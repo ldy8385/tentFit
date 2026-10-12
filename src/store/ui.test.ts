@@ -567,3 +567,20 @@ describe('그리기·잠금·외곽 없음(Plan 4.1)', () => {
     expect(ui.getState().drawing).not.toBeNull()
   })
 })
+
+describe('polygonFocus(패널 변·각도 칸 포커스 → 캔버스 강조)', () => {
+  it('기본 null, setPolygonFocus로 바꾸고, 대상이 바뀌거나 모드가 바뀌면 지운다', () => {
+    const ui = createUiStore({ mode: 'tent' })
+    expect(ui.getState().polygonFocus).toBeNull()
+    ui.getState().selectTentTarget('outer')
+    ui.getState().setPolygonFocus({ kind: 'edge', index: 1 })
+    expect(ui.getState().polygonFocus).toEqual({ kind: 'edge', index: 1 })
+    ui.getState().selectTentTarget('outer', 2)
+    expect(ui.getState().polygonFocus).toEqual({ kind: 'edge', index: 1 })
+    ui.getState().selectTentTarget({ innerId: 'a' })
+    expect(ui.getState().polygonFocus).toBeNull()
+    ui.getState().setPolygonFocus({ kind: 'vertex', index: 2 })
+    ui.getState().setMode('place')
+    expect(ui.getState().polygonFocus).toBeNull()
+  })
+})
