@@ -277,3 +277,20 @@ describe('tentTargetBBox', () => {
     expect(tentTargetBBox(circle, { innerId: 'c' })).toEqual({ minX: -20, minY: -70, maxX: 80, maxY: 30 })
   })
 })
+
+describe('tentHitAt — 잠금(Plan 4.1)', () => {
+  const layout = createLayout(
+    {
+      name: '잠금',
+      outer: { kind: 'rect', w: 600, h: 300 },
+      inners: [{ id: 'a', name: '이너 a', shape: { kind: 'rect', w: 100, h: 100 }, x: -200, y: 0, rotation: 0 }],
+    },
+    { name: '배치', id: 'L', now: '2026-10-12T00:00:00.000Z' },
+  )
+  it("'inners'면 이너를 건너뛰고 외곽, 'outer'면 외곽 대신 none", () => {
+    expect(tentHitAt(layout, [-200, 0], 8, 'inners')).toEqual({ kind: 'outer' })
+    expect(tentHitAt(layout, [0, 0], 8, 'outer')).toEqual({ kind: 'none' })
+    expect(tentHitAt(layout, [-200, 0], 8, 'outer')).toEqual({ kind: 'inner', innerId: 'a' })
+    expect(tentHitAt(layout, [-200, 0], 8)).toEqual({ kind: 'inner', innerId: 'a' })
+  })
+})

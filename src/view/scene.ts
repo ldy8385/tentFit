@@ -3,12 +3,12 @@
 // 길이·좌표는 월드 cm, 선 굵기·대시·라벨 판정 기준은 화면 px입니다(Board가 strokeScaleEnabled=false로 그림).
 import { outerRing, regionRings, ringBBox, worldRing } from '../core/geom'
 import { round1, type Item, type Layout, type Pt, type Shape } from '../core/model'
-import { gridOriginOf } from '../core/snap'
+import { drawGridOrigin } from '../core/polygonEdit'
 import type { Stats } from '../core/stats'
 import type { Zones } from '../core/zones'
 import type { Mode } from '../store/ui'
 import { objColor } from '../ui/theme'
-import type { BBox, Size, View } from './viewport'
+import { fitBBoxFor, type BBox, type Size, type View } from './viewport'
 
 /** 물건 라벨: 화면에서 도형의 짧은 쪽이 이 값(px)보다 작으면 숨깁니다(§4.6). */
 export const LABEL_MIN_SCREEN_PX = 40
@@ -132,6 +132,8 @@ export type PieceNode = { key: string; rings: Pt[][]; label: { text: string; x: 
 
 export type Scene = {
   grid: { level: GridLevel; lines: number[][] }[]
+  /** false면 텐트(외곽·이너·전실·라벨)를 그리지 않습니다(만들기 화면의 외곽 없음) */
+  tentVisible: boolean
   outer: Shape
   inners: InnerNode[]
   pieces: PieceNode[]
@@ -148,6 +150,8 @@ export type SceneInput = {
   gridVisible: boolean
   /** 캔버스 크기(px). 있으면 격자를 보이는 영역 전체에 깔고, 없거나 0이면 외곽 bbox 안에만 깝니다(계약에 더한 선택 필드). */
   size?: Size
+  /** 만들기 화면에서 외곽이 아직 없음(Plan 4.1 판단 Q1): 텐트를 그리지 않고 격자 원점 = 월드 원점 */
+  outerPending?: boolean
 }
 
 function validZoom(view: View): number {
@@ -207,6 +211,7 @@ function visibleBBox(view: View, size: Size, zoom: number): BBox {
 export function buildScene(input: SceneInput): Scene {
   const { layout, zones, stats, view } = input
   const zoom = validZoom(view)
+  const pending = input.outerPending === true
 
   let grid: Scene['grid'] = []
   if (input.gridVisible) {
@@ -214,9 +219,15 @@ export function buildScene(input: SceneInput): Scene {
     const bbox =
       size !== undefined && size.width > 0 && size.height > 0 && zoom > 0
         ? visibleBBox(view, size, zoom)
-        : ringBBox(outerRing(layout.tent))
-    const origin = gridOriginOf(layout.tent)
+        : pending
+          ? fitBBoxFor(layout, true)
+          : ringBBox(outerRing(layout.tent))
+    const origin = drawGridOrigin(layout.tent, pending)
     grid = gridLevels(zoom).map((level) => ({ level, lines: gridLines(bbox, origin, level) }))
+  }
+
+  if (pending) {
+    return { grid, tentVisible: false, outer: layout.tent.outer, inners: [], pieces: [], items: layout.items.map((item) => itemNode(item, input, zoom)) }
   }
 
   const escapes = new Set(stats.innerEscapes)
@@ -256,6 +267,7 @@ export function buildScene(input: SceneInput): Scene {
 
   return {
     grid,
+    tentVisible: true,
     outer: layout.tent.outer,
     inners,
     pieces,

@@ -8,7 +8,7 @@ import type { Layout, Pt, Tent } from '../core/model'
 import { moveInner, setVertex, targetWorldRing, type TentTarget } from '../core/ops/tent'
 import { gridOriginOf } from '../core/snap'
 import { newTentIssues, type Issue } from '../core/validate'
-import type { PointerKind } from '../store/ui'
+import type { PointerKind, TentLock } from '../store/ui'
 import { worldToScreen, type BBox, type View } from './viewport'
 
 /** 꼭짓점·+ 핸들과 외곽선을 잡는 거리(화면 px, §4.4-7). Transformer 핸들 규칙보다 우선합니다. */
@@ -106,13 +106,15 @@ function ringDistance(p: Pt, ring: readonly Pt[]): number {
 /**
  * 탭·누름 대상(R10, §4.4-2): 이너 면(배열 뒤쪽이 위) > 외곽 안 또는 외곽선에서 grabWorld(cm) 안 = 외곽 > none.
  * 핸들은 이 함수가 보지 않습니다(handleAt을 먼저 부르세요). grabWorld = VERTEX_GRAB_PX[pointer] / zoom.
+ * 만들기 화면 단계 잠금(Plan 4.1): 'inners'면 이너를 건너뛰고(그 자리는 외곽), 'outer'면 외곽을 잡지 않습니다.
  */
-export function tentHitAt(layout: Layout, world: Pt, grabWorld: number): TentHit {
+export function tentHitAt(layout: Layout, world: Pt, grabWorld: number, lock: TentLock = 'none'): TentHit {
   const inners = layout.tent.inners
-  for (let i = inners.length - 1; i >= 0; i--) {
+  for (let i = inners.length - 1; i >= 0 && lock !== 'inners'; i--) {
     const inner = inners[i]
     if (inner !== undefined && pointInRing(world, worldRing(inner))) return { kind: 'inner', innerId: inner.id }
   }
+  if (lock === 'outer') return { kind: 'none' }
   const ring = outerRing(layout.tent)
   if (pointInRing(world, ring)) return { kind: 'outer' }
   if (ringDistance(world, ring) <= grabWorld) return { kind: 'outer' }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createLayout, type Inner, type Item, type Layout, type Pt, type Shape } from '../core/model'
 import {
   clampZoom,
+  fitBBoxFor,
   fitView,
   layoutBBox,
   screenToWorld,
@@ -334,5 +335,13 @@ describe('wheelAction', () => {
   it('NaN delta는 움직이지 않는다', () => {
     expect(wheelAction({ ...base, deltaX: Number.NaN, deltaY: Number.NaN })).toEqual({ type: 'pan', dx: 0, dy: 0 })
     expect(wheelAction({ ...base, deltaY: Number.NaN, ctrlKey: true })).toEqual({ type: 'zoom', factor: 1 })
+  })
+})
+
+describe('fitBBoxFor(Plan 4.1)', () => {
+  it('외곽 없음이면 ±300cm, 아니면 layoutBBox', () => {
+    const l = createLayout({ name: 't', outer: { kind: 'rect', w: 600, h: 300 }, inners: [] }, { name: 'b', id: 'L', now: '2026-10-12T00:00:00.000Z' })
+    expect(fitBBoxFor(l, true)).toEqual({ minX: -300, minY: -300, maxX: 300, maxY: 300 })
+    expect(fitBBoxFor(l, false)).toEqual(layoutBBox(l))
   })
 })

@@ -127,6 +127,16 @@ export function layoutBBox(layout: Layout): BBox {
   return b
 }
 
+/** 만들기 화면에서 외곽이 아직 없을 때 첫 맞춤 보기 범위(월드 원점 ±300cm, Plan 4.1 판단 Q1) */
+export const PENDING_FIT_HALF_CM = 300
+
+/** 첫 맞춤 보기 범위: 외곽 없음이면 원점 ±300cm, 아니면 layoutBBox */
+export function fitBBoxFor(layout: Layout, outerPending: boolean): BBox {
+  if (!outerPending) return layoutBBox(layout)
+  const h = PENDING_FIT_HALF_CM
+  return { minX: -h, minY: -h, maxX: h, maxY: h }
+}
+
 /** 보이는 영역(캔버스 − insets) 가운데의 월드 점. 새 물건 위치(§4.7-3)에 씁니다. */
 export function viewCenterWorld(v: View, size: Size, insets: Insets): Pt {
   const w = Math.max(0, finiteOr(size.width, 0))

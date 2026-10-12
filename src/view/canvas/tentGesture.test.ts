@@ -215,3 +215,20 @@ describe('tentDragStep — 미리보기와 커밋할 값', () => {
     expect(tentDragStep(LAYOUT, drag, [50, 0], VIEW1).commit).toBeNull()
   })
 })
+
+describe('classifyTentPress — 단계 잠금·외곽 없음(Plan 4.1)', () => {
+  it("이너 잠금('inners'): 이너 위를 눌러도 외곽이 잡힌다", () => {
+    expect(classifyTentPress(LAYOUT, null, VIEW1, [-300, 0], 'mouse', 'inners')).toEqual({ kind: 'outer' })
+  })
+
+  it("외곽 잠금('outer'): 외곽 안 빈 곳은 none, 이너는 그대로, 선택된 외곽의 꼭짓점도 잡히지 않음", () => {
+    expect(classifyTentPress(LAYOUT, null, VIEW1, [0, 0], 'mouse', 'outer')).toEqual({ kind: 'none' })
+    expect(classifyTentPress(LAYOUT, null, VIEW1, [-300, 0], 'mouse', 'outer')).toEqual({ kind: 'inner', innerId: 'a' })
+    expect(classifyTentPress(LAYOUT, 'outer', VIEW1, [-500, -200], 'mouse', 'outer')).toEqual({ kind: 'none' })
+  })
+
+  it('외곽 없음이면 무엇도 잡지 않는다', () => {
+    expect(classifyTentPress(LAYOUT, 'outer', VIEW1, [-500, -200], 'mouse', 'none', true)).toEqual({ kind: 'none' })
+    expect(classifyTentPress(LAYOUT, null, VIEW1, [0, 0], 'touch', 'inners', true)).toEqual({ kind: 'none' })
+  })
+})

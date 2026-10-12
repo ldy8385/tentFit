@@ -3,7 +3,7 @@
 // 끌기면 tentDragStep으로 미리보기와 커밋 값을 얻습니다. 문서는 Board가 손을 뗄 때 tentActions로 한 번만 바꿉니다.
 import type { Layout, Pt, Tent } from '../../core/model'
 import type { TentTarget } from '../../core/ops/tent'
-import type { PointerKind } from '../../store/ui'
+import { tentTargetBlocked, type PointerKind, type TentLock } from '../../store/ui'
 import { TAP_SLOP } from '../gestures'
 import {
   VERTEX_GRAB_PX,
@@ -62,21 +62,27 @@ export function sameTentTarget(a: TentTarget | null, b: TentTarget | null): bool
   return a.innerId === b.innerId
 }
 
-/** pointerdown 한 점의 대상. 핸들은 지금 선택한 대상(target)에만 있습니다(§4.4-7). */
+/**
+ * pointerdown 한 점의 대상. 핸들은 지금 선택한 대상(target)에만 있습니다(§4.4-7).
+ * 만들기 화면(Plan 4.1): 잠긴 쪽은 핸들·면 모두 잡지 않고, 외곽 없음(outerPending)이면 아무것도 잡지 않습니다.
+ */
 export function classifyTentPress(
   layout: Layout,
   target: TentTarget | null,
   view: View,
   screen: Pt,
   pointer: PointerKind,
+  lock: TentLock = 'none',
+  outerPending = false,
 ): TentPressHit {
-  if (target !== null) {
+  if (outerPending) return { kind: 'none' }
+  if (target !== null && !tentTargetBlocked({ tentLock: lock, outerPending }, target)) {
     const h = handleAt(tentHandles(layout, target, view), screen, view, pointer)
     if (h?.kind === 'vertex') return { kind: 'vertex', target, index: h.index, world: h.world }
     if (h?.kind === 'plus') return { kind: 'plus', target, edgeIndex: h.edgeIndex }
   }
   const grabWorld = view.zoom > 0 ? VERTEX_GRAB_PX[pointer] / view.zoom : 0
-  return tentHitAt(layout, screenToWorld(view, screen), grabWorld)
+  return tentHitAt(layout, screenToWorld(view, screen), grabWorld, lock)
 }
 
 /** 노드처럼 잡는 누름인지(true면 판정기에 onNode = true). 바닥·외곽선·바깥은 끌면 화면 이동입니다(§4.4-2). */

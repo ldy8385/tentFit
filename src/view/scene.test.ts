@@ -304,3 +304,20 @@ describe('buildScene — 격자', () => {
     expect(scene.pieces[0]?.label.visible).toBe(false)
   })
 })
+
+describe('buildScene — 외곽 없음(만들기 화면 단계 ① 처음, Plan 4.1 판단 Q1)', () => {
+  it('텐트를 그리지 않고(외곽·이너·전실 없음), 격자 원점은 월드 원점', () => {
+    const layout = layoutWith({ name: '자리표시', outer: { kind: 'rect', w: 400, h: 200 }, inners: [inner('1', 100, 100, 0, 0)] }, [])
+    const scene = buildScene(input(layout, { outerPending: true, view: { zoom: 1, panX: 0, panY: 0 } }))
+    expect(scene.tentVisible).toBe(false)
+    expect(scene.inners).toEqual([])
+    expect(scene.pieces).toEqual([])
+    const coarse = scene.grid.find((g) => g.level === 100)
+    expect(coarse?.lines.some((l) => l[0] === 0 && l[2] === 0)).toBe(true)
+    expect(coarse?.lines[0]).toEqual([-300, -300, -300, 300])
+  })
+
+  it('외곽이 있으면 tentVisible', () => {
+    expect(buildScene(input(layoutWith(goldenTent(), []))).tentVisible).toBe(true)
+  })
+})
