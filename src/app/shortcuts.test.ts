@@ -364,3 +364,33 @@ describe('runShortcut — 텐트 편집 모드(R5)', () => {
     expect(stores.ui.getState().vertexIndex).toBe(0)
   })
 })
+
+describe('runShortcut — 그리는 중(Plan 4.1 판단 Q5)', () => {
+  function drawSetup() {
+    const layout: Layout = createLayout(TENT, { name: '배치', now: '2026-10-12T00:00:00.000Z' })
+    const stores: Stores = { doc: createDocStore(layout), ui: createUiStore() }
+    stores.ui.getState().setMode('tent')
+    stores.ui.getState().startDrawing('newInner')
+    stores.ui.getState().setDrawPoints([[0, 0], [100, 0]])
+    return stores
+  }
+
+  it('Ctrl/Cmd+Z는 문서가 아니라 마지막 점을 지운다', () => {
+    const stores = drawSetup()
+    const before = stores.doc.getState().layout
+    expect(runShortcut({ type: 'undo' }, stores)).toBe(true)
+    expect(stores.ui.getState().drawing?.points).toEqual([[0, 0]])
+    expect(stores.doc.getState().layout).toBe(before)
+  })
+
+  it('다시 실행은 무시(처리함으로 봄), Esc는 그리기 취소, Delete·화살표는 무시', () => {
+    const stores = drawSetup()
+    expect(runShortcut({ type: 'redo' }, stores)).toBe(true)
+    expect(stores.ui.getState().drawing?.points).toHaveLength(2)
+    expect(runShortcut({ type: 'delete' }, stores)).toBe(false)
+    expect(runShortcut({ type: 'nudge', dx: 1, dy: 0 }, stores)).toBe(false)
+    expect(stores.ui.getState().drawing?.points).toHaveLength(2)
+    expect(runShortcut({ type: 'escape' }, stores)).toBe(true)
+    expect(stores.ui.getState().drawing).toBeNull()
+  })
+})

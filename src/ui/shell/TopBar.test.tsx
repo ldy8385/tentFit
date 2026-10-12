@@ -222,3 +222,29 @@ describe('MobileTopBar', () => {
     expect(stores.doc.getState().layout.items).toHaveLength(1)
   })
 })
+
+describe('그리는 중 실행 취소·다시 실행(Plan 4.1 판단 Q5)', () => {
+  it('PC 상단 바의 실행 취소·다시 실행은 그리는 중 비활성', () => {
+    const stores = renderBar('desktop')
+    addMat(stores)
+    act(() => {
+      stores.ui.getState().setMode('tent')
+      stores.ui.getState().startDrawing('newInner')
+    })
+    expect((screen.getByRole('button', { name: '실행 취소' }) as HTMLButtonElement).disabled).toBe(true)
+    act(() => stores.ui.getState().endDrawing())
+    expect((screen.getByRole('button', { name: '실행 취소' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('휴대폰 상단 바 실행 취소·메뉴의 다시 실행도 그리는 중 비활성', () => {
+    const stores = renderBar('mobile')
+    addMat(stores)
+    act(() => stores.doc.getState().undo())
+    act(() => {
+      stores.ui.getState().setMode('tent')
+      stores.ui.getState().startDrawing('newInner')
+    })
+    fireEvent.click(screen.getByRole('button', { name: '메뉴' }))
+    expect((screen.getByRole('menuitem', { name: '다시 실행' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})

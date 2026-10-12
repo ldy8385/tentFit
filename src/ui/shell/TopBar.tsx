@@ -23,8 +23,10 @@ export const MODE_TOGGLE_LABEL = '편집 모드'
 
 export function TopBar() {
   const stores = useStores()
-  const canUndo = useDoc((s) => s.canUndo)
-  const canRedo = useDoc((s) => s.canRedo)
+  // 그리는 중에는 문서 실행 취소·다시 실행을 끕니다(점 되돌리기는 그리기 버튼·Ctrl/⌘+Z, 판단 Q5).
+  const drawing = useUi((s) => s.drawing !== null)
+  const canUndo = useDoc((s) => s.canUndo) && !drawing
+  const canRedo = useDoc((s) => s.canRedo) && !drawing
   const gridVisible = useUi((s) => s.gridVisible)
   const selectToggle = useUi((s) => s.selectToggle)
   const mode = useUi((s) => s.mode)

@@ -191,3 +191,30 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* PC 그리기 막대(설계 §3): 캔버스 위 가운데. 캔버스 호스트 밖 형제라 누름이 점이 되지 않습니다. */
+.tf-drawbar {
+  position: absolute;
+  top: calc(var(--overlay-top, 0px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 6px 8px 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.1);
+  font-size: 13px;
+  color: var(--text-secondary);
+  z-index: 30;
+  pointer-events: auto;
+}
+
+.tf-drawbar__hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

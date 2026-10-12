@@ -3,13 +3,15 @@
 // 실행 취소·다시 실행·맞춤 보기는 그대로, 화살표·R·Ctrl+D는 무시합니다.
 // 메뉴([role="menu"])에 포커스가 있으면 Esc 말고 모두 무시하고(보류 Minor #9), 편집기 위 대화상자·오버레이가
 // 열려 있으면 모두 무시합니다(대화상자가 자기 Esc를 처리).
+// 그리는 중(Plan 4.1): Ctrl/Cmd+Z = 점 되돌리기, 다시 실행은 무시, Esc = 그리기 취소, Delete·화살표·R·Ctrl+D는 무시.
+// 만들기 화면은 자기 스토어로 이 훅을 따로 걸고(modalRoot = 자기 루트), 자기 루트와 그 조상은 모달로 치지 않습니다.
 // 그룹(Ctrl+G)·측정·Alt 스냅 반전은 Plan 5·6에서 더합니다.
-import { useEffect } from 'react'
+import { useEffect, type RefObject } from 'react'
 import { moveItems } from '../core/ops/items'
 import { blurActiveInput } from '../ui/fields/blurActive'
 import { deleteSelected, duplicateSelected, rotateSelected90 } from './actions'
 import { useStores, type Stores } from './stores'
-import { deleteTargetVertex } from './tentActions'
+import { cancelDrawing, deleteTargetVertex, undoDrawPoint } from './tentActions'
 import { fitToLayout } from './viewActions'
 
 export type ShortcutAction =
@@ -122,6 +124,24 @@ function runTentShortcut(a: ShortcutAction, stores: Stores): boolean | null {
   }
 }
 
+/** 그리는 중의 동작(Plan 4.1 판단 Q5). 처리했으면 true, 무시는 false, 공통 처리(맞춤 보기)로 넘기면 null. */
+function runDrawShortcut(a: ShortcutAction, stores: Stores): boolean | null {
+  switch (a.type) {
+    case 'undo':
+      undoDrawPoint(stores)
+      return true
+    case 'redo':
+      return true
+    case 'escape':
+      cancelDrawing(stores)
+      return true
+    case 'fit':
+      return null
+    default:
+      return false
+  }
+}
+
 /**
  * 동작을 실행하고, 처리했으면 true를 돌려줍니다(preventDefault 판단용).
  * - 제스처(끌기·변형) 중이면 아무것도 하지 않고 false
@@ -134,6 +154,10 @@ export function runShortcut(a: ShortcutAction, stores: Stores): boolean {
   const doc = stores.doc.getState()
   const ui = stores.ui.getState()
   if (doc.inGesture) return false
+  if (ui.mode === 'tent' && ui.drawing !== null) {
+    const handled = runDrawShortcut(a, stores)
+    if (handled !== null) return handled
+  }
   if (ui.mode === 'tent') {
     const handled = runTentShortcut(a, stores)
     if (handled !== null) return handled
@@ -202,21 +226,30 @@ export function isInMenu(el: Element | null): boolean {
 
 /**
  * 편집기 위에 대화상자(aria-modal)나 텐트 만들기 오버레이(data-editor-modal)가 열려 있는지.
- * 열려 있으면 뒤의 편집기를 단축키로 바꾸지 않습니다.
+ * 열려 있으면 뒤의 편집기를 단축키로 바꾸지 않습니다. exclude(만들기 화면 루트)와 그 조상은 빼고 봅니다.
  */
-export function isEditorModalOpen(doc: Document): boolean {
-  return doc.querySelector('[aria-modal="true"], [data-editor-modal]') !== null
+export function isEditorModalOpen(doc: Document, exclude?: Element | null): boolean {
+  for (const el of doc.querySelectorAll('[aria-modal="true"], [data-editor-modal]')) {
+    if (exclude !== undefined && exclude !== null && el.contains(exclude)) continue
+    return true
+  }
+  return false
 }
 
-/** window keydown에 단축키를 연결합니다. 편집기(StoresProvider 안)에서 한 번만 부릅니다. */
-export function useShortcuts(): void {
+/**
+ * window keydown에 단축키를 연결합니다. 편집기(StoresProvider 안)에서 한 번만 부릅니다.
+ * 만들기 화면은 자기 StoresProvider 안에서 modalRoot(자기 루트)를 넘겨 부릅니다(판단 Q17).
+ */
+export function useShortcuts(opts?: { modalRoot?: RefObject<HTMLElement | null> }): void {
   const stores = useStores()
+  const modalRoot = opts?.modalRoot
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return
       const active = document.activeElement
       const inInput = isTextEntry(active)
-      const action = shortcutFor(e, { inInput, inMenu: isInMenu(active), modalOpen: isEditorModalOpen(document) })
+      const modalOpen = isEditorModalOpen(document, modalRoot?.current ?? null)
+      const action = shortcutFor(e, { inInput, inMenu: isInMenu(active), modalOpen })
       if (action === null) return
       // 입력 중 Esc: 먼저 blur해서 입력값을 반영한 뒤(§4.2) 선택을 해제합니다.
       if (action.type === 'escape' && inInput) blurActiveInput()
@@ -225,5 +258,5 @@ export function useShortcuts(): void {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [stores])
+  }, [stores, modalRoot])
 }

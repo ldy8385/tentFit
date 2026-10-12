@@ -1,9 +1,13 @@
 // 모바일 하단 툴바(스펙 §4.2, §4.4-3, D29). 시트가 열려도 늘 보입니다.
-// 배치 모드: [+물건] [텐트] [선택]. 텐트 편집 모드: [+이너] [완료](가운데 [측정] 자리는 Plan 5, R13).
+// 배치 모드: [+물건] [텐트] [선택]. 텐트 편집 모드: [+이너 ▾](예시·자유 그리기 메뉴, 위로 열림) [완료](가운데 [측정] 자리는 Plan 5, R13).
+// 그리는 중(Plan 4.1): [점 되돌리기] [그리기 완료] [그리기 취소](DrawTools).
 // 텐트 컨트롤([텐트]·[+이너]·[완료])은 tentControlsEnabled가 false(측정 중)면 비활성입니다.
 import { useStores, useUi } from '../../app/stores'
-import { addInnerAction, enterTentMode, exitTentMode, tentControlsEnabled } from '../../app/tentActions'
+import { enterTentMode, exitTentMode, tentControlsEnabled } from '../../app/tentActions'
+import { DrawTools } from '../tent/DrawTools'
+import { innerShapeMenu } from '../tent/shapeMenu'
 import { CheckIcon, LogoIcon, PlusSquareIcon, PointerIcon } from './icons'
+import { MenuButton } from './MenuButton'
 import './shell.css'
 import './modeShell.css'
 
@@ -50,13 +54,21 @@ function PlaceTools() {
 function TentTools() {
   const stores = useStores()
   const measuring = useUi((s) => s.measuring)
+  const drawing = useUi((s) => s.drawing !== null)
   const enabled = tentControlsEnabled({ measuring })
+  if (drawing) return <DrawTools variant="toolbar" />
   return (
     <>
-      <button type="button" className="shell-tool" aria-label="+이너" disabled={!enabled} onClick={() => addInnerAction(stores)}>
-        <PlusSquareIcon size={22} />
-        <span>이너</span>
-      </button>
+      <MenuButton
+        label="+이너"
+        text="이너"
+        icon={<PlusSquareIcon size={22} />}
+        align="left"
+        placement="up"
+        buttonClassName="shell-tool"
+        disabled={!enabled}
+        items={innerShapeMenu(stores)}
+      />
       <button type="button" className="shell-tool" disabled={!enabled} onClick={() => exitTentMode(stores)}>
         <CheckIcon size={22} />
         <span>완료</span>

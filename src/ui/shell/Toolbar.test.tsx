@@ -91,9 +91,10 @@ describe('Toolbar(모바일) — 텐트 편집 모드', () => {
     expect(toolNames()).toEqual(['+이너', '완료'])
   })
 
-  it('[+이너]는 이너를 하나 더하고 그 이너를 편집 대상으로 고른다(실행 취소 1칸)', () => {
+  it('[+이너 ▾] → 사각형은 이너를 하나 더하고 그 이너를 편집 대상으로 고른다(실행 취소 1칸)', () => {
     const stores = tentMode()
     fireEvent.click(screen.getByRole('button', { name: '+이너' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '사각형' }))
     const inners = stores.doc.getState().layout.tent.inners
     expect(inners).toHaveLength(1)
     expect(stores.ui.getState().tentTarget).toEqual({ innerId: inners[0]!.id })
@@ -103,6 +104,7 @@ describe('Toolbar(모바일) — 텐트 편집 모드', () => {
   it('[+이너]: 빈 공간이 없으면 추가하지 않고 「빈 공간이 부족해요」 토스트(기록 없음)', () => {
     const stores = tentMode(FULL_TENT)
     fireEvent.click(screen.getByRole('button', { name: '+이너' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '원' }))
     expect(stores.doc.getState().layout.tent.inners).toHaveLength(1)
     expect(stores.ui.getState().toast?.text).toBe('빈 공간이 부족해요')
     expect(stores.doc.getState().canUndo).toBe(false)
@@ -135,5 +137,49 @@ describe('Toolbar(모바일) — 텐트 편집 모드', () => {
     act(() => stores.ui.getState().patch({ measuring: true }))
     expect((screen.getByRole('button', { name: '+이너' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '완료' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+describe('Toolbar(모바일) — 자유 그리기(Plan 4.1)', () => {
+  function tentMode(): Stores {
+    const stores = renderToolbar(TENT)
+    act(() => stores.ui.getState().setMode('tent'))
+    return stores
+  }
+
+  it('[+이너 ▾] 메뉴는 위로 열리고, 자유 그리기를 고르면 그리기 버튼으로 바뀐다', () => {
+    const stores = tentMode()
+    fireEvent.click(screen.getByRole('button', { name: '+이너' }))
+    expect(screen.getByRole('menu').dataset.placement).toBe('up')
+    fireEvent.click(screen.getByRole('menuitem', { name: '자유 그리기' }))
+    expect(stores.ui.getState().drawing?.goal).toBe('newInner')
+    expect(toolNames()).toEqual(['점 되돌리기', '그리기 완료', '그리기 취소'])
+  })
+
+  it('점이 없으면 [점 되돌리기]·[그리기 완료] 비활성, 3개면 완료 가능, [그리기 취소]는 그리기를 버린다', () => {
+    const stores = tentMode()
+    act(() => stores.ui.getState().startDrawing('newInner'))
+    const btn = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
+    expect(btn('점 되돌리기').disabled).toBe(true)
+    expect(btn('그리기 완료').disabled).toBe(true)
+    act(() => stores.ui.getState().setDrawPoints([[0, -100], [100, -100], [100, 0]]))
+    expect(btn('점 되돌리기').disabled).toBe(false)
+    expect(btn('그리기 완료').disabled).toBe(false)
+    fireEvent.click(btn('점 되돌리기'))
+    expect(stores.ui.getState().drawing?.points).toHaveLength(2)
+    fireEvent.click(btn('그리기 취소'))
+    expect(stores.ui.getState().drawing).toBeNull()
+    expect(toolNames()).toEqual(['+이너', '완료'])
+  })
+
+  it('[그리기 완료]는 그린 이너를 만든다(1칸)', () => {
+    const stores = tentMode()
+    act(() => {
+      stores.ui.getState().startDrawing('newInner')
+      stores.ui.getState().setDrawPoints([[0, -100], [100, -100], [100, 0], [0, 0]])
+    })
+    fireEvent.click(screen.getByRole('button', { name: '그리기 완료' }))
+    expect(stores.doc.getState().layout.tent.inners).toHaveLength(1)
+    expect(stores.ui.getState().drawing).toBeNull()
   })
 })

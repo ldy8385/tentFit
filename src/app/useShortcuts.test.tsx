@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { act, render } from '@testing-library/react'
+import { useRef } from 'react'
 import { describe, expect, it } from 'vitest'
 import { createLayout, type Item, type Tent } from '../core/model'
 import { makeItem } from '../core/ops/items'
-import { useShortcuts, isTextEntry } from './shortcuts'
+import { isEditorModalOpen, useShortcuts, isTextEntry } from './shortcuts'
 import { createStores, StoresProvider, type Stores } from './stores'
 
 const TENT: Tent = { name: '시험 텐트', outer: { kind: 'rect', w: 400, h: 300 }, inners: [] }
@@ -185,5 +186,56 @@ describe('isTextEntry', () => {
     expect(isTextEntry(make('<input type="checkbox">'))).toBe(false)
     expect(isTextEntry(make('<button>복제</button>'))).toBe(false)
     expect(isTextEntry(null)).toBe(false)
+  })
+})
+
+function MakerHarness(p: { otherModal?: boolean }) {
+  const root = useRef<HTMLDivElement>(null)
+  useShortcuts({ modalRoot: root })
+  return (
+    <div data-editor-modal="">
+      <div ref={root} role="dialog" aria-modal="true" aria-label="텐트 만들기">
+        <button type="button">다음</button>
+      </div>
+      {p.otherModal === true && <div role="dialog" aria-modal="true" aria-label="다른 대화상자" />}
+    </div>
+  )
+}
+
+describe('useShortcuts — 만들기 화면 자기 루트 예외(Plan 4.1 판단 Q17)', () => {
+  function makerSetup(otherModal = false) {
+    const a = mat('매트', 0)
+    const stores: Stores = createStores({ ...createLayout(TENT, { name: '배치' }), items: [a] })
+    render(
+      <StoresProvider stores={stores}>
+        <MakerHarness otherModal={otherModal} />
+      </StoresProvider>,
+    )
+    stores.ui.getState().setSelection([a.id])
+    return stores
+  }
+
+  it('자기 루트(aria-modal)와 그 조상(data-editor-modal)은 모달로 치지 않아 단축키가 동작한다', () => {
+    const stores = makerSetup()
+    expect(press(document.body, { code: 'Delete', key: 'Delete' })).toBe(true)
+    expect(stores.doc.getState().layout.items).toHaveLength(0)
+  })
+
+  it('다른 모달이 열려 있으면 여전히 무시한다', () => {
+    const stores = makerSetup(true)
+    expect(press(document.body, { code: 'Delete', key: 'Delete' })).toBe(false)
+    expect(stores.doc.getState().layout.items).toHaveLength(1)
+  })
+
+  it('isEditorModalOpen(doc, exclude): exclude 자신과 조상은 빼고 본다', () => {
+    const host = document.createElement('div')
+    host.setAttribute('data-editor-modal', '')
+    const root = document.createElement('div')
+    root.setAttribute('aria-modal', 'true')
+    host.appendChild(root)
+    document.body.appendChild(host)
+    expect(isEditorModalOpen(document)).toBe(true)
+    expect(isEditorModalOpen(document, root)).toBe(false)
+    host.remove()
   })
 })

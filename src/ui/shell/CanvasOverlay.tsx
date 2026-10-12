@@ -1,6 +1,7 @@
 // 캔버스 위 컨트롤(화면에만 있고 PNG에는 넣지 않음, 스펙 §4.1·§4.3·§4.6·§4.7-10).
 // 모드 안내 칩(모바일은 3초 뒤 접힘), 축척 막대, PC 확대·축소·맞춤 버튼, 물건 0개 안내 카드, 토스트(「빈 공간이 부족해요」 등),
-// 텐트 바꾸기 대화상자·만들기 오버레이 자리(SwapTentDialog, body로 포털). 스냅 상태 칩은 Plan 5.
+// 텐트 바꾸기 대화상자·만들기 오버레이 자리(SwapTentDialog, body로 포털), PC 그리기 막대(Plan 4.1). 스냅 상태 칩은 Plan 5.
+// 축척 막대·확대 버튼·토스트는 만들기 화면도 씁니다(export).
 // 안내 카드의 [텐트 바꾸기]는 물건 0개·배치 모드·측정 아님에서만 보입니다(§4.7-8 예외, §4.7-10).
 // 아래쪽 컨트롤은 시트 높이(insets.bottom)만큼 올려서 시트에 가리지 않게 합니다.
 // 휴대폰 안내 카드는 가운데가 아니라 아래쪽(겹치면 위쪽)에 붙여 텐트를 가리지 않게 합니다(emptyCardPlacement).
@@ -10,6 +11,7 @@ import { fitToLayout, zoomByStep, ZOOM_STEP } from '../../app/viewActions'
 import type { Mode } from '../../store/ui'
 import { ZOOM_MAX, ZOOM_MIN } from '../../view/viewport'
 import { ToastView } from '../common/Toast'
+import { DrawTools } from '../tent/DrawTools'
 import { openSwapTent, SwapTentDialog } from '../tent/SwapTentDialog'
 import { emptyCardPlacement, tentScreenBox } from './emptyCardPlacement'
 import { FitIcon, MinusIcon, PlusIcon, PlusSquareIcon, PointerIcon } from './icons'
@@ -62,7 +64,7 @@ function ModeChip(p: { text: string; collapsible: boolean }) {
   )
 }
 
-function ScaleBarView(p: { zoom: number }) {
+export function ScaleBarView(p: { zoom: number }) {
   const bar = scaleBar(p.zoom)
   return (
     <div className="shell-scalebar" data-testid="scale-bar" style={{ width: bar.widthPx }}>
@@ -81,7 +83,7 @@ function ScaleBarView(p: { zoom: number }) {
   )
 }
 
-function ZoomControls(p: { zoom: number }) {
+export function ZoomControls(p: { zoom: number }) {
   const stores = useStores()
   return (
     <div className="shell-zoom" role="group" aria-label="확대·축소">
@@ -165,7 +167,7 @@ function EmptyCard(p: { variant: Variant }) {
 }
 
 /** ui.toast를 그립니다. 2500ms 뒤 ToastView가 dismissToast(id)를 부릅니다(그사이 새 토스트면 그 id는 무시). */
-function ToastHost() {
+export function ToastHost() {
   const stores = useStores()
   const toast = useUi((s) => s.toast)
   const onDismiss = useCallback((id: number) => stores.ui.getState().dismissToast(id), [stores])
@@ -180,6 +182,7 @@ export function CanvasOverlay(p: { variant: Variant }) {
   const insetBottom = useUi((s) => s.insets.bottom)
   const sheet = useUi((s) => s.mobileSheet)
   const itemCount = useDoc((s) => s.layout.items.length)
+  const drawing = useUi((s) => s.drawing !== null)
 
   const showEmpty =
     itemCount === 0 && mode === 'place' && !measuring && (p.variant === 'desktop' || sheet === 'none')
@@ -190,6 +193,8 @@ export function CanvasOverlay(p: { variant: Variant }) {
       <ModeChip key={mode} text={MODE_CHIP_TEXT[mode]} collapsible={p.variant === 'mobile'} />
       <ScaleBarView zoom={zoom} />
       {p.variant === 'desktop' && <ZoomControls zoom={zoom} />}
+      {/* 그리는 중 PC 그리기 막대(휴대폰은 툴바가 같은 버튼, Plan 4.1) */}
+      {p.variant === 'desktop' && drawing && <DrawTools variant="bar" />}
       {showEmpty && <EmptyCard variant={p.variant} />}
       <div className="shell-toast">
         <ToastHost />

@@ -266,3 +266,32 @@ describe('emptyCardPlacement(순수)', () => {
     expect(box).toEqual({ left: -300, top: -250, right: 500, bottom: 350 })
   })
 })
+
+describe('CanvasOverlay — 그리기 막대(Plan 4.1 §3)', () => {
+  it('PC는 그리는 중 캔버스 위에 안내와 [점 되돌리기]·[그리기 완료]·[그리기 취소]', () => {
+    const stores = renderOverlay('desktop')
+    expect(screen.queryByRole('toolbar', { name: '그리기' })).toBeNull()
+    act(() => {
+      stores.ui.getState().setMode('tent')
+      stores.ui.getState().startDrawing('newInner')
+    })
+    const bar = screen.getByRole('toolbar', { name: '그리기' })
+    expect(within(bar).getByText('점을 찍어 그리세요 · 첫 점을 누르면 닫혀요')).toBeTruthy()
+    expect(within(bar).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+      '점 되돌리기',
+      '그리기 완료',
+      '그리기 취소',
+    ])
+    fireEvent.click(within(bar).getByRole('button', { name: '그리기 취소' }))
+    expect(stores.ui.getState().drawing).toBeNull()
+  })
+
+  it('휴대폰은 막대 대신 툴바가 같은 버튼을 가진다(여기에는 막대 없음)', () => {
+    const stores = renderOverlay('mobile')
+    act(() => {
+      stores.ui.getState().setMode('tent')
+      stores.ui.getState().startDrawing('newInner')
+    })
+    expect(screen.queryByRole('toolbar', { name: '그리기' })).toBeNull()
+  })
+})

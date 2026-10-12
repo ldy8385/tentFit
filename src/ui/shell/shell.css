@@ -334,6 +334,16 @@
   cursor: pointer;
 }
 
+/* 툴바 안 메뉴 버튼(Plan 4.1 [+이너 ▾])도 다른 도구와 같은 폭 */
+.shell-toolbar > .shell-menu {
+  flex: 1 1 0;
+  display: flex;
+}
+
+.shell-toolbar > .shell-menu > .shell-tool {
+  flex: 1 1 0;
+}
+
 .shell-tool[aria-pressed='true'],
 .shell-tool[aria-expanded='true'] {
   color: var(--accent);

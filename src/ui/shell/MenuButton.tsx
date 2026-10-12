@@ -18,6 +18,8 @@ export function MenuButton(p: {
   icon?: ReactNode
   /** true면 버튼에 글자를 보이고, false면 아이콘만(이름은 aria-label) */
   showLabel?: boolean
+  /** 보이는 글자를 이름과 다르게(휴대폰 툴바 「이너」 — 이름은 label, aria-label) */
+  text?: string
   align?: 'left' | 'right'
   /** 목록을 버튼 아래(기본) 또는 위로 엽니다(화면 아래 툴바는 'up') */
   placement?: 'down' | 'up'
@@ -59,14 +61,14 @@ export function MenuButton(p: {
         type="button"
         className={p.buttonClassName ?? (p.showLabel === true ? 'shell-btn' : 'shell-icon-btn')}
         disabled={p.disabled}
-        aria-label={p.showLabel === true ? undefined : p.label}
+        aria-label={p.showLabel === true && p.text === undefined ? undefined : p.label}
         aria-haspopup="menu"
         aria-expanded={shown}
         aria-controls={shown ? menuId : undefined}
         onClick={() => setOpen((o) => !o)}
       >
         {p.icon}
-        {p.showLabel === true && <span>{p.label}</span>}
+        {p.text !== undefined ? <span>{p.text}</span> : p.showLabel === true && <span>{p.label}</span>}
       </button>
       {shown && (
         <div
