@@ -2,6 +2,9 @@
 // - 물건 끌기·핸들 변형은 Konva(draggable·Transformer)가 하고, 손을 뗄 때 doc.commit 한 번으로 반영합니다.
 // - 빈 곳 끌기·두 손가락·탭은 GestureArbiter가 판정합니다. 포인터 이벤트는 캔버스 컨테이너의 캡처 단계에서
 //   Konva보다 먼저 받습니다(Konva 스파이크에서 실기기로 검증한 연결 방식).
+// - 텐트 편집 모드(§4.4)는 Konva 끌기를 쓰지 않습니다. 누름 대상은 tentGesture.classifyTentPress(순수 판정, R10·R19),
+//   이너·꼭짓점 끌기는 컨트롤러가 포인터 이동으로 직접 계산해 미리보기(화면 상태)만 그리고, 손을 뗄 때
+//   tentActions로 한 번 커밋합니다. 잘못된 결과·두 번째 손가락·취소는 커밋 0(§4.4-8·§4.5).
 import Konva from 'konva'
 import type { Box } from 'konva/lib/shapes/Transformer'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
@@ -10,17 +13,33 @@ import { useStore } from 'zustand'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStats, useZones } from '../../app/derived'
 import { useDoc, useStores, useUi, type Stores } from '../../app/stores'
+import { commitInnerMove, insertTargetVertex, setTargetVertex, tentControlsEnabled } from '../../app/tentActions'
 import { LIMITS, normAngle, round1, type Item, type Pt, type Shape } from '../../core/model'
 import { expandSelection } from '../../core/ops/groups'
 import { applyTransform, moveItems } from '../../core/ops/items'
 import { toPointerKind, type PointerKind } from '../../store/ui'
 import { blurActiveInput } from '../../ui/fields/blurActive'
 import { THEME } from '../../ui/theme'
-import { GestureArbiter, TAP_SLOP, type GestureOutput } from '../gestures'
+import { GestureArbiter, TAP_SLOP, type GestureOutput, type PointerSample } from '../gestures'
 import { buildScene } from '../scene'
+import { INVALID_EDIT_STYLE } from '../tentEdit'
 import { layoutBBox, screenToWorld, wheelAction, type View } from '../viewport'
 import { itemsInRect, rectFromCorners } from './marquee'
 import { GridShape, ItemShape, TentContent, WarningMarks } from './nodes'
+import {
+  classifyTentPress,
+  pressGrabs,
+  pressSelection,
+  tentDragFor,
+  tentDragStarted,
+  tentDragStep,
+  tentTapEffect,
+  type TentDrag,
+  type TentPressHit,
+  type TentPreview,
+  type TentSelection,
+} from './tentGesture'
+import { TentLayer } from './TentLayer'
 import { transformerConfig } from './transformerConfig'
 
 /** 이보다 작게 움직였으면(cm, 저장 단위 0.1cm의 절반) 끌기를 커밋하지 않습니다. */
@@ -31,10 +50,24 @@ const BADGE_GAP_PX = 10
 /** transformend의 skew 검사 허용치(부동소수 잡음) */
 const SKEW_EPS = 1e-6
 const EMPTY_IDS: ReadonlySet<string> = new Set()
+/** 화면에는 안 보이고 보조 기술·화면 테스트만 읽는 글자(캔버스 라벨 「놓으면 취소돼요」의 DOM 사본) */
+const VISUALLY_HIDDEN = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+} as const
 
 type Overlay = {
   marquee: { left: number; top: number; width: number; height: number } | null
   badge: { text: string; x: number; y: number } | null
+  /** 텐트 끌기 미리보기(문서 밖 화면 상태, §8). 손을 떼거나 되돌리면 null */
+  tentPreview: TentPreview | null
 }
 
 type Session = { kind: 'drag'; leadId: string; ids: string[] } | { kind: 'transform'; ids: string[] }
@@ -108,6 +141,15 @@ class BoardController {
   private pressPrevSelection: string[] | null = null
   private pressId: string | null = null
   private marqueeAdd = false
+  /** 이번 누름이 텐트 편집 모드에서 시작됐음(탭을 텐트 규칙으로 처리) */
+  private pressInTent = false
+  /** 텐트 모드 누름 대상. 탭으로 끝나면 tentTapEffect로 처리합니다. */
+  private tentHit: TentPressHit | null = null
+  /** 이번 누름이 텐트 대상·꼭짓점을 바꾸기 직전 값. 핀치·취소로 누름이 무효가 되면 되돌립니다(Review Focus 1). */
+  private tentPrev: TentSelection | null = null
+  /** 텐트 끌기 후보(꼭짓점·이너 누름). tentDragLive면 실제로 끄는 중(미리보기를 그림, 제스처 열림) */
+  private tentDrag: TentDrag | null = null
+  private tentDragLive = false
   /** 마지막 자동 맞춤 보기. 사용자가 보기를 바꾸지 않았으면 크기가 바뀔 때 다시 맞춥니다. */
   private autoFit: View | null = null
 
@@ -158,7 +200,20 @@ class BoardController {
     const ui = this.stores.ui.getState()
     ui.setPointer(kind)
     const p = this.local(e)
+    const sample: PointerSample = {
+      id: e.pointerId,
+      pointer: kind,
+      x: p[0],
+      y: p[1],
+      button: e.button,
+      shift: e.shiftKey,
+      space: this.space,
+      isPrimary: e.isPrimary,
+    }
+    // 앞 제스처의 떼기를 놓쳤으면(보류 Minor #8) 남은 끌기·범위 선택을 되돌리고 새 첫 포인터로 다룹니다.
+    if (this.arbiter.pointerCount > 0 && this.arbiter.startsNew(sample)) this.recoverStale()
     const panOverride = this.space || e.button === 1
+    const tentMode = ui.mode === 'tent'
     let onNode = false
     if (this.arbiter.pointerCount === 0) {
       // 누르는 동안 시트가 열려도 화면을 옮기지 않게 알립니다(옮기면 그 이동량이 끌기에 섞임).
@@ -167,21 +222,26 @@ class BoardController {
       this.pressPrevSelection = null
       this.pressId = null
       this.marqueeAdd = e.shiftKey
-      const hit = panOverride ? null : this.hitAt(p)
-      if (hit?.kind === 'anchor') onNode = true
-      if (hit?.kind === 'item') {
-        onNode = true
-        this.pressItem(hit.id, e.shiftKey, kind)
+      this.pressInTent = tentMode
+      this.tentHit = null
+      this.tentPrev = null
+      this.tentDrag = null
+      this.tentDragLive = false
+      if (tentMode) {
+        if (!panOverride) onNode = this.pressTent(p, kind, e.pointerId)
+      } else {
+        const hit = panOverride ? null : this.hitAt(p)
+        if (hit?.kind === 'anchor') onNode = true
+        if (hit?.kind === 'item') {
+          onNode = true
+          this.pressItem(hit.id, e.shiftKey, kind)
+        }
       }
       // 스페이스·가운데 버튼 끌기는 물건 위에서도 화면 이동입니다. Konva가 물건을 끌지 못하게 잠급니다.
       if (panOverride) this.lock()
     }
-    this.handle(
-      this.arbiter.down(
-        { id: e.pointerId, pointer: kind, x: p[0], y: p[1], button: e.button, shift: e.shiftKey, space: this.space },
-        onNode,
-      ),
-    )
+    // 텐트 모드의 바닥·외곽선 끌기는 포인터 종류와 상관없이 화면 이동입니다(R10, 마우스도 범위 선택 아님).
+    this.handle(this.arbiter.down(sample, onNode, this.pressInTent ? 'pan' : 'marquee'))
     if (this.arbiter.pointerCount >= 2) this.lock()
     // 판정하지 않는 버튼(펜 지우개 등)은 누름으로 치지 않습니다(떼기 처리가 오지 않음).
     if (this.arbiter.pointerCount === 0) ui.setCanvasPressed(false)
@@ -190,30 +250,65 @@ class BoardController {
   readonly onPointerMove = (e: PointerEvent): void => {
     if (this.arbiter.pointerCount === 0) return
     const p = this.local(e)
-    this.handle(this.arbiter.move({ id: e.pointerId, pointer: toPointerKind(e.pointerType), x: p[0], y: p[1] }))
+    const before = this.arbiter.pointerCount
+    const outs = this.arbiter.move({
+      id: e.pointerId,
+      pointer: toPointerKind(e.pointerType),
+      x: p[0],
+      y: p[1],
+      buttons: e.buttons,
+    })
+    // 마우스·펜이 버튼을 뗀 채 움직임 = 떼기를 놓쳤음. 판정기가 떼기로 처리했으므로 여기서도 떼기로 마무리합니다.
+    if (this.arbiter.pointerCount < before) {
+      this.release(e.pointerId, p, outs)
+      return
+    }
+    this.handle(outs)
+    this.dragTent(e.pointerId, p)
   }
 
   readonly onPointerUp = (e: PointerEvent): void => {
     if (this.arbiter.pointerCount === 0) return
     const p = this.local(e)
-    this.handle(
+    this.release(
+      e.pointerId,
+      p,
       this.arbiter.up({ id: e.pointerId, pointer: toPointerKind(e.pointerType), x: p[0], y: p[1], shift: e.shiftKey }),
     )
-    if (this.arbiter.pointerCount === 0) this.afterAllUp()
+  }
+
+  /** 포인터 하나를 뗌: 텐트 끌기를 먼저 끝내고(커밋 또는 되돌림) 판정기 출력(탭 등)을 적용합니다. */
+  private release(pointerId: number, p: Pt, outs: GestureOutput[]): void {
+    this.endTentDrag(pointerId, p)
+    this.handle(outs)
+    if (this.arbiter.pointerCount === 0) {
+      this.tentHit = null
+      this.tentPrev = null
+      this.afterAllUp()
+    }
   }
 
   /** pointercancel·touchcancel·visibilitychange(hidden): 시작 상태로 되돌리고 커밋하지 않습니다(§4.5). */
   readonly cancelAll = (): void => {
     this.handle(this.arbiter.cancel())
-    if (this.session || this.isKonvaBusy()) this.cancelNodeGesture()
+    if (this.session || this.isKonvaBusy() || this.tentDrag !== null) this.cancelNodeGesture()
     this.overlay.setState({ marquee: null })
     this.afterAllUp()
+  }
+
+  /** 떼기를 놓친 앞 제스처의 흔적(끌던 노드·텐트 미리보기·범위 선택 사각형·잠금)을 지웁니다. 새 누름 직전에 부릅니다. */
+  private recoverStale(): void {
+    this.handle(this.arbiter.cancel())
+    if (this.session || this.isKonvaBusy() || this.tentDrag !== null) this.cancelNodeGesture()
+    this.overlay.setState({ marquee: null })
+    this.suppress = false
+    this.unlock()
   }
 
   /** touchstart가 두 번째 pointerdown보다 먼저 오는 브라우저 대비(스파이크의 multiTouchHint와 같은 역할). */
   readonly onTouchStart = (e: TouchEvent): void => {
     if (e.touches.length < 2) return
-    if (this.session || this.isKonvaBusy()) this.cancelNodeGesture()
+    if (this.session || this.isKonvaBusy() || this.tentDrag !== null) this.cancelNodeGesture()
     this.lock()
   }
 
@@ -277,7 +372,8 @@ class BoardController {
           ui.zoomAt(o.factor, [o.cx, o.cy])
           break
         case 'tap':
-          this.onTap(o.onNode, o.shift)
+          if (this.pressInTent) this.onTentTap()
+          else this.onTap(o.onNode, o.shift)
           break
         case 'marquee':
           this.onMarquee(o)
@@ -336,6 +432,89 @@ class BoardController {
     if (this.pressAdded) return
     const drop = new Set(expanded)
     this.select(ui.selection.filter((x) => !drop.has(x)))
+  }
+
+  // ── 텐트 편집(§4.4) ────────────────────────────────────────────────────
+
+  /**
+   * 텐트 모드 첫 포인터: 대상을 판정하고(R10), 꼭짓점·선택 안 된 이너는 누르는 순간 선택합니다(바로 끌 수 있게).
+   * 바꾸기 직전 선택은 tentPrev에 두어 핀치·취소 때 되돌립니다. 노드처럼 잡는 누름이면 true(화면 이동 아님).
+   */
+  private pressTent(p: Pt, kind: PointerKind, pointerId: number): boolean {
+    const ui = this.stores.ui.getState()
+    // 측정 중 등 텐트 컨트롤이 잠기면 누름은 빈 곳(화면 이동)이고 탭도 아무것도 하지 않습니다.
+    if (!tentControlsEnabled(ui)) return false
+    const layout = this.stores.doc.getState().layout
+    const hit = classifyTentPress(layout, ui.tentTarget, ui.view, p, kind)
+    this.tentHit = hit
+    const cur: TentSelection = { target: ui.tentTarget, vertexIndex: ui.vertexIndex }
+    const next = pressSelection(hit, cur)
+    if (next !== null) {
+      this.tentPrev = cur
+      ui.selectTentTarget(next.target, next.vertexIndex)
+    }
+    this.tentDrag = tentDragFor(hit, pointerId, kind, p, ui.view)
+    this.tentDragLive = false
+    return pressGrabs(hit)
+  }
+
+  /** 탭으로 끝난 텐트 누름: + = 꼭짓점 추가, 이너·외곽 = 대상 선택, 바깥 = 대상 해제(§4.4-2·§4.4-7). */
+  private onTentTap(): void {
+    const hit = this.tentHit
+    this.tentHit = null
+    this.tentPrev = null
+    if (hit === null) return
+    const ui = this.stores.ui.getState()
+    if (!tentControlsEnabled(ui)) return
+    const effect = tentTapEffect(hit)
+    if (effect.kind === 'select') ui.selectTentTarget(effect.target, effect.vertexIndex)
+    else if (effect.kind === 'insert') insertTargetVertex(this.stores, effect.target, effect.edgeIndex)
+  }
+
+  /** 끄는 중: 경계를 넘으면 제스처를 열고, 매 이동마다 미리보기를 그립니다(문서는 그대로). */
+  private dragTent(pointerId: number, p: Pt): void {
+    const drag = this.tentDrag
+    if (drag === null || drag.pointerId !== pointerId || this.arbiter.pointerCount !== 1) return
+    if (!this.tentDragLive) {
+      // 잠금(두 손가락·스페이스) 동안에는 새 텐트 끌기를 시작하지 않습니다.
+      if (this.locked || this.suppress || !tentDragStarted(drag, p)) return
+      this.tentDragLive = true
+      this.openGesture()
+    }
+    const ui = this.stores.ui.getState()
+    const { preview } = tentDragStep(this.stores.doc.getState().layout, drag, p, ui.view)
+    this.overlay.setState({ tentPreview: preview })
+  }
+
+  /**
+   * 손을 뗌: 끄던 중이면 마지막 점으로 다시 계산해 정상일 때만 한 번 커밋합니다(제스처 1번 = 커밋 1번, §8).
+   * 잘못된 결과·너무 작은 이동은 커밋하지 않고 미리보기만 지웁니다(기록 0, §4.4-8).
+   */
+  private endTentDrag(pointerId: number, p: Pt): void {
+    const drag = this.tentDrag
+    if (drag === null || drag.pointerId !== pointerId) return
+    const live = this.tentDragLive
+    this.tentDrag = null
+    this.tentDragLive = false
+    if (!live) return
+    const { commit } = tentDragStep(this.stores.doc.getState().layout, drag, p, this.stores.ui.getState().view)
+    this.overlay.setState({ tentPreview: null })
+    this.closeGesture()
+    this.tentPrev = null
+    if (commit === null) return
+    if (commit.kind === 'vertex') setTargetVertex(this.stores, commit.target, commit.index, commit.world)
+    else commitInnerMove(this.stores, commit.innerId, commit.dx, commit.dy)
+  }
+
+  /** 두 번째 손가락·취소: 텐트 끌기를 멈추고 미리보기를 지우며, 누르는 순간 바꾼 대상·꼭짓점을 되돌립니다. */
+  private cancelTentPress(): void {
+    this.tentDrag = null
+    this.tentDragLive = false
+    this.tentHit = null
+    this.overlay.setState({ tentPreview: null })
+    const prev = this.tentPrev
+    this.tentPrev = null
+    if (prev !== null) this.stores.ui.getState().selectTentTarget(prev.target, prev.vertexIndex)
   }
 
   private onMarquee(o: { x0: number; y0: number; x1: number; y1: number; done: boolean }): void {
@@ -403,18 +582,27 @@ class BoardController {
     }
   }
 
-  private beginSession(s: Session): void {
-    this.session = s
+  /** 끌기·변형 동안 실행 취소·다시 실행을 막습니다(doc.beginGesture). */
+  private openGesture(): void {
+    if (this.gestureOpen) return
     this.stores.doc.getState().beginGesture()
     this.gestureOpen = true
+  }
+
+  private closeGesture(): void {
+    if (!this.gestureOpen) return
+    this.stores.doc.getState().endGesture()
+    this.gestureOpen = false
+  }
+
+  private beginSession(s: Session): void {
+    this.session = s
+    this.openGesture()
     this.setActive(new Set(s.ids))
   }
 
   private endSession(): void {
-    if (this.gestureOpen) {
-      this.stores.doc.getState().endGesture()
-      this.gestureOpen = false
-    }
+    this.closeGesture()
     this.session = null
     this.setActive(EMPTY_IDS)
     this.overlay.setState({ badge: null })
@@ -430,6 +618,8 @@ class BoardController {
     if (tr?.isDragging()) tr.stopDrag()
     this.restoreNodes(this.nodes.keys())
     tr?.forceUpdate()
+    // 텐트 끌기(꼭짓점·이너)도 시작 위치로: 미리보기를 지우고 커밋하지 않으며, 누를 때 바꾼 대상을 되돌립니다.
+    this.cancelTentPress()
     this.endSession()
     // 누르는 순간 바꾼 선택도 되돌립니다(물건 위에서 시작한 핀치가 선택을 바꾸지 않게).
     if (this.pressAdded && this.pressPrevSelection !== null) {
@@ -561,11 +751,26 @@ class BoardController {
   }
 }
 
+/** 텐트 편집 레이어 연결: 끄는 중 미리보기는 Board 화면 상태(overlay)에서, 대상·꼭짓점은 화면 스토어에서 읽습니다. */
+function TentEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | null {
+  const layout = useDoc((s) => s.layout)
+  const target = useUi((s) => s.tentTarget)
+  const vertexIndex = useUi((s) => s.vertexIndex)
+  const view = useUi((s) => s.view)
+  const preview = useStore(props.overlay, (s) => s.tentPreview)
+  return <TentLayer layout={layout} target={target} vertexIndex={vertexIndex} view={view} preview={preview} />
+}
+
 function BoardOverlay(props: { store: StoreApi<Overlay> }): JSX.Element {
   const marquee = useStore(props.store, (s) => s.marquee)
   const badge = useStore(props.store, (s) => s.badge)
+  const tentInvalid = useStore(props.store, (s) => s.tentPreview?.invalid ?? false)
   return (
     <>
+      {/* 잘못된 텐트 끌기 안내(§4.4-8)는 캔버스에 그리고, 같은 문구를 여기서 낭독·화면 테스트용으로 냅니다. */}
+      <div data-testid="tent-edit-status" role="status" style={VISUALLY_HIDDEN}>
+        {tentInvalid ? INVALID_EDIT_STYLE.label : ''}
+      </div>
       {marquee && (
         <div
           data-testid="marquee"
@@ -621,7 +826,9 @@ export function Board(): JSX.Element {
   const stageRef = useRef<Konva.Stage>(null)
   const trRef = useRef<Konva.Transformer>(null)
   const [activeIds, setActiveIds] = useState<ReadonlySet<string>>(EMPTY_IDS)
-  const [overlay] = useState(() => createStore<Overlay>()(() => ({ marquee: null, badge: null })))
+  const [overlay] = useState(() =>
+    createStore<Overlay>()(() => ({ marquee: null, badge: null, tentPreview: null })),
+  )
   const ctl = useMemo(() => new BoardController(stores, overlay, setActiveIds), [stores, overlay])
 
   const scene = useMemo(
@@ -694,12 +901,18 @@ export function Board(): JSX.Element {
     if (!el) return
     // 가운데 버튼은 화면 이동입니다. Konva 기본값([0, 1])이면 가운데 버튼이 물건·핸들을 끕니다.
     Konva.dragButtons = [0]
+    // 터치를 뗄 때 브라우저가 이어 보내는 호환 마우스 이벤트·click(고스트 클릭)을 막습니다. 캔버스 입력은 포인터 이벤트만 씁니다.
+    // 누르는 순간 연 텐트 시트가 손가락 아래로 오면 그 click이 시트의 펼치기·버튼을 누르기 때문입니다.
+    const stopCompatClick = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault()
+    }
     const enter = () => ctl.onHover(true)
     const leave = () => ctl.onHover(false)
     el.addEventListener('pointerdown', ctl.onPointerDown, true)
     el.addEventListener('pointerenter', enter)
     el.addEventListener('pointerleave', leave)
     el.addEventListener('touchstart', ctl.onTouchStart, { capture: true, passive: true })
+    el.addEventListener('touchend', stopCompatClick, { capture: true, passive: false })
     el.addEventListener('wheel', ctl.onWheel, { passive: false })
     window.addEventListener('pointermove', ctl.onPointerMove, true)
     window.addEventListener('pointerup', ctl.onPointerUp, true)
@@ -714,6 +927,7 @@ export function Board(): JSX.Element {
       el.removeEventListener('pointerenter', enter)
       el.removeEventListener('pointerleave', leave)
       el.removeEventListener('touchstart', ctl.onTouchStart, true)
+      el.removeEventListener('touchend', stopCompatClick, true)
       el.removeEventListener('wheel', ctl.onWheel)
       window.removeEventListener('pointermove', ctl.onPointerMove, true)
       window.removeEventListener('pointerup', ctl.onPointerUp, true)
@@ -754,7 +968,8 @@ export function Board(): JSX.Element {
             <GridShape key={g.level} level={g.level} lines={g.lines} />
           ))}
         </Layer>
-        <Layer listening={mode === 'tent'}>
+        {/* 텐트 입력은 Konva 히트가 아니라 컨트롤러의 순수 판정으로 받습니다(외곽은 채움이 없음, R19). */}
+        <Layer listening={false}>
           <TentContent scene={scene} zoom={zoom} />
         </Layer>
         <Layer>
@@ -773,6 +988,8 @@ export function Board(): JSX.Element {
         </Layer>
         <Layer listening={false}>
           <WarningMarks items={scene.items} inners={scene.inners} zoom={zoom} hidden={activeIds} />
+          {/* 텐트 편집 핸들·선택 테두리·끌기 미리보기(경고 표시 위). 입력은 받지 않습니다. */}
+          {mode === 'tent' && <TentEditLayer overlay={overlay} />}
         </Layer>
         <Layer>
           <Transformer
