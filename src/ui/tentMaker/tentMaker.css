@@ -1,0 +1,308 @@
+/* 텐트 만들기 화면(시안 02 Desktop·Mobile, 스펙 §4.4-1). 색·간격·반경은 tokens.css 변수만 씁니다.
+   누름 영역 44px, 입력칸 글자 16px(Plan 4 Global Constraints). PC = 왼쪽 설정 400px + 오른쪽 미리보기,
+   휴대폰 = 위 미리보기(높이는 컴포넌트가 정함) + 아래 폼(스크롤). 확정 버튼은 상단 바에 있어 화면 크기 4종 모두에서 보입니다. */
+.tf-maker {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.tf-maker__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 14px 0 6px;
+  padding-top: env(safe-area-inset-top);
+  border-bottom: 1px solid var(--border);
+}
+
+.tf-maker__back {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.tf-maker__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tf-maker__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tf-maker__cancel {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tf-maker__confirm {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--text-inverse);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tf-maker__confirm:disabled {
+  background: var(--bg-sunken);
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.tf-maker__back:focus-visible,
+.tf-maker__cancel:focus-visible,
+.tf-maker__confirm:focus-visible,
+.tf-maker__kind:focus-visible,
+.tf-maker__trash:focus-visible,
+.tf-maker__add-inner:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 확정 비활성 사유. 비어 있으면 자리를 차지하지 않습니다(role=status는 남겨 바뀔 때 읽힘). */
+.tf-maker__reason {
+  flex: none;
+  margin: 0;
+  padding: 6px 16px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  text-align: right;
+}
+
+.tf-maker__reason[data-empty='true'] {
+  padding: 0;
+}
+
+.tf-maker__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tf-maker__preview {
+  flex: none;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--canvas-bg);
+  transition: height 120ms ease-out;
+}
+
+.tf-maker__form {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-height: 0;
+  padding: 14px 16px calc(24px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tf-maker[data-layout='desktop'] .tf-maker__body {
+  display: grid;
+  grid-template-columns: 400px minmax(0, 1fr);
+  grid-template-areas: 'form preview';
+}
+
+.tf-maker[data-layout='desktop'] .tf-maker__form {
+  grid-area: form;
+  padding: 20px;
+  border-right: 1px solid var(--border);
+}
+
+.tf-maker[data-layout='desktop'] .tf-maker__preview {
+  grid-area: preview;
+  height: auto;
+  border-bottom: 0;
+}
+
+.tf-maker__group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tf-maker__label {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+
+.tf-maker__kinds {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tf-maker__kind {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 62px;
+  padding: 4px 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tf-maker__kind[aria-pressed='true'] {
+  border: 1.5px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.tf-maker__grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.tf-maker__hint {
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+
+.tf-maker__area {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 11px;
+  border-radius: var(--r-sm);
+  background: var(--bg-app);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.tf-maker__inners-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.tf-maker__count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.tf-maker__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--info);
+  border-radius: var(--r-sm);
+  background: var(--bg-app);
+}
+
+.tf-maker__inner[data-escaped='true'] {
+  border-color: var(--danger);
+}
+
+.tf-maker__inner-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 이너 색 견본은 채운 색 점(빈 사각형은 체크박스로 오인, 검토 L192) */
+.tf-maker__dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-full);
+  background: var(--inner-stroke);
+}
+
+.tf-maker__inner-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.tf-maker__trash {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px -10px 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.tf-maker__warn {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--danger);
+}
+
+.tf-maker__add-inner {
+  min-height: 44px;
+  border: 1px solid var(--info);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--info);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
