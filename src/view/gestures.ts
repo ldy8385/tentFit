@@ -13,6 +13,10 @@
 //   물건 탭과 Konva 끌기가 겹치거나 둘 다 빠지는 일이 없습니다.
 // - pointercancel·touchcancel·visibilitychange(hidden)에는 cancel()을 부릅니다.
 // - 범위 선택이 취소되면 크기 0인 done 사각형(x1 = x0, y1 = y0)을 냅니다. 완전히 포함되는 물건이 없습니다.
+// - 떼기를 놓친 뒤의 회복(보류 Minor #8): pointerdown마다 startsNew(sample)를 먼저 묻고, 남은 포인터가 있는데
+//   true면 cancel()의 출력(되돌리기·크기 0 범위 선택)을 적용한 뒤 새 첫 포인터로 다루세요. 마우스·펜 move의
+//   buttons가 0이면 이 모듈이 그 포인터의 떼기로 처리합니다(출력은 up과 같음, pointerCount가 줄어듦).
+// - 텐트 편집 모드는 down의 emptyAction에 'pan'을 넘깁니다(빈 곳·바닥 끌기 = 포인터 종류와 상관없이 화면 이동, R10).
 import type { PointerKind } from '../store/ui'
 
 /** 탭과 끌기의 경계(화면 px, §4.5). 가로·세로 중 큰 이동이 이 값 미만으로 끝나면 탭입니다. */
@@ -26,7 +30,14 @@ export type PointerSample = {
   button?: number
   shift?: boolean
   space?: boolean
+  /** PointerEvent.isPrimary. 같은 종류의 새 주 포인터는 앞 제스처의 떼기를 놓쳤다는 뜻입니다. */
+  isPrimary?: boolean
+  /** PointerEvent.buttons. 마우스·펜 move에서 0이면 떼기를 놓친 것이라 떼기로 처리합니다. */
+  buttons?: number
 }
+
+/** 첫 포인터가 빈 곳(노드 밖)을 끌 때 하는 일. 터치·스페이스는 언제나 화면 이동입니다. */
+export type EmptyAction = 'marquee' | 'pan'
 
 export type GestureOutput =
   | { type: 'tap'; x: number; y: number; pointer: PointerKind; shift: boolean; onNode: boolean }
@@ -87,9 +98,21 @@ export class GestureArbiter {
     return this.pointers.size
   }
 
-  down(s: PointerSample, onNode: boolean): GestureOutput[] {
-    // 같은 id가 또 눌렸으면 앞의 떼기를 놓친 것(창 밖에서 뗌 등). 남은 상태를 조용히 버리고 새로 시작합니다.
-    if (this.pointers.has(s.id)) this.reset()
+  /**
+   * 이 누름이 새 제스처의 첫 포인터인지. 추적 중인 포인터가 없거나, 같은 id가 또 눌렸거나(앞의 떼기를 놓침),
+   * 첫 포인터와 같은 종류의 새 주 포인터(isPrimary)면 true. 다른 종류(터치 중의 마우스 등)는 false(무시 규칙).
+   */
+  startsNew(s: PointerSample): boolean {
+    const f = this.first
+    if (f === null || this.pointers.size === 0) return true
+    if (this.pointers.has(s.id)) return true
+    return s.isPrimary === true && s.pointer === f.pointer
+  }
+
+  down(s: PointerSample, onNode: boolean, emptyAction: EmptyAction = 'marquee'): GestureOutput[] {
+    // 앞의 떼기를 놓쳤으면(창 밖에서 뗌 등) 남은 상태를 조용히 버리고 새로 시작합니다.
+    // 화면에 남은 것(범위 선택 사각형·끌던 노드)은 쓰는 쪽이 startsNew → cancel()로 먼저 정리합니다.
+    if (this.first !== null && this.startsNew(s)) this.reset()
 
     if (this.first === null) {
       const button = s.button ?? PRIMARY_BUTTON
@@ -99,7 +122,7 @@ export class GestureArbiter {
       let action: Action
       if (button === MIDDLE_BUTTON) action = 'pan' // 노드 위여도 화면 이동(Board가 Konva.dragButtons = [0]으로 둠)
       else if (onNode) action = 'node'
-      else if (s.pointer === 'touch' || space) action = 'pan'
+      else if (s.pointer === 'touch' || space || emptyAction === 'pan') action = 'pan'
       else action = 'marquee'
       this.first = {
         id: s.id,
@@ -135,6 +158,8 @@ export class GestureArbiter {
   move(s: PointerSample): GestureOutput[] {
     const prev = this.pointers.get(s.id)
     if (prev === undefined || this.first === null) return []
+    // 마우스·펜이 버튼을 하나도 누르지 않은 채 움직임 = 떼기를 놓쳤음. 그 자리에서 뗀 것으로 처리합니다.
+    if (s.buttons === 0 && s.pointer !== 'touch') return this.up(s)
     const cur: XY = { x: s.x, y: s.y }
 
     if (this.pointers.size >= 2) {

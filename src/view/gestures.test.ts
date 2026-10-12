@@ -324,3 +324,121 @@ describe('잡지 않은 포인터', () => {
     expect(g.pointerCount).toBe(0)
   })
 })
+
+describe('빈 곳 동작 인자(텐트 모드 R10)', () => {
+  it("emptyAction 'pan'이면 마우스 빈 곳 끌기도 화면 이동(범위 선택 없음)", () => {
+    const g = new GestureArbiter()
+    g.down(mouse(100, 100), false, 'pan')
+    expect(g.move(mouse(102, 100))).toEqual([])
+    expect(g.move(mouse(130, 90))).toEqual([{ type: 'pan', dx: 30, dy: -10 }])
+    expect(g.up(mouse(130, 90))).toEqual([])
+  })
+
+  it("emptyAction 'pan'에서도 제자리 클릭은 탭", () => {
+    const g = new GestureArbiter()
+    g.down(mouse(100, 100), false, 'pan')
+    expect(g.up(mouse(101, 100))).toEqual([{ type: 'tap', x: 101, y: 100, pointer: 'mouse', shift: false, onNode: false }])
+  })
+
+  it("펜도 'pan'이면 화면 이동", () => {
+    const g = new GestureArbiter()
+    g.down({ id: 4, pointer: 'pen', x: 0, y: 0, button: 0 }, false, 'pan')
+    expect(g.move({ id: 4, pointer: 'pen', x: 0, y: 5, button: 0 })).toEqual([{ type: 'pan', dx: 0, dy: 5 }])
+  })
+
+  it("노드 위 누름은 emptyAction과 상관없이 노드(출력 없음)", () => {
+    const g = new GestureArbiter()
+    g.down(mouse(100, 100), true, 'pan')
+    expect(g.move(mouse(160, 100))).toEqual([])
+    expect(g.up(mouse(160, 100))).toEqual([])
+  })
+
+  it('인자를 주지 않으면 지금 규칙(마우스 빈 곳 = 범위 선택)', () => {
+    const g = new GestureArbiter()
+    g.down(mouse(100, 100), false)
+    expect(g.move(mouse(150, 130))).toEqual([{ type: 'marquee', x0: 100, y0: 100, x1: 150, y1: 130, done: false }])
+  })
+})
+
+describe('놓친 pointerup 회복(보류 Minor #8)', () => {
+  it('startsNew: 비었거나, 같은 id거나, 같은 종류의 새 주 포인터면 새 제스처', () => {
+    const g = new GestureArbiter()
+    expect(g.startsNew(touch(1, 0, 0))).toBe(true)
+    g.down({ ...touch(1, 0, 0), isPrimary: true }, false)
+    expect(g.startsNew({ ...touch(2, 10, 10), isPrimary: false })).toBe(false) // 두 번째 손가락
+    expect(g.startsNew({ ...touch(1, 10, 10), isPrimary: true })).toBe(true) // 같은 id
+    expect(g.startsNew({ ...touch(7, 10, 10), isPrimary: true })).toBe(true) // 떼기를 놓친 뒤의 새 첫 손가락
+    expect(g.startsNew({ ...mouse(10, 10, { id: 50 }), isPrimary: true })).toBe(false) // 터치 중의 마우스는 무시 규칙
+  })
+
+  it('떼기를 놓친 손가락 뒤에 새 주 손가락이 오면 두 손가락으로 오인하지 않고 새로 시작한다', () => {
+    const g = new GestureArbiter()
+    g.down({ ...touch(1, 100, 100), isPrimary: true }, false)
+    g.move(touch(1, 150, 100))
+    // 떼기를 놓침. 새 첫 손가락(id 7)
+    expect(g.down({ ...touch(7, 300, 300), isPrimary: true }, false)).toEqual([])
+    expect(g.pointerCount).toBe(1)
+    expect(g.up(touch(7, 302, 300))).toEqual([
+      { type: 'tap', x: 302, y: 300, pointer: 'touch', shift: false, onNode: false },
+    ])
+  })
+
+  it('주 포인터가 아닌 손가락은 지금처럼 두 번째 손가락', () => {
+    const g = new GestureArbiter()
+    g.down({ ...touch(1, 100, 100), isPrimary: true }, true)
+    expect(g.down({ ...touch(2, 300, 100), isPrimary: false }, false)).toEqual([{ type: 'cancelNodeGesture' }])
+    expect(g.pointerCount).toBe(2)
+  })
+
+  it('Board 순서: startsNew면 cancel()로 남은 범위 선택을 크기 0으로 끝낸 뒤 새로 시작(사각형 잔류 없음)', () => {
+    const g = new GestureArbiter()
+    g.down({ id: 2, pointer: 'pen', x: 100, y: 100, button: 0, isPrimary: true }, false)
+    g.move({ id: 2, pointer: 'pen', x: 150, y: 130, button: 0 })
+    const next: PointerSample = { id: 3, pointer: 'pen', x: 10, y: 10, button: 0, isPrimary: true }
+    expect(g.pointerCount > 0 && g.startsNew(next)).toBe(true)
+    expect(g.cancel()).toEqual([{ type: 'marquee', x0: 100, y0: 100, x1: 100, y1: 100, done: true }])
+    expect(g.down(next, false)).toEqual([])
+    expect(g.up({ ...next, x: 11 })).toEqual([{ type: 'tap', x: 11, y: 10, pointer: 'pen', shift: false, onNode: false }])
+  })
+
+  it('마우스 move의 buttons가 0이면 떼기로 처리한다(범위 선택 끝)', () => {
+    const g = new GestureArbiter()
+    g.down(mouse(100, 100), false)
+    g.move(mouse(150, 130, { buttons: 1 }))
+    expect(g.move(mouse(160, 140, { buttons: 0 }))).toEqual([
+      { type: 'marquee', x0: 100, y0: 100, x1: 160, y1: 140, done: true },
+    ])
+    expect(g.pointerCount).toBe(0)
+    expect(g.move(mouse(170, 150, { buttons: 0 }))).toEqual([])
+  })
+
+  it('마우스 제자리 누름 뒤 buttons 0 move는 탭', () => {
+    const g = new GestureArbiter()
+    g.down(mouse(100, 100), false)
+    expect(g.move(mouse(101, 100, { buttons: 0 }))).toEqual([
+      { type: 'tap', x: 101, y: 100, pointer: 'mouse', shift: false, onNode: false },
+    ])
+  })
+
+  it('노드 끌기 중 buttons 0 move는 떼기(출력 없음, 포인터 0개)', () => {
+    const g = new GestureArbiter()
+    g.down(mouse(10, 10), true)
+    g.move(mouse(60, 10, { buttons: 1 }))
+    expect(g.move(mouse(70, 10, { buttons: 0 }))).toEqual([])
+    expect(g.pointerCount).toBe(0)
+  })
+
+  it('터치 move는 buttons가 0이어도 떼기로 보지 않는다', () => {
+    const g = new GestureArbiter()
+    g.down(touch(1, 100, 100), false)
+    expect(g.move({ ...touch(1, 120, 100), buttons: 0 })).toEqual([{ type: 'pan', dx: 20, dy: 0 }])
+    expect(g.pointerCount).toBe(1)
+  })
+
+  it('buttons를 주지 않은 move는 지금 규칙 그대로', () => {
+    const g = new GestureArbiter()
+    g.down(mouse(100, 100), false)
+    expect(g.move(mouse(150, 130))).toEqual([{ type: 'marquee', x0: 100, y0: 100, x1: 150, y1: 130, done: false }])
+    expect(g.pointerCount).toBe(1)
+  })
+})
