@@ -7,8 +7,10 @@ import { duplicateAndSelect } from '../panels/commands'
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
 import { createLayout, type Tent } from '../../core/model'
 import { addItem, makeItem } from '../../core/ops/items'
+import { SHEET_BOUNDS_ATTR } from '../sheets/BottomSheet'
 import { MobileShell, SUMMARY_CHIP_ZONE_PX } from './MobileShell'
 import { selectionBBox } from './revealSelection'
+import { tentTargetBBox } from '../../view/tentEdit'
 import { worldToScreen } from '../../view/viewport'
 
 vi.mock('../../view/canvas/Board', () => ({ Board: () => <div data-testid="mock-board" /> }))
@@ -26,11 +28,23 @@ vi.mock('../library/NewShapeForm', () => ({
     </button>
   ),
 }))
-vi.mock('../sheets/BottomSheet', () => ({
-  BottomSheet: (p: { title: string; onClose(): void; children: ReactNode; testId?: string }) => (
-    <section data-testid={p.testId}>
+vi.mock('../tent/TentEditor', () => ({
+  TentEditor: (p: { variant: string }) => <div data-testid="mock-tent-editor" data-variant={p.variant} />,
+}))
+// 시트 껍데기만 바꿉니다(SHEET_BOUNDS_ATTR 등 상수는 실제 값). ×의 이름은 closeLabel, 없으면 '시트 닫기'
+vi.mock('../sheets/BottomSheet', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../sheets/BottomSheet')>()),
+  BottomSheet: (p: {
+    title: string
+    onClose(): void
+    closeLabel?: string
+    onToggleExpand?(): void
+    children: ReactNode
+    testId?: string
+  }) => (
+    <section data-testid={p.testId} data-expandable={String(p.onToggleExpand !== undefined)}>
       <h2>{p.title}</h2>
-      <button type="button" aria-label="시트 닫기" onClick={p.onClose} />
+      <button type="button" aria-label={p.closeLabel ?? '시트 닫기'} onClick={p.onClose} />
       {p.children}
     </section>
   ),
@@ -63,6 +77,17 @@ const STOOL = { id: 'items/stool', name: '스툴', category: 'CHAIR', shape: { k
 
 const TENT: Tent = { name: '시험 텐트', outer: { kind: 'rect', w: 400, h: 300 }, inners: [] }
 
+/** 외곽 400×300, 이너 A 80×60 @(0,−100) → 화면 y 170~230, 이너 B 80×60 @(100,100) → 화면 y 370~430(보기 panY 300) */
+const TENT_INNERS: Tent = {
+  name: '이너 텐트',
+  outer: { kind: 'rect', w: 400, h: 300 },
+  outerTemplate: { kind: 'rect', w: 400, h: 300 },
+  inners: [
+    { id: 'A', name: '침실', shape: { kind: 'rect', w: 80, h: 60 }, x: 0, y: -100, rotation: 0 },
+    { id: 'B', name: '이너 2', shape: { kind: 'rect', w: 80, h: 60 }, x: 100, y: 100, rotation: 0 },
+  ],
+}
+
 beforeEach(() => {
   FakeResizeObserver.all = []
   vi.stubGlobal('ResizeObserver', FakeResizeObserver)
@@ -72,10 +97,10 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function renderShell(): { stores: Stores; ids: string[]; unmount(): void } {
+function renderShell(tent: Tent = TENT): { stores: Stores; ids: string[]; unmount(): void } {
   const a = makeItem({ name: '매트', shape: { kind: 'rect', w: 200, h: 60 }, color: 'blue', category: 'MAT', countsArea: true }, [0, 0])
   const b = makeItem({ name: '의자', shape: { kind: 'rect', w: 50, h: 50 }, color: 'teal', category: 'CHAIR', countsArea: true }, [150, 100])
-  const stores = createStores(createLayout(TENT, { name: '배치' }))
+  const stores = createStores(createLayout(tent, { name: '배치' }))
   stores.doc.getState().commit((d) => {
     addItem(d, a)
     addItem(d, b)
@@ -304,6 +329,115 @@ describe('MobileShell', () => {
     const { stores, ids } = renderShell()
     act(() => stores.doc.getState().beginGesture())
     act(() => stores.ui.getState().setSelection([ids[1]!]))
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
+    expect(stores.ui.getState().view.panY).toBe(300)
+  })
+})
+
+describe('MobileShell 텐트 시트(§4.4-3)', () => {
+  /** 텐트 편집 모드로 바꾸고 대상을 고릅니다(캔버스 탭과 같은 결과). */
+  function tentMode(stores: Stores, target: 'outer' | string | null): void {
+    act(() => {
+      stores.ui.getState().setMode('tent')
+      if (target !== null) stores.ui.getState().selectTentTarget(target === 'outer' ? 'outer' : { innerId: target })
+    })
+  }
+
+  it('캔버스 영역(main)에 시트 경계 표시가 있다(키보드 시트 높이 기준, 보류 Minor #13)', () => {
+    renderShell()
+    expect(screen.getByRole('main').hasAttribute(SHEET_BOUNDS_ATTR)).toBe(true)
+  })
+
+  it("텐트 편집 모드에서 대상이 생기면 mobileSheet='tent'(제목 = 대상 이름, 펼치기 있음), 대상이 없어지면 닫힌다", () => {
+    const { stores } = renderShell(TENT_INNERS)
+    tentMode(stores, null)
+    expect(stores.ui.getState().mobileSheet).toBe('none')
+    act(() => stores.ui.getState().selectTentTarget({ innerId: 'A' }))
+    expect(stores.ui.getState().mobileSheet).toBe('tent')
+    const sheet = screen.getByTestId('sheet-tent')
+    expect(within(sheet).getByRole('heading', { name: '침실' })).toBeTruthy()
+    expect(sheet.dataset.expandable).toBe('true')
+    expect(within(sheet).getByTestId('mock-tent-editor').dataset.variant).toBe('sheet')
+    act(() => stores.ui.getState().selectTentTarget('outer'))
+    expect(within(screen.getByTestId('sheet-tent')).getByRole('heading', { name: '외곽' })).toBeTruthy()
+    act(() => stores.ui.getState().selectTentTarget(null))
+    expect(stores.ui.getState().mobileSheet).toBe('none')
+    expect(screen.queryByTestId('sheet-tent')).toBeNull()
+  })
+
+  it('R14: 텐트 시트 ×(이름 「선택 해제」)는 대상을 해제하고 시트를 닫는다(모드는 그대로)', () => {
+    const { stores } = renderShell(TENT_INNERS)
+    tentMode(stores, 'A')
+    fireEvent.click(screen.getByRole('button', { name: '선택 해제' }))
+    expect(stores.ui.getState().tentTarget).toBeNull()
+    expect(stores.ui.getState().mobileSheet).toBe('none')
+    expect(stores.ui.getState().mode).toBe('tent')
+  })
+
+  it('면적 시트가 열린 채 다른 대상을 고르면 텐트 시트로 바뀌고, 면적 시트를 닫으면 텐트 시트로 돌아온다', () => {
+    const { stores } = renderShell(TENT_INNERS)
+    tentMode(stores, 'A')
+    act(() => stores.ui.getState().patch({ mobileSheet: 'area' }))
+    fireEvent.click(screen.getByRole('button', { name: '시트 닫기' }))
+    expect(stores.ui.getState().mobileSheet).toBe('tent')
+    act(() => stores.ui.getState().patch({ mobileSheet: 'area' }))
+    act(() => stores.ui.getState().selectTentTarget({ innerId: 'B' }))
+    expect(stores.ui.getState().mobileSheet).toBe('tent')
+  })
+
+  it('배치 모드로 돌아가면 텐트 시트가 닫힌다', () => {
+    const { stores } = renderShell(TENT_INNERS)
+    tentMode(stores, 'A')
+    act(() => stores.ui.getState().setMode('place'))
+    expect(stores.ui.getState().mobileSheet).toBe('none')
+  })
+
+  it('텐트 시트가 열리면 시트에 가린 대상(이너)을 시트 위 영역에 보이게 옮긴다', () => {
+    const { stores } = renderShell(TENT_INNERS)
+    // 이너 B 화면 y 370~430, 시트 300px이면 보이는 영역 아래 끝은 650−300−16 = 334
+    tentMode(stores, 'B')
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
+    const ui = stores.ui.getState()
+    expect(ui.view.zoom).toBe(1)
+    const box = tentTargetBBox(stores.doc.getState().layout, { innerId: 'B' })!
+    expect(worldToScreen(ui.view, [box.maxX, box.maxY])[1]).toBe(650 - 300 - 16)
+  })
+
+  it('작업 간 상호작용: 캔버스를 누르고 있는 동안 열린 텐트 시트로는 화면을 옮기지 않고, 손을 떼면 옮긴다', () => {
+    const { stores } = renderShell(TENT_INNERS)
+    act(() => stores.ui.getState().setMode('tent'))
+    // 선택 안 된 이너를 누르는 순간 대상이 바뀌고 텐트 시트가 열립니다. 이때 화면이 옮겨지면 이너 끌기에 이동량이 섞입니다.
+    act(() => stores.ui.getState().setCanvasPressed(true))
+    act(() => stores.ui.getState().selectTentTarget({ innerId: 'B' }))
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
+    expect(stores.ui.getState().view.panY).toBe(300)
+    act(() => stores.ui.getState().setCanvasPressed(false))
+    expect(stores.ui.getState().view.panY + 130).toBe(650 - 300 - 16)
+  })
+
+  it('시트 높이가 같아도 대상이 바뀌면(이너 A → 가려진 이너 B) 새 대상을 보이게 옮긴다', () => {
+    const { stores } = renderShell(TENT_INNERS)
+    tentMode(stores, 'A')
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
+    expect(stores.ui.getState().view.panY).toBe(300) // 이너 A(화면 y 170~230)는 이미 보임
+    act(() => stores.ui.getState().selectTentTarget({ innerId: 'B' }))
+    expect(stores.ui.getState().view.panY + 130).toBe(650 - 300 - 16)
+  })
+
+  it('시트 높이·대상이 그대로면 사용자가 옮긴 화면을 다시 옮기지 않는다', () => {
+    const { stores } = renderShell(TENT_INNERS)
+    tentMode(stores, 'B')
+    act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
+    act(() => stores.ui.getState().setCanvasPressed(true))
+    act(() => stores.ui.getState().setView({ zoom: 1, panX: 195, panY: 300 }))
+    act(() => stores.ui.getState().setCanvasPressed(false))
+    expect(stores.ui.getState().view.panY).toBe(300)
+  })
+
+  it('끌기 중(제스처)에는 텐트 시트로 화면을 옮기지 않는다', () => {
+    const { stores } = renderShell(TENT_INNERS)
+    act(() => stores.doc.getState().beginGesture())
+    tentMode(stores, 'B')
     act(() => FakeResizeObserver.resize(screen.getByTestId('sheet-host'), 300))
     expect(stores.ui.getState().view.panY).toBe(300)
   })

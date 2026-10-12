@@ -12,6 +12,9 @@ vi.mock('../library/LibraryPanel', () => ({ LibraryPanel: () => <div data-testid
 vi.mock('../panels/PropertiesPanel', () => ({ PropertiesPanel: () => <div data-testid="mock-properties" /> }))
 vi.mock('../area/AreaSummary', () => ({ AreaSummary: () => <div data-testid="mock-area-summary" /> }))
 vi.mock('../area/WarningPanel', () => ({ WarningPanel: () => <div data-testid="mock-warning-panel" /> }))
+vi.mock('../tent/TentEditor', () => ({
+  TentEditor: (p: { variant: string }) => <div data-testid="mock-tent-editor" data-variant={p.variant} />,
+}))
 vi.mock('../library/NewShapeForm', () => ({
   NewShapeForm: (p: { onDone(): void; onCancel(): void }) => (
     <div data-testid="mock-new-shape">
@@ -72,5 +75,26 @@ describe('DesktopShell', () => {
     expect(screen.queryByTestId('mock-properties')).toBeNull()
     act(() => stores.ui.getState().patch({ desktopPanel: 'auto' }))
     expect(screen.getByTestId('mock-properties')).toBeTruthy()
+  })
+
+  it('텐트 편집 모드면 오른쪽 위 자리에 텐트 편집 패널, 배치 모드로 돌아오면 속성 패널(§4.1)', () => {
+    const { stores } = renderShell()
+    act(() => stores.ui.getState().setMode('tent'))
+    const editor = within(screen.getByTestId('right-panel')).getByTestId('mock-tent-editor')
+    expect(editor.dataset.variant).toBe('panel')
+    expect(screen.queryByTestId('mock-properties')).toBeNull()
+    act(() => stores.ui.getState().setMode('place'))
+    expect(screen.queryByTestId('mock-tent-editor')).toBeNull()
+    expect(screen.getByTestId('mock-properties')).toBeTruthy()
+  })
+
+  it('텐트 편집 모드에서도 경고 패널을 열면 경고 패널이 먼저다', () => {
+    const { stores } = renderShell()
+    act(() => stores.ui.getState().setMode('tent'))
+    act(() => stores.ui.getState().patch({ desktopPanel: 'warnings' }))
+    expect(within(screen.getByTestId('right-panel')).getByTestId('mock-warning-panel')).toBeTruthy()
+    expect(screen.queryByTestId('mock-tent-editor')).toBeNull()
+    act(() => stores.ui.getState().patch({ desktopPanel: 'auto' }))
+    expect(screen.getByTestId('mock-tent-editor')).toBeTruthy()
   })
 })
