@@ -1,0 +1,120 @@
+/* 텐트 편집 패널·시트(스펙 §4.4-3, 시안 07 구조만 — 단일 구성 목록). 누름 영역은 모두 44px 이상입니다. */
+.tf-tent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tf-tent__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tf-tent__row {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tf-tent__row[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.tf-tent__dot {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid;
+  border-radius: var(--r-full);
+}
+
+.tf-tent__dot--outer {
+  border-color: var(--tent-outline);
+  background: var(--vest-fill);
+}
+
+.tf-tent__dot--inner {
+  border-color: var(--inner-stroke);
+  background: var(--inner-fill);
+}
+
+.tf-tent__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tf-tent__meta {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.tf-tent__add {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--info);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--info);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tf-tent__target {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.tf-tent__target-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tf-tent__dims,
+.tf-tent__vertices,
+.tf-tent__vertex {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tf-tent__vertex-title {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.tf-tent button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
