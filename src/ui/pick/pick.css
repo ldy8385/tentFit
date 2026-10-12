@@ -1,0 +1,477 @@
+/* 텐트 고르기 화면·목록·내 배치 목록(시안 01, 스펙 §4.7-1·R2). 색·간격·반경은 tokens.css 변수만 씁니다.
+   누름 영역 44px 이상. 화면 크기 4종(1440×900, 390×844, 375×667, 844×390)에서 가로 스크롤이 생기지 않게
+   모든 칸은 minmax(0, 1fr)이고 글자는 말줄임합니다. */
+
+/* ── 화면 틀: 상단 바 + 세로 스크롤 본문 ─────────────────────────── */
+.tf-pick {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+
+.tf-pick__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: calc(56px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(var(--sp-2), env(safe-area-inset-right)) 0 max(var(--sp-4), env(safe-area-inset-left));
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.tf-pick[data-layout='desktop'] .tf-pick__bar {
+  padding-left: var(--sp-5);
+  padding-right: var(--sp-5);
+}
+
+.tf-pick__brand {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tf-pick[data-layout='desktop'] .tf-pick__brand {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.tf-pick__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tf-pick__logo svg {
+  color: var(--accent);
+}
+
+.tf-pick__tagline {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tf-pick[data-layout='desktop'] .tf-pick__tagline {
+  font-size: 13px;
+}
+
+.tf-pick__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: auto;
+}
+
+.tf-pick__mine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* 휴대폰: 아이콘 아래 글자(§4.7-1) */
+.tf-pick[data-layout='mobile'] .tf-pick__mine {
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 2px var(--sp-2);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.tf-pick__mine:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.tf-pick__cancel,
+.tf-picker__retry {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tf-pick__cancel:hover,
+.tf-picker__retry:hover {
+  background: var(--bg-subtle);
+}
+
+.tf-pick__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tf-pick__body {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1312px;
+  margin: 0 auto;
+  padding: 30px 64px 48px;
+}
+
+.tf-pick[data-layout='mobile'] .tf-pick__body {
+  max-width: 600px;
+  padding: 20px max(var(--sp-4), env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom))
+    max(var(--sp-4), env(safe-area-inset-left));
+}
+
+.tf-pick__title {
+  margin: 0;
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.tf-pick[data-layout='mobile'] .tf-pick__title {
+  font-size: 22px;
+}
+
+.tf-pick__subtitle {
+  margin: var(--sp-2) 0 var(--sp-5);
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── 고르기 목록(대화상자에서도 씀) ─────────────────────────────── */
+.tf-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
+}
+
+.tf-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tf-picker[data-layout='mobile'] .tf-picker__grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+.tf-picker__grid > li {
+  min-width: 0;
+}
+
+.tf-picker__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tf-picker__note {
+  margin: var(--sp-1) 0 var(--sp-3);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tf-picker__loading {
+  margin: 0;
+  padding: var(--sp-5) 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.tf-picker__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+}
+
+.tf-picker__error-text {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 프리셋 카드 */
+.tf-tentcard {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 232px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tf-picker[data-layout='mobile'] .tf-tentcard {
+  height: auto;
+}
+
+.tf-tentcard:hover {
+  border-color: var(--accent-border);
+}
+
+.tf-tentcard__thumb {
+  display: block;
+  flex: none;
+  height: 150px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--canvas-bg);
+}
+
+.tf-picker[data-layout='mobile'] .tf-tentcard__thumb {
+  height: 124px;
+}
+
+.tf-tentcard__thumb svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tf-tentcard__info {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: 11px 13px 13px;
+}
+
+.tf-tentcard__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tf-tentcard__name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tf-tentcard__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tf-tentcard__dot {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: var(--r-full);
+  background: var(--border-strong);
+}
+
+.tf-tentcard__chevron,
+.tf-makecard__chevron {
+  display: inline-grid;
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+/* [직접 만들기] 카드: PC는 카드, 휴대폰은 행 카드 */
+.tf-makecard {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 232px;
+  padding: var(--sp-4);
+  border: 1.5px dashed var(--accent);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.tf-picker[data-layout='mobile'] .tf-makecard {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  height: 76px;
+  padding: 0 var(--sp-4);
+  text-align: left;
+}
+
+.tf-makecard:hover {
+  background: var(--accent-border);
+}
+
+.tf-makecard__plus {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.tf-picker[data-layout='mobile'] .tf-makecard__plus {
+  width: 44px;
+  height: 44px;
+}
+
+.tf-makecard__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tf-makecard__title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.tf-makecard__sub {
+  overflow: hidden;
+  color: var(--accent-hover);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 내 배치 목록(R2) ───────────────────────────────────────────── */
+.tf-dialog:has(> .tf-dialog__body > .tf-mylayouts) {
+  width: min(520px, 100%);
+}
+
+.tf-dialog-backdrop[data-fullscreen='true'] .tf-dialog:has(> .tf-dialog__body > .tf-mylayouts) {
+  width: 100%;
+}
+
+.tf-mylayouts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.tf-mylayouts__new {
+  min-height: 48px;
+  border: 1.5px dashed var(--accent);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tf-mylayouts__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tf-mylayouts__row {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 56px;
+  padding: var(--sp-2) 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tf-mylayouts__row:hover {
+  border-color: var(--accent-border);
+}
+
+.tf-mylayouts__name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tf-mylayouts__meta {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.tf-pick__mine:focus-visible,
+.tf-pick__cancel:focus-visible,
+.tf-picker__retry:focus-visible,
+.tf-tentcard:focus-visible,
+.tf-makecard:focus-visible,
+.tf-mylayouts__new:focus-visible,
+.tf-mylayouts__row:focus-visible {
+  outline: 2px solid var(--select);
+  outline-offset: 2px;
+}
