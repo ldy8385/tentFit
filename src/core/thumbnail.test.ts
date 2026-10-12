@@ -200,3 +200,50 @@ describe('thumbnailSvg', () => {
     expect(svg).not.toContain('NaN')
   })
 })
+
+describe('thumbnailSvg — 공통 축척 extentCm(§4.7-1 고르기 카드)', () => {
+  const viewBoxOf = (svg: string): number[] => {
+    const m = /viewBox="([^"]*)"/.exec(svg)
+    if (!m || m[1] === undefined) throw new Error('viewBox 없음')
+    return m[1].split(' ').map(Number)
+  }
+
+  it('extentCm를 주면 외곽 bbox 중심 기준 extent × extent(+5% 여백)의 정사각 viewBox', () => {
+    // 600×300, extent 1000: 여백 50 → -550 -550 1100 1100
+    expect(thumbnailSvg({ tent: tent(RECT_OUTER) }, { extentCm: 1000 })).toContain('viewBox="-550 -550 1100 1100"')
+  })
+
+  it('같은 extentCm면 viewBox 크기가 같아 작은 텐트가 작게 그려진다', () => {
+    const big = viewBoxOf(thumbnailSvg({ tent: tent(RECT_OUTER) }, { extentCm: 1000 }))
+    const small = viewBoxOf(thumbnailSvg({ tent: tent({ kind: 'circle', d: 300 }) }, { extentCm: 1000 }))
+    expect(big[2]).toBe(1100)
+    expect(small[2]).toBe(big[2])
+    expect(small[3]).toBe(big[3])
+    // 작은 텐트가 viewBox에서 차지하는 비율이 더 작다
+    expect(300 / small[2]!).toBeLessThan(600 / big[2]!)
+  })
+
+  it('외곽이 원점 중심이 아니면 그 bbox 중심을 가운데로 둔다', () => {
+    const svg = thumbnailSvg(
+      { tent: tent({ kind: 'polygon', points: [[0, 0], [200, 0], [200, 100], [0, 100]] }) },
+      { extentCm: 400 },
+    )
+    // 중심 (100, 50), 여백 20 → -120 -170 440 440
+    expect(svg).toContain('viewBox="-120 -170 440 440"')
+  })
+
+  it('extentCm가 외곽보다 작으면 외곽 긴 변을 써서 잘리지 않는다', () => {
+    expect(thumbnailSvg({ tent: tent(RECT_OUTER) }, { extentCm: 100 })).toContain('viewBox="-330 -330 660 660"')
+  })
+
+  it('extentCm가 0·음수·NaN이면 주지 않은 것과 같다', () => {
+    const plain = thumbnailSvg({ tent: tent(RECT_OUTER) })
+    expect(thumbnailSvg({ tent: tent(RECT_OUTER) }, { extentCm: 0 })).toBe(plain)
+    expect(thumbnailSvg({ tent: tent(RECT_OUTER) }, { extentCm: -5 })).toBe(plain)
+    expect(thumbnailSvg({ tent: tent(RECT_OUTER) }, { extentCm: Number.NaN })).toBe(plain)
+  })
+
+  it('외곽 크기를 알 수 없으면 기본 상자 중심(0,0)에 extent를 쓴다', () => {
+    expect(thumbnailSvg({ tent: tent({ kind: 'polygon', points: [] }) }, { extentCm: 500 })).toContain('viewBox="-275 -275 550 550"')
+  })
+})

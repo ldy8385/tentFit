@@ -79,11 +79,22 @@ function outerBox(tent: Tent): Box | null {
   return ringBox(outerRing(tent))
 }
 
-function viewBoxOf(tent: Tent): string {
+/**
+ * viewBox 문자열. extentCm(양수)를 주면 외곽 bbox 중심을 가운데로 한 extent × extent 정사각형(+ 여백)이라
+ * 같은 extentCm를 쓴 썸네일끼리 축척이 같습니다. extent가 외곽 긴 변보다 작으면 잘리지 않게 긴 변을 씁니다.
+ */
+function viewBoxOf(tent: Tent, extentCm?: number): string {
   let box = outerBox(tent) ?? FALLBACK_BOX
   if (!(Math.max(box.maxX - box.minX, box.maxY - box.minY) > 0)) box = FALLBACK_BOX
   const w = box.maxX - box.minX
   const h = box.maxY - box.minY
+  if (extentCm !== undefined && Number.isFinite(extentCm) && extentCm > 0) {
+    const e = Math.max(extentCm, w, h)
+    const cx = (box.minX + box.maxX) / 2
+    const cy = (box.minY + box.maxY) / 2
+    const em = MARGIN_RATIO * e
+    return [cx - e / 2 - em, cy - e / 2 - em, e + 2 * em, e + 2 * em].map(num).join(' ')
+  }
   const m = MARGIN_RATIO * Math.max(w, h)
   return [box.minX - m, box.minY - m, w + 2 * m, h + 2 * m].map(num).join(' ')
 }
@@ -152,13 +163,14 @@ function itemPaint(item: Item, pal: Record<ColorKey, string>): Paint {
 /**
  * 배치·텐트를 미니 평면도 SVG 문자열로 만듭니다(배치 목록, 프리셋 카드 공용).
  * - viewBox = 외곽 바운딩 박스 + 긴 변의 5% 여백
+ * - opts.extentCm를 주면 viewBox = 외곽 bbox 중심 기준 extentCm × extentCm + 5% 여백(여러 카드를 같은 축척으로, §4.7-1)
  * - 그리는 순서: 외곽 → 이너(배열 순서) → 물건(배열 순서, 뒤쪽이 위)
  * - 원은 <circle>, 나머지는 월드 좌표 <polygon>. 바닥 무늬 없이 단색입니다.
  * - 선 굵기는 화면 px 기준(vector-effect="non-scaling-stroke")입니다.
  */
 export function thumbnailSvg(
   src: { tent: Tent; items?: Item[] },
-  opts?: { size?: number; colors?: Partial<Record<ColorKey, string>> },
+  opts?: { size?: number; colors?: Partial<Record<ColorKey, string>>; extentCm?: number },
 ): string {
   const { tent } = src
   const sizeOpt = opts?.size
@@ -166,7 +178,7 @@ export function thumbnailSvg(
   const pal = palette(opts?.colors)
 
   const parts: string[] = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(size)}" height="${num(size)}" viewBox="${viewBoxOf(tent)}" role="img" aria-label="${esc(tent.name)}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${num(size)}" height="${num(size)}" viewBox="${viewBoxOf(tent, opts?.extentCm)}" role="img" aria-label="${esc(tent.name)}">`,
   ]
   parts.push(outerEl(tent))
   for (const inner of tent.inners) parts.push(placedEl('tf-inner', inner, INNER_PAINT))

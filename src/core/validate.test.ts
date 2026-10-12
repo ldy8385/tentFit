@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Inner, Item, Layout, Pt } from './model'
-import { innersOverlap, ringIssue, validateLayout, validateTent } from './validate'
+import type { Inner, Item, Layout, Pt, Tent } from './model'
+import { innersOverlap, newTentIssues, ringIssue, validateLayout, validateTent } from './validate'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
@@ -349,5 +349,76 @@ describe('validateLayout — 입력 불변', () => {
     expect(JSON.stringify(layout)).toBe(before)
     expect(r.ok).toBe(true)
     expect(r.issues.map((i) => i.code)).toEqual(['template-mismatch', 'dup-id', 'dup-id', 'group-missing', 'group-noncontiguous'])
+  })
+})
+
+describe('newTentIssues (R11: 이번 조작으로 새로 생긴 이슈만)', () => {
+  const tentOf = (inners: Inner[], outer: Tent['outer'] = { kind: 'rect', w: 1200, h: 400 }): Tent => ({ name: '판정용', outer, inners })
+  const moved = (t: Tent, id: string, x: number): Tent => ({ ...t, inners: t.inners.map((it) => (it.id === id ? { ...it, x } : it)) })
+
+  // a·b는 원래 1cm 넘게 겹쳐 있고(가져온 배치), c는 떨어져 있습니다.
+  const a = inner('a', -300, 300, 300)
+  const b = inner('b', -1, 300, 300)
+  const c = inner('c', 450, 200, 200)
+  const start = tentOf([a, b, c])
+
+  it('전제: 시작 텐트에는 a·b 겹침 이슈 하나가 있다', () => {
+    expect(validateTent(start).map((i) => i.code)).toEqual(['inner-overlap'])
+  })
+
+  it('같은 텐트면 새 이슈 0', () => {
+    expect(newTentIssues(start, start)).toEqual([])
+  })
+
+  it('원래 겹친 텐트에서 다른 이너(c)를 옮기면 새 이슈 0', () => {
+    expect(newTentIssues(start, moved(start, 'c', 400))).toEqual([])
+  })
+
+  it('원래 겹친 이너 b를 조금 옮겨 계속 겹쳐도 새 이슈 0', () => {
+    expect(newTentIssues(start, moved(start, 'b', -5))).toEqual([])
+  })
+
+  it('c를 b와 새로 겹치게 옮기면 새 이슈 1(inner-overlap)', () => {
+    const issues = newTentIssues(start, moved(start, 'c', 200))
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatchObject({ code: 'inner-overlap', path: 'tent.inners.2', fixed: false })
+  })
+
+  it('같은 경로라도 다른 짝과 새로 겹치면 새 이슈다(a·c가 원래 겹침 → b가 c와 새로 겹침)', () => {
+    const ac = tentOf([inner('a', 0, 300, 300), inner('b', -600, 200, 200), inner('c', 299, 300, 300)])
+    expect(validateTent(ac).map((i) => i.path)).toEqual(['tent.inners.2'])
+    // b를 c 쪽으로 옮기면 겹침 이슈 경로는 여전히 tent.inners.2 이지만 짝(b·c)이 새것
+    const after = moved(ac, 'b', 360)
+    const issues = newTentIssues(ac, after)
+    expect(issues.map((i) => i.code)).toEqual(['inner-overlap'])
+    expect(issues[0]?.message).toContain('이너 b')
+  })
+
+  it('앞쪽 이너를 지워 번호가 당겨져도 원래 있던 겹침은 새 이슈가 아니다(이너 id 기준)', () => {
+    const lead = inner('z', 450, 100, 100)
+    const before = tentOf([lead, a, b])
+    const after = tentOf([a, b])
+    expect(validateTent(before)[0]?.path).toBe('tent.inners.2')
+    expect(validateTent(after)[0]?.path).toBe('tent.inners.1')
+    expect(newTentIssues(before, after)).toEqual([])
+  })
+
+  it('외곽이 새로 자기교차하면 새 이슈 1(path tent.outer)', () => {
+    const square: Tent['outer'] = { kind: 'polygon', points: [[-600, -200], [600, -200], [600, 200], [-600, 200]] }
+    const bow: Tent['outer'] = { kind: 'polygon', points: [[-600, -200], [600, 200], [600, -200], [-600, 200]] }
+    const issues = newTentIssues(tentOf([c], square), tentOf([c], bow))
+    expect(issues).toEqual([{ code: 'self-intersect', path: 'tent.outer', message: '외곽: 변끼리 교차해요', fixed: false }])
+  })
+
+  it('이너 이탈은 이슈가 아니다(허용·경고)', () => {
+    expect(newTentIssues(start, moved(start, 'c', 2000))).toEqual([])
+  })
+
+  it('원래 자기교차한 외곽을 계속 자기교차인 채로 고쳐도 새 이슈 0, 넓이가 0이 되면 새 이슈', () => {
+    const bow1: Tent['outer'] = { kind: 'polygon', points: [[-600, -200], [600, 200], [600, -200], [-600, 200]] }
+    const bow2: Tent['outer'] = { kind: 'polygon', points: [[-600, -210], [600, 200], [600, -200], [-600, 200]] }
+    expect(newTentIssues(tentOf([], bow1), tentOf([], bow2))).toEqual([])
+    const flat: Tent['outer'] = { kind: 'polygon', points: [[0, 0], [1, 0], [0, 1]] }
+    expect(newTentIssues(tentOf([], bow1), tentOf([], flat)).map((i) => i.code)).toEqual(['tiny-area'])
   })
 })

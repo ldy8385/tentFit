@@ -1,5 +1,6 @@
 // 텐트 조작(스펙 §4.4·§4.7-8·§4.8). 바꾸는 함수는 immer draft를 직접 고치는 레시피입니다.
 // 값을 돌려주는 레시피(deleteVertex·addInner)는 produce 본문을 중괄호로 감싸야 합니다.
+// 같은 값이면 아무것도 쓰지 않습니다(패치 0 → doc.commit이 false, 기록 없음 — Plan 4 Review Focus 3).
 import {
   LIMITS,
   newId,
@@ -12,8 +13,8 @@ import {
   type ShapeTemplate,
   type Tent,
 } from '../model'
-import { ringBBox, shapeRing, transformRing } from '../geom'
-import { shapeFromTemplate } from '../templates'
+import { shapeRing, transformRing } from '../geom'
+import { newInnerSide, shapeFromTemplate, shapesEqual } from '../templates'
 import { innersOverlap, validateTent, type Issue } from '../validate'
 import type { Zones } from '../zones'
 import { clampCoord, clampLen, cloneJson, roundPt, rotateAround } from './util'
@@ -21,10 +22,6 @@ import { clampCoord, clampLen, cloneJson, roundPt, rotateAround } from './util'
 export type TentTarget = 'outer' | { innerId: string }
 
 type RectTemplate = Extract<ShapeTemplate, { kind: 'rect' }>
-
-/** 새 이너 한 변의 최댓값(cm)과 외곽 짧은 변에 대한 비율(§4.4-4) */
-const NEW_INNER_MAX = 200
-const NEW_INNER_RATIO = 0.6
 
 /** 템플릿 입력값을 반올림하고 범위로 자릅니다(n은 정수 5~12). */
 function normalizeTemplate(t: ShapeTemplate): ShapeTemplate {
@@ -51,6 +48,25 @@ function normalizeTemplate(t: ShapeTemplate): ShapeTemplate {
     case 'circle':
       return { kind: 'circle', d: clampLen(t.d) }
   }
+}
+
+/** 정규화한 두 템플릿의 입력값이 같은지. 사각형 square는 없으면 false로 봅니다. */
+function sameTemplate(a: ShapeTemplate, b: ShapeTemplate): boolean {
+  switch (a.kind) {
+    case 'rect':
+      return b.kind === 'rect' && a.w === b.w && a.h === b.h && (a.square ?? false) === (b.square ?? false)
+    case 'trapezoid':
+      return b.kind === 'trapezoid' && a.front === b.front && a.back === b.back && a.depth === b.depth && a.offset === b.offset
+    case 'ngon':
+      return b.kind === 'ngon' && a.n === b.n && a.sizeBy === b.sizeBy && a.size === b.size
+    case 'circle':
+      return b.kind === 'circle' && a.d === b.d
+  }
+}
+
+/** 지금 템플릿·도형이 새 템플릿으로 만든 것과 같아 쓸 필요가 없는지. */
+function unchanged(current: ShapeTemplate | undefined, shape: Shape, tpl: ShapeTemplate, made: Shape): boolean {
+  return current !== undefined && sameTemplate(current, tpl) && shapesEqual(shape, made)
 }
 
 /** 꼭짓점 번호의 기준이 되는 로컬 고리(항상 새 배열). 다각형은 points 순서 그대로, 사각형·원은 geom.shapeRing 순서. */
@@ -103,18 +119,24 @@ function resolve(d: Layout, target: TentTarget): TargetRef | null {
   }
 }
 
+/** 외곽 템플릿을 바꿉니다. 정규화한 템플릿이 지금과 같고 도형도 같으면 아무것도 쓰지 않습니다. */
 export function setOuterTemplate(d: Layout, t: ShapeTemplate): void {
   const tpl = normalizeTemplate(t)
+  const made = shapeFromTemplate(tpl)
+  if (unchanged(d.tent.outerTemplate, d.tent.outer, tpl, made)) return
   d.tent.outerTemplate = tpl
-  d.tent.outer = shapeFromTemplate(tpl)
+  d.tent.outer = made
 }
 
+/** 이너 템플릿을 바꿉니다(위치·회전 유지). 같은 값이면 아무것도 쓰지 않습니다. */
 export function setInnerTemplate(d: Layout, innerId: string, t: ShapeTemplate): void {
   const inner = findInner(d.tent, innerId)
   if (!inner) return
   const tpl = normalizeTemplate(t)
+  const made = shapeFromTemplate(tpl)
+  if (unchanged(inner.template, inner.shape, tpl, made)) return
   inner.template = tpl
-  inner.shape = shapeFromTemplate(tpl)
+  inner.shape = made
 }
 
 /** 편집 대상의 월드 고리. 외곽은 월드 원점·회전 0이라 로컬 고리 그대로입니다. 없는 이너면 []. */
@@ -164,19 +186,22 @@ export function deleteVertex(d: Layout, target: TentTarget, index: number): bool
   return true
 }
 
-/** 원 외곽·원 이너의 지름(§4.4-5). 원 템플릿이 있으면 템플릿도 같이 바꿉니다. 원이 아니면 무시. */
+/**
+ * 원 외곽·원 이너의 지름(§4.4-5). 원 템플릿이 있으면 템플릿도 같이 바꿉니다. 원이 아니면 무시.
+ * 같은 지름인 칸은 쓰지 않습니다.
+ */
 export function setCircleDiameter(d: Layout, target: TentTarget, diameter: number): void {
   const value = clampLen(diameter)
   if (target === 'outer') {
     if (d.tent.outer.kind !== 'circle') return
-    d.tent.outer.d = value
-    if (d.tent.outerTemplate?.kind === 'circle') d.tent.outerTemplate.d = value
+    if (d.tent.outer.d !== value) d.tent.outer.d = value
+    if (d.tent.outerTemplate?.kind === 'circle' && d.tent.outerTemplate.d !== value) d.tent.outerTemplate.d = value
     return
   }
   const inner = findInner(d.tent, target.innerId)
   if (!inner || inner.shape.kind !== 'circle') return
-  inner.shape.d = value
-  if (inner.template?.kind === 'circle') inner.template.d = value
+  if (inner.shape.d !== value) inner.shape.d = value
+  if (inner.template?.kind === 'circle' && inner.template.d !== value) inner.template.d = value
 }
 
 function nextInnerName(tent: Tent): string {
@@ -187,7 +212,7 @@ function nextInnerName(tent: Tent): string {
 }
 
 /**
- * 새 이너(§4.4-4): 정사각형, 한 변 = min(200, 외곽 바운딩 박스 짧은 변 × 0.6)을 10cm 단위로 반올림(최소 10),
+ * 새 이너(§4.4-4): 정사각형, 한 변 = templates.newInnerSide(외곽)(min(200, 외곽 바운딩 박스 짧은 변 × 0.6)을 10cm 단위로 반올림, 최소 10),
  * 위치 = 가장 큰 바닥 조각(zones.pieces[0])의 polylabel, 회전 0, 이름 "이너 N".
  * 바닥 조각이 없거나 다른 이너와 겹치면(§5.3-4) 추가하지 않고 no-space.
  * zones는 지금 d.tent로 만든 buildZones 결과여야 합니다.
@@ -195,10 +220,7 @@ function nextInnerName(tent: Tent): string {
 export function addInner(d: Layout, zones: Zones): { ok: true; id: string } | { ok: false; reason: 'no-space' } {
   const piece = zones.pieces[0]
   if (!piece) return { ok: false, reason: 'no-space' }
-  const outer = d.tent.outer
-  const b = outer.kind === 'circle' ? { minX: 0, minY: 0, maxX: outer.d, maxY: outer.d } : ringBBox(localRing(outer))
-  const short = Math.min(b.maxX - b.minX, b.maxY - b.minY)
-  const side = Math.max(10, Math.round(Math.min(NEW_INNER_MAX, short * NEW_INNER_RATIO) / 10) * 10)
+  const side = newInnerSide(d.tent.outer)
   const inner: Inner = {
     id: newId(),
     name: nextInnerName(d.tent),
@@ -216,15 +238,18 @@ export function addInner(d: Layout, zones: Zones): { ok: true; id: string } | { 
   return { ok: true, id: inner.id }
 }
 
+/** 이너를 (dx, dy)만큼 옮깁니다. 둘 다 0이면 아무것도 쓰지 않습니다. */
 export function moveInner(d: Layout, innerId: string, dx: number, dy: number): void {
+  if (dx === 0 && dy === 0) return
   const inner = findInner(d.tent, innerId)
   if (!inner) return
   inner.x = clampCoord(inner.x + dx)
   inner.y = clampCoord(inner.y + dy)
 }
 
-/** 이너 자신의 로컬 원점을 기준으로 돌립니다. */
+/** 이너 자신의 로컬 원점을 기준으로 돌립니다. delta가 0 또는 360의 배수(0.01° 반올림 기준)면 아무것도 쓰지 않습니다. */
 export function rotateInner(d: Layout, innerId: string, deltaDeg: number): void {
+  if (normAngle(deltaDeg) === 0) return
   const inner = findInner(d.tent, innerId)
   if (!inner) return
   inner.rotation = normAngle(inner.rotation + deltaDeg)
@@ -236,9 +261,10 @@ export function deleteInner(d: Layout, innerId: string): void {
   }
 }
 
+/** 이너 이름을 바꿉니다. 같은 이름이면 아무것도 쓰지 않습니다. */
 export function renameInner(d: Layout, innerId: string, name: string): void {
   const inner = findInner(d.tent, innerId)
-  if (inner) inner.name = name
+  if (inner && inner.name !== name) inner.name = name
 }
 
 /** 텐트 바꾸기(§4.7-8): layout.tent만 복사본으로 바꾸고 물건 좌표는 그대로 둡니다. */

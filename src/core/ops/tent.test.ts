@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { produce } from 'immer'
+import { enablePatches, produce, produceWithPatches } from 'immer'
 import { createLayout, round1, type Inner, type Item, type Layout, type Pt, type Tent } from '../model'
 import { area, region, ringArea, ringBBox, subtract, worldRing } from '../geom'
+import { newInnerSide } from '../templates'
 import { buildZones, type Zones } from '../zones'
 import {
   addInner,
@@ -19,6 +20,8 @@ import {
   targetWorldRing,
   tentIssues,
 } from './tent'
+
+enablePatches()
 
 const NOW = '2026-10-07T00:00:00.000Z'
 
@@ -373,5 +376,108 @@ describe('tentIssues', () => {
     expect(tentIssues(butterfly).map((i) => i.code)).toContain('self-intersect')
     const overlapped = goldenTent([rectInner('a', 300, 300, -149, 0), rectInner('b', 300, 300, 150, 0)])
     expect(tentIssues(overlapped).map((i) => i.code)).toContain('inner-overlap')
+  })
+})
+
+describe('같은 값이면 쓰지 않음(Review Focus 3, P2 보류 Minor)', () => {
+  /** 레시피가 만든 패치 수. 0이면 doc.commit이 false를 돌려주고 기록이 남지 않습니다. */
+  function patchCount(l: Layout, fn: (d: Layout) => unknown): number {
+    const [, patches] = produceWithPatches(l, (d) => {
+      fn(d)
+    })
+    return patches.length
+  }
+
+  const bellInner = (): Inner => {
+    const c = rectInner('c1', 1, 1, -150, 0, { name: '원 이너' })
+    c.shape = { kind: 'circle', d: 200 }
+    c.template = { kind: 'circle', d: 200 }
+    return c
+  }
+
+  it('setOuterTemplate: 정규화하면 같은 템플릿·같은 도형이면 패치 0, 다르면 패치 있음', () => {
+    const l = layoutOf()
+    expect(patchCount(l, (d) => setOuterTemplate(d, { kind: 'rect', w: 600, h: 300 }))).toBe(0)
+    expect(patchCount(l, (d) => setOuterTemplate(d, { kind: 'rect', w: 600.04, h: 299.96 }))).toBe(0)
+    expect(patchCount(l, (d) => setOuterTemplate(d, { kind: 'rect', w: 600, h: 300, square: false }))).toBe(0)
+    expect(patchCount(l, (d) => setOuterTemplate(d, { kind: 'rect', w: 610, h: 300 }))).toBeGreaterThan(0)
+    // 정사각형 체크를 켜는 것은 다른 값(도형도 바뀜)
+    expect(patchCount(l, (d) => setOuterTemplate(d, { kind: 'rect', w: 600, h: 300, square: true }))).toBeGreaterThan(0)
+  })
+
+  it('setOuterTemplate: 템플릿이 같아도 도형이 템플릿과 어긋나 있으면 다시 쓴다', () => {
+    const tent = goldenTent()
+    tent.outer = { kind: 'polygon', points: [[-300, -150], [320, -150], [300, 150], [-300, 150]] }
+    const l = layoutOf(tent)
+    expect(patchCount(l, (d) => setOuterTemplate(d, { kind: 'rect', w: 600, h: 300 }))).toBeGreaterThan(0)
+  })
+
+  it('setOuterTemplate: 템플릿이 없던 외곽에 템플릿을 주면 쓴다', () => {
+    const tent = goldenTent()
+    delete tent.outerTemplate
+    const l = layoutOf(tent)
+    expect(patchCount(l, (d) => setOuterTemplate(d, { kind: 'rect', w: 600, h: 300 }))).toBeGreaterThan(0)
+  })
+
+  it('setOuterTemplate: 사다리꼴·정N각형도 같은 값이면 패치 0', () => {
+    const trap = run(layoutOf(), (d) => setOuterTemplate(d, { kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 0 }))
+    expect(patchCount(trap, (d) => setOuterTemplate(d, { kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 0 }))).toBe(0)
+    expect(patchCount(trap, (d) => setOuterTemplate(d, { kind: 'trapezoid', front: 300, back: 200, depth: 250, offset: 10 }))).toBeGreaterThan(0)
+    const ngon = run(layoutOf(), (d) => setOuterTemplate(d, { kind: 'ngon', n: 6, sizeBy: 'diameter', size: 400 }))
+    expect(patchCount(ngon, (d) => setOuterTemplate(d, { kind: 'ngon', n: 6.2, sizeBy: 'diameter', size: 400 }))).toBe(0)
+    // 같은 도형이라도 sizeBy가 다르면 입력값이 다르므로 쓴다(§4.8: 입력값을 그대로 저장)
+    expect(patchCount(ngon, (d) => setOuterTemplate(d, { kind: 'ngon', n: 6, sizeBy: 'side', size: 200 }))).toBeGreaterThan(0)
+  })
+
+  it('setInnerTemplate: 같은 값이면 패치 0, 다르면 패치 있음, 없는 이너는 0', () => {
+    const l = layoutOf()
+    expect(patchCount(l, (d) => setInnerTemplate(d, 'in1', { kind: 'rect', w: 300, h: 300 }))).toBe(0)
+    expect(patchCount(l, (d) => setInnerTemplate(d, 'in1', { kind: 'rect', w: 300, h: 280 }))).toBeGreaterThan(0)
+    expect(patchCount(l, (d) => setInnerTemplate(d, 'zz', { kind: 'rect', w: 10, h: 10 }))).toBe(0)
+  })
+
+  it('setCircleDiameter: 같은 지름이면 패치 0(외곽·이너), 다르면 패치 있음', () => {
+    const bell = layoutOf({ name: '벨텐트', outer: { kind: 'circle', d: 400 }, outerTemplate: { kind: 'circle', d: 400 }, inners: [bellInner()] })
+    expect(patchCount(bell, (d) => setCircleDiameter(d, 'outer', 400))).toBe(0)
+    expect(patchCount(bell, (d) => setCircleDiameter(d, 'outer', 400.04))).toBe(0)
+    expect(patchCount(bell, (d) => setCircleDiameter(d, { innerId: 'c1' }, 200))).toBe(0)
+    expect(patchCount(bell, (d) => setCircleDiameter(d, 'outer', 410))).toBeGreaterThan(0)
+    expect(patchCount(bell, (d) => setCircleDiameter(d, { innerId: 'c1' }, 150))).toBeGreaterThan(0)
+  })
+
+  it('setCircleDiameter: 도형 지름은 같아도 원 템플릿 지름이 다르면 템플릿만 맞춘다', () => {
+    const bell = layoutOf({ name: '벨텐트', outer: { kind: 'circle', d: 400 }, outerTemplate: { kind: 'circle', d: 390 }, inners: [] })
+    const [next, patches] = produceWithPatches(bell, (d) => {
+      setCircleDiameter(d, 'outer', 400)
+    })
+    expect(patches).toHaveLength(1)
+    expect(next.tent.outerTemplate).toEqual({ kind: 'circle', d: 400 })
+  })
+
+  it('renameInner: 같은 이름이면 패치 0', () => {
+    const l = layoutOf()
+    expect(patchCount(l, (d) => renameInner(d, 'in1', '이너 1'))).toBe(0)
+    expect(patchCount(l, (d) => renameInner(d, 'in1', '침실'))).toBeGreaterThan(0)
+  })
+
+  it('moveInner: dx = dy = 0이면 패치 0(저장된 좌표가 반올림 전 값이어도 건드리지 않음)', () => {
+    const l = layoutOf(goldenTent([rectInner('in1', 300, 300, 150.04, 0)]))
+    expect(patchCount(l, (d) => moveInner(d, 'in1', 0, 0))).toBe(0)
+    expect(patchCount(l, (d) => moveInner(d, 'in1', 0, 10))).toBeGreaterThan(0)
+  })
+
+  it('rotateInner: delta가 0 또는 360의 배수면 패치 0', () => {
+    const l = layoutOf(goldenTent([rectInner('in1', 300, 300, 150, 0, { rotation: 30 })]))
+    expect(patchCount(l, (d) => rotateInner(d, 'in1', 0))).toBe(0)
+    expect(patchCount(l, (d) => rotateInner(d, 'in1', 360))).toBe(0)
+    expect(patchCount(l, (d) => rotateInner(d, 'in1', -720))).toBe(0)
+    expect(patchCount(l, (d) => rotateInner(d, 'in1', 359.996))).toBe(0)
+    expect(patchCount(l, (d) => rotateInner(d, 'in1', 90))).toBeGreaterThan(0)
+  })
+
+  it('addInner의 한 변은 templates.newInnerSide와 같다', () => {
+    const l = layoutOf(goldenTent([]))
+    const { next } = runAdd(l, buildZones(l.tent))
+    expect(at(next.tent.inners, 0).shape).toEqual({ kind: 'rect', w: newInnerSide(l.tent.outer), h: newInnerSide(l.tent.outer) })
   })
 })

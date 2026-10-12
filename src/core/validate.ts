@@ -101,6 +101,28 @@ export function validateTent(tent: Tent, pathPrefix = 'tent'): Issue[] {
   return issues
 }
 
+/**
+ * 이슈의 정체를 가리는 열쇠: 코드 + 경로(이너 번호는 그 이너의 id로 바꿈) + 문구.
+ * 번호 대신 id를 써서 앞 이너를 지워 번호가 당겨져도 같은 이슈로 보고,
+ * 문구를 넣어 같은 경로의 겹침이라도 짝(두 이너 이름이 문구에 들어 있음)이 다르면 다른 이슈로 봅니다.
+ */
+function issueKey(tent: Tent, issue: Issue): string {
+  const path = issue.path.replace(/\.inners\.(\d+)/, (whole, index: string) => {
+    const id = tent.inners[Number(index)]?.id
+    return id === undefined ? whole : `.inners#${id}`
+  })
+  return `${issue.code}|${path}|${issue.message}`
+}
+
+/**
+ * after에만 있는 이슈(code + path가 before에 없던 것). 잘못된 결과 판정은 이것만 봅니다(R11).
+ * path의 이너 번호는 이너 id로 바꿔 비교하고, 겹침은 짝(문구)까지 봅니다(issueKey).
+ */
+export function newTentIssues(before: Tent, after: Tent): Issue[] {
+  const old = new Set(validateTent(before).map((issue) => issueKey(before, issue)))
+  return validateTent(after).filter((issue) => !old.has(issueKey(after, issue)))
+}
+
 /** 템플릿이 있으면 템플릿으로 만든 도형과 비교해 다르면 다시 만듭니다(§5.3-6). */
 function fixTemplates(tent: Tent, issues: Issue[]): void {
   if (tent.outerTemplate) {
