@@ -2,9 +2,19 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
-import { createLayout, type Tent } from '../../core/model'
+import { createLayout, type Layout, type Tent } from '../../core/model'
 import { addItem, makeItem } from '../../core/ops/items'
+import { fitView, layoutBBox } from '../../view/viewport'
+import { tunnelLayout } from '../area/testLayouts'
 import { CanvasOverlay, EMPTY_BODY_DESKTOP, EMPTY_BODY_MOBILE, EMPTY_TITLE, MODE_CHIP_COLLAPSE_MS } from './CanvasOverlay'
+import {
+  EMPTY_CARD_BOTTOM_GAP_PX,
+  EMPTY_CARD_DOCKED_HEIGHT_PX,
+  EMPTY_CARD_MAX_WIDTH_PX,
+  EMPTY_CARD_TOP_GAP_PX,
+  emptyCardPlacement,
+  tentScreenBox,
+} from './emptyCardPlacement'
 
 const TENT: Tent = { name: '시험 텐트', outer: { kind: 'rect', w: 400, h: 300 }, inners: [] }
 const PLACE_TEXT = '배치 모드 · 텐트는 잠겨 있어요'
@@ -14,8 +24,8 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function renderOverlay(variant: 'desktop' | 'mobile'): Stores {
-  const stores = createStores(createLayout(TENT, { name: '배치' }))
+function renderOverlay(variant: 'desktop' | 'mobile', layout: Layout = createLayout(TENT, { name: '배치' })): Stores {
+  const stores = createStores(layout)
   stores.ui.getState().setSize({ width: 800, height: 600 })
   stores.ui.getState().setView({ zoom: 1.2, panX: 0, panY: 0 })
   render(
@@ -42,9 +52,10 @@ describe('CanvasOverlay — PC', () => {
     expect(screen.getByText(PLACE_TEXT)).toBeTruthy()
   })
 
-  it('물건이 0개면 안내 카드, 물건을 놓으면 사라진다', () => {
+  it('물건이 0개면 안내 카드(스펙 §4.7-10 문구), 물건을 놓으면 사라진다', () => {
     const stores = renderOverlay('desktop')
     expect(screen.getByText(EMPTY_TITLE)).toBeTruthy()
+    expect(EMPTY_BODY_DESKTOP).toBe('라이브러리에서 누르면 추가돼요')
     expect(screen.getByText(EMPTY_BODY_DESKTOP)).toBeTruthy()
     expect(screen.queryByRole('button', { name: '물건 추가' })).toBeNull()
     addMat(stores)
@@ -86,6 +97,26 @@ describe('CanvasOverlay — PC', () => {
   })
 })
 
+describe('CanvasOverlay — 토스트', () => {
+  it('ui.toast를 보여 주고 2500ms 뒤 지운다(dismissToast)', () => {
+    vi.useFakeTimers()
+    const stores = renderOverlay('desktop')
+    act(() => stores.ui.getState().showToast('빈 공간이 부족해요'))
+    expect(screen.getByText('빈 공간이 부족해요')).toBeTruthy()
+    act(() => vi.advanceTimersByTime(2499))
+    expect(screen.getByText('빈 공간이 부족해요')).toBeTruthy()
+    act(() => vi.advanceTimersByTime(1))
+    expect(screen.queryByText('빈 공간이 부족해요')).toBeNull()
+    expect(stores.ui.getState().toast).toBeNull()
+  })
+
+  it('모바일에서도 같은 자리에 토스트를 그린다', () => {
+    const stores = renderOverlay('mobile')
+    act(() => stores.ui.getState().showToast('빈 공간이 부족해요'))
+    expect(screen.getByText('빈 공간이 부족해요')).toBeTruthy()
+  })
+})
+
 describe('CanvasOverlay — 모바일', () => {
   it('모드 안내 칩은 3초 뒤 접히고(요약 칩을 가리지 않음), 누르면 다시 펼쳐진다', () => {
     vi.useFakeTimers()
@@ -113,9 +144,86 @@ describe('CanvasOverlay — 모바일', () => {
     expect(screen.queryByTestId('empty-card')).toBeNull()
   })
 
+  it('보류 Minor #15: 390×730 캔버스에 터널 4인을 맞춤 보기하면 카드는 아래쪽에 붙고 폭이 줄어든다', () => {
+    const layout = tunnelLayout()
+    const stores = createStores(layout)
+    const size = { width: 390, height: 730 }
+    stores.ui.getState().setSize(size)
+    stores.ui.getState().setView(fitView(layoutBBox(layout), size, { top: 0, bottom: 0 }))
+    render(
+      <StoresProvider stores={stores}>
+        <CanvasOverlay variant="mobile" />
+      </StoresProvider>,
+    )
+    const card = screen.getByTestId('empty-card')
+    expect(card.className).toContain('shell-empty--docked')
+    expect(card.style.bottom).toBe(`${EMPTY_CARD_BOTTOM_GAP_PX}px`)
+    expect(card.style.top).toBe('')
+    expect(card.style.width).toBe(`${EMPTY_CARD_MAX_WIDTH_PX}px`)
+  })
+
   it('아래 컨트롤은 시트 높이만큼 올라간다(insets.bottom → CSS 변수)', () => {
     const stores = renderOverlay('mobile')
     act(() => stores.ui.getState().setInsets({ top: 0, bottom: 280 }))
     expect(screen.getByTestId('canvas-overlay').style.getPropertyValue('--overlay-bottom')).toBe('280px')
+  })
+})
+
+describe('emptyCardPlacement(순수)', () => {
+  const canvas = (width: number, height: number, bottom = 0) => ({ width, height, insets: { top: 0, bottom } })
+
+  it('390×730 + 터널 4인 맞춤 보기: 아래 붙임, 텐트와 겹침 0', () => {
+    const layout = tunnelLayout()
+    const c = canvas(390, 730)
+    const view = fitView(layoutBBox(layout), c, c.insets)
+    const tent = tentScreenBox(layout.tent, view)
+    const p = emptyCardPlacement(c, tent)
+    expect(p.anchor).toBe('bottom')
+    expect(p.overlapPx2).toBe(0)
+    expect(p.box.top).toBeGreaterThanOrEqual(tent.bottom)
+    expect(p.box.bottom).toBe(730 - EMPTY_CARD_BOTTOM_GAP_PX)
+    expect(p.box.bottom - p.box.top).toBe(EMPTY_CARD_DOCKED_HEIGHT_PX)
+    expect(p.widthPx).toBe(EMPTY_CARD_MAX_WIDTH_PX)
+    expect(p.box.left).toBe((390 - EMPTY_CARD_MAX_WIDTH_PX) / 2)
+  })
+
+  it('아래 자리가 텐트와 겹치고 위 자리가 비면 위에 붙인다', () => {
+    const tent = { left: 50, right: 340, top: 400, bottom: 700 }
+    const p = emptyCardPlacement(canvas(390, 730), tent)
+    expect(p.anchor).toBe('top')
+    expect(p.offsetPx).toBe(EMPTY_CARD_TOP_GAP_PX)
+    expect(p.overlapPx2).toBe(0)
+  })
+
+  it('위아래 모두 겹치면 덜 겹치는 쪽, 같으면 아래', () => {
+    const all = { left: -100, right: 500, top: -100, bottom: 900 }
+    expect(emptyCardPlacement(canvas(390, 730), all).anchor).toBe('bottom')
+    const mostlyBottom = { left: 0, right: 390, top: 200, bottom: 730 }
+    const p = emptyCardPlacement(canvas(390, 730), mostlyBottom)
+    expect(p.anchor).toBe('top')
+    expect(p.overlapPx2).toBeGreaterThan(0)
+  })
+
+  it('시트 높이(insets.bottom)만큼 위로 올린다', () => {
+    const p = emptyCardPlacement(canvas(390, 730, 280), null)
+    expect(p.anchor).toBe('bottom')
+    expect(p.offsetPx).toBe(280 + EMPTY_CARD_BOTTOM_GAP_PX)
+  })
+
+  it('좁은 화면에서는 좌우 16px씩 남기고 폭을 줄인다', () => {
+    expect(emptyCardPlacement(canvas(300, 600), null).widthPx).toBe(268)
+  })
+
+  it('위 자리가 시트 쪽으로 넘치는 낮은 캔버스면 위로 옮기지 않는다', () => {
+    // 아래 자리(52~202)는 다 겹치고 위 자리(104~254)는 덜 겹치지만, 위 자리가 시트 위 끝(250)을 넘습니다.
+    const tent = { left: 0, right: 390, top: 52, bottom: 202 }
+    const p = emptyCardPlacement({ width: 390, height: 400, insets: { top: 0, bottom: 150 } }, tent)
+    expect(p.anchor).toBe('bottom')
+    expect(p.overlapPx2).toBe(EMPTY_CARD_MAX_WIDTH_PX * EMPTY_CARD_DOCKED_HEIGHT_PX)
+  })
+
+  it('텐트 화면 사각형은 외곽 bbox를 보기로 옮긴 것', () => {
+    const box = tentScreenBox(TENT, { zoom: 2, panX: 100, panY: 50 })
+    expect(box).toEqual({ left: -300, top: -250, right: 500, bottom: 350 })
   })
 })

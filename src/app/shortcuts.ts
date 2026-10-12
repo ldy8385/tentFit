@@ -1,10 +1,15 @@
-// PC 단축키(스펙 §4.5 "PC 단축키" 중 Plan 3 범위). 판정은 event.code로 합니다(한글 자판이면 key가 'ㄱ'·'Process').
+// PC 단축키(스펙 §4.5 "PC 단축키", §4.4-7). 판정은 event.code로 합니다(한글 자판이면 key가 'ㄱ'·'Process').
+// 텐트 편집 모드(R5): Delete·Backspace = 선택한 꼭짓점 삭제, Esc = 꼭짓점 → 대상 → (기존 Esc) 순 해제,
+// 실행 취소·다시 실행·맞춤 보기는 그대로, 화살표·R·Ctrl+D는 무시합니다.
+// 메뉴([role="menu"])에 포커스가 있으면 Esc 말고 모두 무시하고(보류 Minor #9), 편집기 위 대화상자·오버레이가
+// 열려 있으면 모두 무시합니다(대화상자가 자기 Esc를 처리).
 // 그룹(Ctrl+G)·측정·Alt 스냅 반전은 Plan 5·6에서 더합니다.
 import { useEffect } from 'react'
 import { moveItems } from '../core/ops/items'
 import { blurActiveInput } from '../ui/fields/blurActive'
 import { deleteSelected, duplicateSelected, rotateSelected90 } from './actions'
 import { useStores, type Stores } from './stores'
+import { deleteTargetVertex } from './tentActions'
 import { fitToLayout } from './viewActions'
 
 export type ShortcutAction =
@@ -42,13 +47,26 @@ const ARROWS: Readonly<Record<string, readonly [number, number]>> = {
 /** Ctrl/Cmd 조합. 처리하지 못해도(선택 없음, 기록 없음) 브라우저 기본 동작(북마크 등)을 막습니다. */
 const MOD_ACTIONS: ReadonlySet<ShortcutAction['type']> = new Set(['undo', 'redo', 'duplicate'])
 
+/** 단축키 판정의 주변 상태. inMenu·modalOpen은 없으면 false입니다. */
+export type ShortcutContext = {
+  /** 포커스가 글자 입력칸(input·textarea·select·contenteditable)에 있음 */
+  inInput: boolean
+  /** 포커스가 메뉴([role="menu"]) 안에 있음 */
+  inMenu?: boolean
+  /** 편집기 위 대화상자·전체 화면 오버레이(텐트 바꾸기·텐트 만들기)가 열려 있음 */
+  modalOpen?: boolean
+}
+
 /**
- * 키 이벤트 → 단축키 동작. 입력 중(isComposing, key 'Process', 입력칸 포커스)이면 Esc 말고 모두 null입니다.
+ * 키 이벤트 → 단축키 동작.
+ * - 대화상자·오버레이가 열려 있으면 Esc까지 모두 null(대화상자가 Esc로 스스로 닫힘).
+ * - 입력 중(isComposing, key 'Process', 입력칸 포커스)·메뉴 포커스면 Esc 말고 모두 null입니다.
  * 입력칸 안의 Ctrl+Z는 null이라 브라우저 기본(입력칸 실행 취소)이 그대로 동작합니다.
  */
-export function shortcutFor(e: ShortcutKeyEvent, ctx: { inInput: boolean }): ShortcutAction | null {
+export function shortcutFor(e: ShortcutKeyEvent, ctx: ShortcutContext): ShortcutAction | null {
+  if (ctx.modalOpen === true) return null
   if (e.code === 'Escape') return { type: 'escape' }
-  if (e.isComposing || e.key === 'Process' || ctx.inInput) return null
+  if (e.isComposing || e.key === 'Process' || ctx.inInput || ctx.inMenu === true) return null
 
   if (e.ctrlKey || e.metaKey) {
     if (e.altKey) return null
@@ -71,8 +89,43 @@ export function shortcutFor(e: ShortcutKeyEvent, ctx: { inInput: boolean }): Sho
 }
 
 /**
+ * 텐트 편집 모드의 동작(R5). 처리했으면 true.
+ * - delete: 편집 대상과 선택한 꼭짓점이 있을 때만 deleteTargetVertex. 거부(꼭짓점 3개 등)면 그 문구를 토스트로 알리고 true
+ * - escape: 선택한 꼭짓점 해제 → 편집 대상 해제 → 기존 Esc(선택·그룹 안 편집 끝내기)
+ * - nudge·rotate90·duplicate: 무시(false). 이너를 키보드로 옮기거나 지우는 실수를 막습니다.
+ */
+function runTentShortcut(a: ShortcutAction, stores: Stores): boolean | null {
+  const ui = stores.ui.getState()
+  switch (a.type) {
+    case 'delete': {
+      if (ui.tentTarget === null || ui.vertexIndex === null) return false
+      const result = deleteTargetVertex(stores, ui.tentTarget, ui.vertexIndex)
+      if (!result.ok) stores.ui.getState().showToast(result.error)
+      return true
+    }
+    case 'escape':
+      if (ui.tentTarget !== null && ui.vertexIndex !== null) {
+        ui.selectTentTarget(ui.tentTarget, null)
+        return true
+      }
+      if (ui.tentTarget !== null) {
+        ui.selectTentTarget(null)
+        return true
+      }
+      return null
+    case 'nudge':
+    case 'rotate90':
+    case 'duplicate':
+      return false
+    default:
+      return null
+  }
+}
+
+/**
  * 동작을 실행하고, 처리했으면 true를 돌려줍니다(preventDefault 판단용).
  * - 제스처(끌기·변형) 중이면 아무것도 하지 않고 false
+ * - 텐트 편집 모드면 runTentShortcut이 먼저 봅니다(null이면 아래 공통 처리)
  * - 선택이 없으면 delete·nudge·rotate90·duplicate는 false
  * - nudge는 coalesceKey 'nudge:<선택 id들>'로 커밋해, 같은 선택을 500ms 안에 연달아 옮기면 실행 취소 1칸(스펙 §8)
  * - escape는 선택과 그룹 안 편집을 끝냅니다. 끝낼 것이 없으면 false
@@ -81,6 +134,10 @@ export function runShortcut(a: ShortcutAction, stores: Stores): boolean {
   const doc = stores.doc.getState()
   const ui = stores.ui.getState()
   if (doc.inGesture) return false
+  if (ui.mode === 'tent') {
+    const handled = runTentShortcut(a, stores)
+    if (handled !== null) return handled
+  }
   const ids = ui.selection
 
   switch (a.type) {
@@ -138,14 +195,28 @@ export function isTextEntry(el: Element | null): boolean {
   return false
 }
 
+/** 메뉴([role="menu"]) 안의 요소인지 */
+export function isInMenu(el: Element | null): boolean {
+  return el !== null && el.closest('[role="menu"]') !== null
+}
+
+/**
+ * 편집기 위에 대화상자(aria-modal)나 텐트 만들기 오버레이(data-editor-modal)가 열려 있는지.
+ * 열려 있으면 뒤의 편집기를 단축키로 바꾸지 않습니다.
+ */
+export function isEditorModalOpen(doc: Document): boolean {
+  return doc.querySelector('[aria-modal="true"], [data-editor-modal]') !== null
+}
+
 /** window keydown에 단축키를 연결합니다. 편집기(StoresProvider 안)에서 한 번만 부릅니다. */
 export function useShortcuts(): void {
   const stores = useStores()
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return
-      const inInput = isTextEntry(document.activeElement)
-      const action = shortcutFor(e, { inInput })
+      const active = document.activeElement
+      const inInput = isTextEntry(active)
+      const action = shortcutFor(e, { inInput, inMenu: isInMenu(active), modalOpen: isEditorModalOpen(document) })
       if (action === null) return
       // 입력 중 Esc: 먼저 blur해서 입력값을 반영한 뒤(§4.2) 선택을 해제합니다.
       if (action.type === 'escape' && inInput) blurActiveInput()

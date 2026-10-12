@@ -136,10 +136,63 @@ describe('TopBar', () => {
     expect(toggle.getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('이 계획에 없는 버튼(모드 토글·측정·파일)은 두지 않는다', () => {
+  it('이 계획에 없는 버튼(측정·파일)은 두지 않는다(모드 토글은 radio라 버튼 목록에 없음)', () => {
     renderBar('desktop')
     const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)
     expect(names).toEqual(['실행 취소', '다시 실행', '보기'])
+  })
+})
+
+/** 항목 자체나 묶음(radiogroup)이 막혀 있는지(disabled 또는 aria-disabled) */
+function isDisabled(el: HTMLElement): boolean {
+  const group = el.closest('[role="radiogroup"]')
+  return (
+    el.hasAttribute('disabled') ||
+    el.getAttribute('aria-disabled') === 'true' ||
+    group?.getAttribute('aria-disabled') === 'true'
+  )
+}
+
+describe('TopBar — 모드 토글(스펙 §4.1·§4.3)', () => {
+  it('가운데에 [배치 | 텐트 편집] 두 칸, 순서는 배치 → 텐트 편집이고 지금 모드가 켜져 있다', () => {
+    renderBar('desktop')
+    const group = within(screen.getByTestId('mode-toggle')).getByRole('radiogroup', { name: '편집 모드' })
+    const radios = within(group).getAllByRole('radio')
+    expect(radios.map((r) => r.textContent)).toEqual(['배치', '텐트 편집'])
+    expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false'])
+  })
+
+  it('텐트 편집을 누르면 모드가 바뀌고 물건 선택이 비며, 배치를 누르면 돌아온다', () => {
+    const stores = renderBar('desktop')
+    addMat(stores)
+    const id = stores.doc.getState().layout.items[0]!.id
+    act(() => stores.ui.getState().setSelection([id]))
+    fireEvent.click(screen.getByRole('radio', { name: '텐트 편집' }))
+    expect(stores.ui.getState().mode).toBe('tent')
+    expect(stores.ui.getState().selection).toEqual([])
+    expect(screen.getByRole('radio', { name: '텐트 편집' }).getAttribute('aria-checked')).toBe('true')
+    act(() => stores.ui.getState().selectTentTarget('outer'))
+    fireEvent.click(screen.getByRole('radio', { name: '배치' }))
+    expect(stores.ui.getState().mode).toBe('place')
+    expect(stores.ui.getState().tentTarget).toBeNull()
+    expect(screen.getByRole('radio', { name: '배치' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('모드를 바꿔도 실행 취소 기록은 그대로다(모드는 화면 상태)', () => {
+    const stores = renderBar('desktop')
+    fireEvent.click(screen.getByRole('radio', { name: '텐트 편집' }))
+    expect(stores.doc.getState().canUndo).toBe(false)
+  })
+
+  it('측정 중(tentControlsEnabled false)에는 토글이 막히고 모드가 바뀌지 않는다', () => {
+    const stores = renderBar('desktop')
+    act(() => stores.ui.getState().patch({ measuring: true }))
+    const tent = screen.getByRole('radio', { name: '텐트 편집' })
+    expect(isDisabled(tent)).toBe(true)
+    fireEvent.click(tent)
+    expect(stores.ui.getState().mode).toBe('place')
+    act(() => stores.ui.getState().patch({ measuring: false }))
+    expect(isDisabled(screen.getByRole('radio', { name: '텐트 편집' }))).toBe(false)
   })
 })
 

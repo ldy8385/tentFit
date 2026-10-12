@@ -1,0 +1,52 @@
+/* Plan 4 모드 전환 셸(Task 8·11): 상단 바 모드 토글 자리, 모바일 빈 안내 카드(텐트를 가리지 않게), 안내 카드 버튼 묶음.
+   색·간격·반경은 tokens.css 변수만 씁니다. 누름 영역 44px. */
+
+/* 상단 바 가운데의 모드 토글(스펙 §4.1). 세그먼트 모양은 SegmentedControl이 그립니다. */
+.shell-modetoggle {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+/* 빈 안내 카드 버튼 묶음(PC [텐트 바꾸기], 모바일 [물건 추가][텐트 바꾸기]) */
+.shell-empty__actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.shell-empty__actions > .shell-empty__btn {
+  flex: 1 1 0;
+  margin-top: 0;
+}
+
+/* 보조 버튼(흰 바탕 + 외곽선) */
+.shell-empty__btn--secondary {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* 모바일 카드: 캔버스 가운데가 아니라 아래쪽(또는 위쪽)에 붙여 텐트를 가리지 않게(보류 Minor #15).
+   위치(top/bottom)·폭은 emptyCardPlacement가 정해 인라인 스타일로 넣습니다. */
+.shell-empty--docked {
+  top: auto;
+  transform: translateX(-50%);
+  padding: var(--sp-3) var(--sp-4);
+  text-align: left;
+}
+
+.shell-empty--docked .shell-empty__title {
+  margin: 0 0 2px;
+}
+
+.shell-empty--docked .shell-empty__actions {
+  margin-top: var(--sp-3);
+}
+
+/* 툴바 버튼 비활성(측정 중 텐트 컨트롤, §4.3) */
+.shell-tool:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}

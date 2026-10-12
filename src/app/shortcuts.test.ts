@@ -103,6 +103,23 @@ describe('shortcutFor — event.code 기준(스펙 §4.5)', () => {
     expect(shortcutFor(key('Digit1'), OUT)).toBeNull()
     expect(shortcutFor(key('KeyA'), OUT)).toBeNull()
   })
+
+  it('보류 Minor #9: 메뉴에 포커스가 있으면 Esc 말고 모두 null', () => {
+    const MENU = { inInput: false, inMenu: true }
+    for (const code of ['Delete', 'Backspace', 'KeyR', 'ArrowLeft']) {
+      expect(shortcutFor(key(code), MENU)).toBeNull()
+    }
+    expect(shortcutFor(key('KeyZ', { ctrlKey: true }), MENU)).toBeNull()
+    expect(shortcutFor(key('Escape'), MENU)).toEqual({ type: 'escape' })
+  })
+
+  it('편집기 위 대화상자·오버레이가 열려 있으면 Esc까지 모두 null(대화상자가 Esc를 처리)', () => {
+    const MODAL = { inInput: false, modalOpen: true }
+    for (const code of ['Delete', 'Escape', 'KeyR', 'ArrowUp']) {
+      expect(shortcutFor(key(code), MODAL)).toBeNull()
+    }
+    expect(shortcutFor(key('KeyZ', { metaKey: true }), MODAL)).toBeNull()
+  })
 })
 
 describe('runShortcut', () => {
@@ -247,5 +264,103 @@ describe('runShortcut', () => {
     }
     expect(t.stores.doc.getState().layout).toBe(before)
     expect(t.stores.ui.getState().selection).toEqual([t.ids[0]])
+  })
+})
+
+describe('runShortcut — 텐트 편집 모드(R5)', () => {
+  /** 사각형 400×300 외곽 + 매트 하나, 텐트 편집 모드 */
+  function tentSetup(tent: Tent = TENT) {
+    const item = mat('매트', 0, 0)
+    const layout: Layout = { ...createLayout(tent, { name: '배치', now: '2026-10-08T00:00:00.000Z' }), items: [item] }
+    const stores: Stores = { doc: createDocStore(layout), ui: createUiStore() }
+    stores.ui.getState().setMode('tent')
+    return { stores, itemId: item.id }
+  }
+  const TRIANGLE: Tent = {
+    name: '세모',
+    outer: { kind: 'polygon', points: [[-100, -100], [100, -100], [0, 100]] },
+    inners: [],
+  }
+
+  it('Delete: 선택한 꼭짓점을 지우고 꼭짓점 선택을 비운다(실행 취소 1칸)', () => {
+    const { stores } = tentSetup()
+    stores.ui.getState().selectTentTarget('outer', 0)
+    expect(runShortcut({ type: 'delete' }, stores)).toBe(true)
+    const outer = stores.doc.getState().layout.tent.outer
+    expect(outer.kind).toBe('polygon')
+    expect(outer.kind === 'polygon' ? outer.points : []).toHaveLength(3)
+    expect(stores.ui.getState().tentTarget).toBe('outer')
+    expect(stores.ui.getState().vertexIndex).toBeNull()
+    expect(runShortcut({ type: 'undo' }, stores)).toBe(true)
+    expect(stores.doc.getState().layout.tent.outer).toEqual({ kind: 'rect', w: 400, h: 300 })
+  })
+
+  it('Delete: 꼭짓점을 고르지 않았으면(대상만 있음) 아무것도 하지 않고 false', () => {
+    const { stores } = tentSetup()
+    stores.ui.getState().selectTentTarget('outer')
+    const before = stores.doc.getState().layout
+    expect(runShortcut({ type: 'delete' }, stores)).toBe(false)
+    expect(stores.doc.getState().layout).toBe(before)
+  })
+
+  it('Delete: 꼭짓점이 3개면 지우지 않고 사유를 토스트로 알린다(기록 없음)', () => {
+    const { stores } = tentSetup(TRIANGLE)
+    stores.ui.getState().selectTentTarget('outer', 1)
+    const before = stores.doc.getState().layout
+    expect(runShortcut({ type: 'delete' }, stores)).toBe(true)
+    expect(stores.doc.getState().layout).toBe(before)
+    expect(stores.doc.getState().canUndo).toBe(false)
+    expect(stores.ui.getState().toast).not.toBeNull()
+  })
+
+  it('Esc: 꼭짓점 선택 해제 → 대상 해제 → 끝낼 것이 없으면 false', () => {
+    const { stores } = tentSetup()
+    stores.ui.getState().selectTentTarget('outer', 2)
+    expect(runShortcut({ type: 'escape' }, stores)).toBe(true)
+    expect(stores.ui.getState().tentTarget).toBe('outer')
+    expect(stores.ui.getState().vertexIndex).toBeNull()
+    expect(runShortcut({ type: 'escape' }, stores)).toBe(true)
+    expect(stores.ui.getState().tentTarget).toBeNull()
+    expect(runShortcut({ type: 'escape' }, stores)).toBe(false)
+    expect(stores.ui.getState().mode).toBe('tent')
+  })
+
+  it('화살표·R·Ctrl+D는 텐트 편집 모드에서 무시한다(물건이 선택돼 있어도 잠김)', () => {
+    const { stores, itemId } = tentSetup()
+    stores.ui.getState().setSelection([itemId])
+    const before = stores.doc.getState().layout
+    expect(runShortcut({ type: 'nudge', dx: 10, dy: 0 }, stores)).toBe(false)
+    expect(runShortcut({ type: 'rotate90' }, stores)).toBe(false)
+    expect(runShortcut({ type: 'duplicate' }, stores)).toBe(false)
+    expect(stores.doc.getState().layout).toBe(before)
+  })
+
+  it('Delete는 텐트 편집 모드에서 물건을 지우지 않는다', () => {
+    const { stores, itemId } = tentSetup()
+    stores.ui.getState().setSelection([itemId])
+    expect(runShortcut({ type: 'delete' }, stores)).toBe(false)
+    expect(stores.doc.getState().layout.items).toHaveLength(1)
+  })
+
+  it('실행 취소·다시 실행·맞춤 보기는 텐트 편집 모드에서도 그대로', () => {
+    const { stores } = tentSetup()
+    stores.ui.getState().selectTentTarget('outer', 3)
+    runShortcut({ type: 'delete' }, stores)
+    expect(runShortcut({ type: 'undo' }, stores)).toBe(true)
+    expect(runShortcut({ type: 'redo' }, stores)).toBe(true)
+    expect(stores.doc.getState().layout.tent.outer.kind).toBe('polygon')
+    stores.ui.getState().setSize({ width: 800, height: 600 })
+    expect(runShortcut({ type: 'fit' }, stores)).toBe(true)
+  })
+
+  it('제스처(꼭짓점 끌기 등) 중에는 텐트 편집 단축키도 false', () => {
+    const { stores } = tentSetup()
+    stores.ui.getState().selectTentTarget('outer', 0)
+    stores.doc.getState().beginGesture()
+    const before = stores.doc.getState().layout
+    expect(runShortcut({ type: 'delete' }, stores)).toBe(false)
+    expect(runShortcut({ type: 'escape' }, stores)).toBe(false)
+    expect(stores.doc.getState().layout).toBe(before)
+    expect(stores.ui.getState().vertexIndex).toBe(0)
   })
 })

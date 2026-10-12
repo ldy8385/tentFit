@@ -12,7 +12,7 @@ function mat(name: string, x: number): Item {
   return makeItem({ name, shape: { kind: 'rect', w: 200, h: 60 }, color: 'blue', category: 'MAT', countsArea: true }, [x, 0])
 }
 
-function Harness() {
+function Harness(p: { modal?: boolean }) {
   useShortcuts()
   return (
     <div>
@@ -21,17 +21,27 @@ function Harness() {
       <div aria-label="메모" contentEditable suppressContentEditableWarning>
         메모
       </div>
+      <div role="menu" aria-label="보기 메뉴">
+        <button type="button" role="menuitem">
+          맞춤 보기
+        </button>
+      </div>
+      {p.modal === true && (
+        <div role="dialog" aria-modal="true" aria-label="텐트 바꾸기">
+          <button type="button">취소</button>
+        </div>
+      )}
     </div>
   )
 }
 
-function setup() {
+function setup(opts: { modal?: boolean } = {}) {
   const a = mat('매트', 0)
   const b = mat('매트 2', 100)
   const stores: Stores = createStores({ ...createLayout(TENT, { name: '배치' }), items: [a, b] })
   const view = render(
     <StoresProvider stores={stores}>
-      <Harness />
+      <Harness modal={opts.modal} />
     </StoresProvider>,
   )
   stores.ui.getState().setSelection([a.id])
@@ -135,6 +145,27 @@ describe('useShortcuts', () => {
     act(() => stores.ui.getState().setSelection([a.id]))
     press(document.body, { code: 'Delete', key: 'Delete' })
     expect(stores.doc.getState().layout.items.some((it) => it.id === a.id)).toBe(true)
+  })
+})
+
+describe('useShortcuts — 메뉴·대화상자(보류 Minor #9)', () => {
+  it('메뉴 항목에 포커스가 있으면 Delete가 물건을 지우지 않는다', () => {
+    const { stores, view } = setup()
+    const item = view.getByRole('menuitem', { name: '맞춤 보기' })
+    item.focus()
+    const before = stores.doc.getState().layout
+    expect(press(item, { code: 'Delete', key: 'Delete' })).toBe(false)
+    expect(stores.doc.getState().layout).toBe(before)
+  })
+
+  it('대화상자(aria-modal)가 열려 있으면 Delete·Esc 모두 뒤의 편집기를 바꾸지 않는다', () => {
+    const { stores, view, a } = setup({ modal: true })
+    const cancel = view.getByRole('button', { name: '취소' })
+    cancel.focus()
+    press(cancel, { code: 'Delete', key: 'Delete' })
+    press(cancel, { code: 'Escape', key: 'Escape' })
+    expect(stores.doc.getState().layout.items.some((it) => it.id === a.id)).toBe(true)
+    expect(stores.ui.getState().selection).toEqual([a.id])
   })
 })
 

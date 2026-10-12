@@ -1,12 +1,25 @@
-// PC 상단 바(스펙 §4.1): 로고, 배치 이름, 실행 취소·다시 실행, [보기] 메뉴(격자 보이기, 맞춤 보기).
-// 굵은 포인터 기기에서만 [선택] 토글을 더합니다. 모드 토글·[측정]·[파일]·스냅 항목은 Plan 4·5·7에서 붙입니다.
+// PC 상단 바(스펙 §4.1): 로고, 배치 이름, 모드 토글(배치│텐트 편집), 실행 취소·다시 실행, [보기] 메뉴(격자 보이기, 맞춤 보기).
+// 굵은 포인터 기기에서만 [선택] 토글을 더합니다. [측정]·[파일]·스냅 항목은 Plan 5·7에서 붙입니다.
 import { useDoc, useStores, useUi } from '../../app/stores'
+import { enterTentMode, exitTentMode, tentControlsEnabled } from '../../app/tentActions'
 import { fitToLayout } from '../../app/viewActions'
+import type { Mode } from '../../store/ui'
+import { SegmentedControl } from '../common/SegmentedControl'
 import { LogoIcon, PointerIcon, RedoIcon, UndoIcon } from './icons'
 import { LayoutNameField } from './LayoutNameField'
 import { MenuButton } from './MenuButton'
 import { useCoarsePointer } from './useIsDesktop'
 import './shell.css'
+import './modeShell.css'
+
+/** 모드 토글 항목(스펙 §4.1 순서: 배치 → 텐트 편집) */
+export const MODE_OPTIONS: readonly { value: Mode; label: string }[] = [
+  { value: 'place', label: '배치' },
+  { value: 'tent', label: '텐트 편집' },
+]
+
+/** 모드 토글의 이름(radiogroup aria-label) */
+export const MODE_TOGGLE_LABEL = '편집 모드'
 
 export function TopBar() {
   const stores = useStores()
@@ -14,7 +27,10 @@ export function TopBar() {
   const canRedo = useDoc((s) => s.canRedo)
   const gridVisible = useUi((s) => s.gridVisible)
   const selectToggle = useUi((s) => s.selectToggle)
+  const mode = useUi((s) => s.mode)
+  const measuring = useUi((s) => s.measuring)
   const coarse = useCoarsePointer()
+  const enabled = tentControlsEnabled({ measuring })
 
   return (
     <header className="shell-topbar" data-testid="top-bar">
@@ -23,6 +39,16 @@ export function TopBar() {
         <span>tentFit</span>
       </div>
       <LayoutNameField className="shell-name--desktop" />
+      <div className="shell-spacer" />
+      <div className="shell-modetoggle" data-testid="mode-toggle">
+        <SegmentedControl
+          label={MODE_TOGGLE_LABEL}
+          options={MODE_OPTIONS}
+          value={mode}
+          disabled={!enabled}
+          onChange={(next) => (next === 'tent' ? enterTentMode(stores) : exitTentMode(stores))}
+        />
+      </div>
       <div className="shell-spacer" />
       {coarse && (
         <button

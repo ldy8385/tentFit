@@ -1,15 +1,19 @@
 // 캔버스 위 컨트롤(화면에만 있고 PNG에는 넣지 않음, 스펙 §4.1·§4.3·§4.6·§4.7-10).
-// 모드 안내 칩(모바일은 3초 뒤 접힘), 축척 막대, PC 확대·축소·맞춤 버튼, 물건 0개 안내 카드.
-// 스냅 상태 칩은 Plan 5, 안내 카드의 [텐트 바꾸기]는 Plan 4에서 더합니다.
+// 모드 안내 칩(모바일은 3초 뒤 접힘), 축척 막대, PC 확대·축소·맞춤 버튼, 물건 0개 안내 카드, 토스트(「빈 공간이 부족해요」 등).
+// 스냅 상태 칩은 Plan 5, 안내 카드의 [텐트 바꾸기]는 Task 11에서 더합니다.
 // 아래쪽 컨트롤은 시트 높이(insets.bottom)만큼 올려서 시트에 가리지 않게 합니다.
-import { useEffect, useState, type CSSProperties } from 'react'
+// 휴대폰 안내 카드는 가운데가 아니라 아래쪽(겹치면 위쪽)에 붙여 텐트를 가리지 않게 합니다(emptyCardPlacement).
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useDoc, useStores, useUi } from '../../app/stores'
 import { fitToLayout, zoomByStep, ZOOM_STEP } from '../../app/viewActions'
 import type { Mode } from '../../store/ui'
 import { ZOOM_MAX, ZOOM_MIN } from '../../view/viewport'
+import { ToastView } from '../common/Toast'
+import { emptyCardPlacement, tentScreenBox } from './emptyCardPlacement'
 import { FitIcon, MinusIcon, PlusIcon, PlusSquareIcon, PointerIcon } from './icons'
 import { scaleBar } from './scaleBar'
 import './shell.css'
+import './modeShell.css'
 
 export const MODE_CHIP_TEXT: Readonly<Record<Mode, string>> = {
   place: '배치 모드 · 텐트는 잠겨 있어요',
@@ -20,7 +24,8 @@ export const MODE_CHIP_TEXT: Readonly<Record<Mode, string>> = {
 export const MODE_CHIP_COLLAPSE_MS = 3000
 
 export const EMPTY_TITLE = '아직 놓은 물건이 없어요'
-export const EMPTY_BODY_DESKTOP = '왼쪽 라이브러리에서 물건을 골라 보세요'
+/** 스펙 §4.7-10은 「라이브러리에서 누르거나 끌어다 놓으면 추가돼요」. 라이브러리 끌어다 놓기가 아직 없어 앞부분만 씁니다. */
+export const EMPTY_BODY_DESKTOP = '라이브러리에서 누르면 추가돼요'
 export const EMPTY_BODY_MOBILE = '아래 [+물건]으로 매트나 의자를 놓아 보세요'
 
 type Variant = 'desktop' | 'mobile'
@@ -101,16 +106,39 @@ function ZoomControls(p: { zoom: number }) {
   )
 }
 
+/** 휴대폰 카드의 인라인 위치(top 또는 bottom, 폭). 보기·시트 높이·텐트가 바뀔 때마다 다시 정합니다. */
+function useDockedStyle(): CSSProperties {
+  const view = useUi((s) => s.view)
+  const size = useUi((s) => s.size)
+  const insets = useUi((s) => s.insets)
+  const tent = useDoc((s) => s.layout.tent)
+  return useMemo(() => {
+    const placement = emptyCardPlacement({ width: size.width, height: size.height, insets }, tentScreenBox(tent, view))
+    return placement.anchor === 'bottom'
+      ? { bottom: placement.offsetPx, width: placement.widthPx }
+      : { top: placement.offsetPx, width: placement.widthPx }
+  }, [view, size, insets, tent])
+}
+
 function EmptyCard(p: { variant: Variant }) {
   const stores = useStores()
+  const dockedStyle = useDockedStyle()
+  if (p.variant === 'desktop') {
+    return (
+      <div className="shell-empty" data-testid="empty-card">
+        <span className="shell-empty__icon">
+          <PlusSquareIcon size={22} />
+        </span>
+        <p className="shell-empty__title">{EMPTY_TITLE}</p>
+        <p className="shell-empty__body">{EMPTY_BODY_DESKTOP}</p>
+      </div>
+    )
+  }
   return (
-    <div className="shell-empty" data-testid="empty-card">
-      <span className="shell-empty__icon">
-        <PlusSquareIcon size={22} />
-      </span>
+    <div className="shell-empty shell-empty--docked" data-testid="empty-card" style={dockedStyle}>
       <p className="shell-empty__title">{EMPTY_TITLE}</p>
-      <p className="shell-empty__body">{p.variant === 'desktop' ? EMPTY_BODY_DESKTOP : EMPTY_BODY_MOBILE}</p>
-      {p.variant === 'mobile' && (
+      <p className="shell-empty__body">{EMPTY_BODY_MOBILE}</p>
+      <div className="shell-empty__actions">
         <button
           type="button"
           className="shell-empty__btn"
@@ -119,9 +147,17 @@ function EmptyCard(p: { variant: Variant }) {
           <PlusIcon size={18} />
           물건 추가
         </button>
-      )}
+      </div>
     </div>
   )
+}
+
+/** ui.toast를 그립니다. 2500ms 뒤 ToastView가 dismissToast(id)를 부릅니다(그사이 새 토스트면 그 id는 무시). */
+function ToastHost() {
+  const stores = useStores()
+  const toast = useUi((s) => s.toast)
+  const onDismiss = useCallback((id: number) => stores.ui.getState().dismissToast(id), [stores])
+  return <ToastView toast={toast} onDismiss={onDismiss} />
 }
 
 export function CanvasOverlay(p: { variant: Variant }) {
@@ -143,6 +179,7 @@ export function CanvasOverlay(p: { variant: Variant }) {
       <ScaleBarView zoom={zoom} />
       {p.variant === 'desktop' && <ZoomControls zoom={zoom} />}
       {showEmpty && <EmptyCard variant={p.variant} />}
+      <ToastHost />
     </div>
   )
 }

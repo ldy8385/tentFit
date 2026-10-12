@@ -29,6 +29,12 @@ function renderPanel(layout: Layout, inSheet = false): Stores {
   return stores
 }
 
+/** 터널 4인의 이너를 x −250으로 옮겨 외곽 밖으로 나가게 한 배치(물건 없음 → 경고 행은 이탈 1개) */
+function escapedLayout(): Layout {
+  const base = tunnelLayout()
+  return { ...base, tent: { ...base.tent, inners: base.tent.inners.map((i) => ({ ...i, x: -250 })) } }
+}
+
 const rows = () => within(screen.getByRole('list')).getAllByRole('button')
 const center = (s: Stores) => {
   const { view, size, insets } = s.ui.getState()
@@ -70,11 +76,14 @@ describe('WarningPanel', () => {
     expect(stores.ui.getState().selection).toEqual(['a', 'c'])
   })
 
-  it('텐트 편집 모드에서 누르면 배치 모드로 바꾼 뒤 선택한다', () => {
+  it('텐트 편집 모드에서 누르면 배치 모드로 바꾼 뒤(편집 대상 정리) 선택한다', () => {
     const stores = renderPanel(warnLayout())
-    stores.ui.getState().patch({ mode: 'tent' })
+    stores.ui.getState().setMode('tent')
+    stores.ui.getState().selectTentTarget('outer', 0)
     fireEvent.click(rows()[0] as HTMLElement)
     expect(stores.ui.getState().mode).toBe('place')
+    expect(stores.ui.getState().tentTarget).toBeNull()
+    expect(stores.ui.getState().vertexIndex).toBeNull()
     expect(stores.ui.getState().selection).toEqual(['a'])
   })
 
@@ -86,16 +95,49 @@ describe('WarningPanel', () => {
     expect(center(stores)[0]).toBeCloseTo(300, 6)
   })
 
-  it('이너 이탈 행은 선택 없이 화면만 옮긴다(Plan 4 전)', () => {
-    const base = tunnelLayout()
-    const escaped = { ...base, tent: { ...base.tent, inners: base.tent.inners.map((i) => ({ ...i, x: -250 })) } }
-    const stores = renderPanel(escaped)
+  it('D27: 배치 모드에서 이너 이탈 행을 누르면 텐트 편집으로 바꾸고 그 이너를 고른 뒤 화면을 옮긴다', () => {
+    const layout = escapedLayout()
+    const innerId = layout.tent.inners[0]!.id
+    const stores = renderPanel(layout)
     const r = rows()
     expect(r).toHaveLength(1)
     expect(r[0]?.textContent).toContain('이너 1이 외곽 밖으로 나감')
     fireEvent.click(r[0] as HTMLElement)
+    expect(stores.ui.getState().mode).toBe('tent')
+    expect(stores.ui.getState().tentTarget).toEqual({ innerId })
+    expect(stores.ui.getState().vertexIndex).toBeNull()
     expect(stores.ui.getState().selection).toEqual([])
+    expect(center(stores)[0]).toBeCloseTo(-250, 6)
+    expect(stores.doc.getState().canUndo).toBe(false)
+  })
+
+  it('D27: 텐트 편집 모드(외곽을 고른 상태)에서 누르면 그 이너로 대상만 바꾼다', () => {
+    const layout = escapedLayout()
+    const innerId = layout.tent.inners[0]!.id
+    const stores = renderPanel(layout)
+    stores.ui.getState().setMode('tent')
+    stores.ui.getState().selectTentTarget('outer', 2)
+    fireEvent.click(rows()[0] as HTMLElement)
+    expect(stores.ui.getState().mode).toBe('tent')
+    expect(stores.ui.getState().tentTarget).toEqual({ innerId })
+    expect(stores.ui.getState().vertexIndex).toBeNull()
+  })
+
+  it('D27 모바일: 이너 이탈 행은 경고 시트를 닫고 텐트 시트로 바꾼다', () => {
+    const layout = escapedLayout()
+    const stores = renderPanel(layout, true)
+    fireEvent.click(rows()[0] as HTMLElement)
+    expect(stores.ui.getState().mode).toBe('tent')
+    expect(stores.ui.getState().mobileSheet).toBe('tent')
+  })
+
+  it('측정 중에는 이너 이탈 행도 모드·대상을 바꾸지 않고 화면만 옮긴다', () => {
+    const stores = renderPanel(escapedLayout(), true)
+    stores.ui.getState().patch({ measuring: true })
+    fireEvent.click(rows()[0] as HTMLElement)
     expect(stores.ui.getState().mode).toBe('place')
+    expect(stores.ui.getState().tentTarget).toBeNull()
+    expect(stores.ui.getState().mobileSheet).toBe('warnings')
     expect(center(stores)[0]).toBeCloseTo(-250, 6)
   })
 

@@ -2,27 +2,34 @@ import { useMemo, useState } from 'react'
 import { expandSelection } from '../../core/ops/groups'
 import { useStats } from '../../app/derived'
 import { useDoc, useStores, type Stores } from '../../app/stores'
+import { enterTentMode, exitTentMode, tentControlsEnabled } from '../../app/tentActions'
 import { DangerIcon, WarnIcon } from './icons'
 import { centerViewOn, warningRows, warningTargetPoint, type WarningRow } from './warningRows'
 import './area.css'
 
 /**
- * 경고 행을 눌렀을 때(스펙 §4.6 "항목을 눌렀을 때").
- * - 측정 중: 선택·모드는 그대로 두고 화면만 옮깁니다.
- * - 물건: 텐트 편집이면 배치 모드로 바꾸고, 그 물건(그룹이면 그룹 전체)을 선택한 뒤 화면을 옮깁니다.
- *   모바일(inSheet)은 경고 시트를 닫고 선택 시트로 바꿉니다. 데스크톱은 목록을 그대로 둡니다.
- * - 이너 이탈: Plan 4(텐트 편집) 전까지는 화면만 옮깁니다.
+ * 경고 행을 눌렀을 때(스펙 §4.6 "항목을 눌렀을 때", D27).
+ * - 측정 중: 선택·모드는 그대로 두고 화면만 옮깁니다(이너 행은 측정 잠금 이음매 tentControlsEnabled로 판단).
+ * - 물건: 텐트 편집이면 배치 모드로 바꾸고(exitTentMode — 텐트 대상·텐트 시트 정리), 그 물건(그룹이면 그룹 전체)을
+ *   선택한 뒤 화면을 옮깁니다. 모바일(inSheet)은 경고 시트를 닫고 선택 시트로 바꿉니다. 데스크톱은 목록을 그대로 둡니다.
+ * - 이너 이탈: 텐트 편집 모드로 바꾸고(이미 텐트 편집이면 그대로) 그 이너를 편집 대상으로 고른 뒤 화면을 옮깁니다.
+ *   모바일은 경고 시트를 닫고 텐트 시트로 바꿉니다.
  */
 export function focusWarning(stores: Stores, row: WarningRow, mobile: boolean): void {
   const layout = stores.doc.getState().layout
-  const ui = stores.ui.getState()
-  if (row.kind === 'item' && !ui.measuring && layout.items.some((it) => it.id === row.targetId)) {
-    if (ui.mode !== 'place') ui.patch({ mode: 'place' })
+  const before = stores.ui.getState()
+  if (row.kind === 'item' && !before.measuring && layout.items.some((it) => it.id === row.targetId)) {
+    if (stores.ui.getState().mode !== 'place') exitTentMode(stores)
+    const ui = stores.ui.getState()
     const scope = ui.scopeGroupId
     const inScope = scope !== null && layout.items.some((it) => it.id === row.targetId && it.groupId === scope)
     if (scope !== null && !inScope) ui.patch({ scopeGroupId: null })
     ui.setSelection(expandSelection(layout, [row.targetId], inScope ? scope : undefined))
     if (mobile) ui.patch({ mobileSheet: 'selection' })
+  }
+  if (row.kind === 'innerEscape' && tentControlsEnabled(before) && layout.tent.inners.some((i) => i.id === row.targetId)) {
+    enterTentMode(stores, { innerId: row.targetId })
+    if (mobile) stores.ui.getState().patch({ mobileSheet: 'tent' })
   }
   const target = warningTargetPoint(layout, row)
   if (target !== null) {
