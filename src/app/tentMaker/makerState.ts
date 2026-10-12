@@ -246,32 +246,52 @@ export function setTemplateField(s: MakerState, patch: TemplatePatch): MakerStat
   return reattachAll({ ...s, rect, trapezoid, ngon, circle })
 }
 
+/** 붙일 벽에 정사각형이 겹칠 때 깊이를 줄이는 단위와 하한(cm, 소유자 확인 1) */
+const ATTACH_DEPTH_STEP = 10
+const MIN_ATTACH_DEPTH = 50
+
 /**
- * R7 이너 추가. 붙일 벽이 있는 모양(사각형·사다리꼴)은 아직 안 쓴 벽을 뒤 → 앞 → 왼쪽 → 오른쪽(사다리꼴은 뒤 → 앞) 순으로,
- * 모두 썼으면 뒤. 그 밖 모양은 가장 큰 바닥 조각의 polylabel(§4.4-4). 크기는 §4.4-4 한 변.
- * 다른 이너와 겹치면 추가하지 않고 no-space.
+ * R7 이너 추가. 붙일 벽이 있는 모양(사각형·사다리꼴)은 아직 안 쓴 벽을 뒤 → 앞 → 왼쪽 → 오른쪽(사다리꼴은 뒤 → 앞) 순으로
+ * 시도하고, 모두 썼으면 뒤. 크기는 §4.4-4 한 변 정사각형이고, 다른 이너와 겹치면 깊이를 10cm씩 줄여(최소 50cm)
+ * 들어가는 크기로 붙입니다(소유자 확인 1). 그 벽에 안 들어가면 다음 벽. 그 밖 모양은 가장 큰 바닥 조각의
+ * polylabel(§4.4-4). 어디에도 안 들어가면 no-space.
  */
 export function addMakerInner(s: MakerState): { ok: true; state: MakerState } | { ok: false; reason: 'no-space' } {
   const tpl = outerTemplateOf(s)
   const size = newInnerSide(outerShapeOf(s))
   const sides = attachSidesFor(tpl ?? undefined)
-  let candidate: MakerInner
   const id = newId()
   const name = nextInnerName(s.inners)
+  const fits = (candidate: MakerInner): boolean => {
+    const next = toInner(candidate)
+    return !s.inners.some((it) => innersOverlap(next, toInner(it)))
+  }
+  const accept = (candidate: MakerInner) => ({ ok: true as const, state: { ...s, inners: [...s.inners, candidate] } })
   if (tpl !== null && sides.length > 0) {
     const used = new Set(s.inners.map((it) => it.side))
-    const side = sides.find((sd) => !used.has(sd)) ?? 'back'
-    const placed = attachedInner(tpl, side, size, size)
-    if (placed === null) return { ok: false, reason: 'no-space' }
-    candidate = { id, name, width: size, depth: size, side, x: placed.x, y: placed.y }
-  } else {
-    const piece = buildZones(makerTent(s)).pieces[0]
-    if (piece === undefined) return { ok: false, reason: 'no-space' }
-    candidate = { id, name, width: size, depth: size, side: null, x: clampCoordinate(piece.label[0]), y: clampCoordinate(piece.label[1]) }
+    const free = sides.filter((sd) => !used.has(sd))
+    for (const side of free.length > 0 ? free : (['back'] as const)) {
+      for (let depth = size; depth >= Math.min(size, MIN_ATTACH_DEPTH); depth -= ATTACH_DEPTH_STEP) {
+        const placed = attachedInner(tpl, side, size, depth)
+        if (placed === null) break
+        const candidate: MakerInner = { id, name, width: size, depth, side, x: placed.x, y: placed.y }
+        if (fits(candidate)) return accept(candidate)
+      }
+    }
+    return { ok: false, reason: 'no-space' }
   }
-  const next = toInner(candidate)
-  if (s.inners.some((it) => innersOverlap(next, toInner(it)))) return { ok: false, reason: 'no-space' }
-  return { ok: true, state: { ...s, inners: [...s.inners, candidate] } }
+  const piece = buildZones(makerTent(s)).pieces[0]
+  if (piece === undefined) return { ok: false, reason: 'no-space' }
+  const candidate: MakerInner = {
+    id,
+    name,
+    width: size,
+    depth: size,
+    side: null,
+    x: clampCoordinate(piece.label[0]),
+    y: clampCoordinate(piece.label[1]),
+  }
+  return fits(candidate) ? accept(candidate) : { ok: false, reason: 'no-space' }
 }
 
 /**

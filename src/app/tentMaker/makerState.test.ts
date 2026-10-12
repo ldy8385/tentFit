@@ -290,8 +290,23 @@ describe('addMakerInner (R7)', () => {
     expect(addMakerInner(s)).toEqual({ ok: false, reason: 'no-space' })
   })
 
-  it('기본 상태(400×300 + 뒤 이너)에서는 앞 벽 이너가 겹쳐 no-space', () => {
-    expect(addMakerInner(initialMakerState({ myTentNames: [] }))).toEqual({ ok: false, reason: 'no-space' })
+  it('소유자 확인 1: 기본 상태(400×300 + 뒤 이너)에서는 앞 벽에 깊이를 줄여 180×120으로 붙인다', () => {
+    const s = added(initialMakerState({ myTentNames: [] }))
+    expect(s.inners[1]).toMatchObject({ name: '이너 2', side: 'front', width: 180, depth: 120 })
+    expect(checkMaker(s).canConfirm).toBe(true)
+  })
+
+  it('소유자 확인 1: 그 벽에 깊이 50도 안 들어가면 다음 안 쓴 벽에 붙인다(왼쪽, 깊이 110)', () => {
+    const base = initialMakerState({ myTentNames: [] })
+    const s = added(updateMakerInner(base, first(base).id, { depth: 260 }))
+    expect(s.inners[1]).toMatchObject({ side: 'left', width: 180, depth: 110 })
+    expect(checkMaker(s).canConfirm).toBe(true)
+  })
+
+  it('소유자 확인 1: 어느 벽에도 깊이 50이 안 들어가면 no-space', () => {
+    const base = initialMakerState({ myTentNames: [] })
+    const s = updateMakerInner(base, first(base).id, { width: 400, depth: 300 })
+    expect(addMakerInner(s)).toEqual({ ok: false, reason: 'no-space' })
   })
 
   it('사다리꼴은 뒤 → 앞', () => {
