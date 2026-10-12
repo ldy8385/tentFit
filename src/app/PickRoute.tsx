@@ -3,9 +3,11 @@
 // - 카드를 고르면 확인 없이 새 배치를 만들어 편집기 주소로 push합니다(편집기에서 뒤로 가면 다시 여기, §4.7).
 // - "내 배치"는 메모리 배치 최소 목록(R2). [+ 새 배치]를 누르면 대화상자만 닫고 이 화면에 [취소]를 보이며(R3),
 //   [취소]는 그 전에 열려 있던 배치로 돌아갑니다.
-// - [직접 만들기](onMake)는 Task 7이 텐트 만들기 화면에 연결합니다. 이 작업에서는 아무것도 하지 않습니다.
+// - [직접 만들기] → 텐트 만들기 오버레이(mode 'start', 내 텐트 비교 없음 R1). 확정 → 새 배치(sourcePresetId 없음) → 편집기 push(배치 모드).
+//   오버레이의 history 항목은 TentMaker가 지운 뒤 onConfirm을 부르므로, 편집기에서 뒤로 가면 바로 고르기 화면입니다.
 import { useEffect, useRef, useState, type JSX } from 'react'
-import type { TentPreset } from '../core/model'
+import type { Tent, TentPreset } from '../core/model'
+import { TentMaker } from '../ui/tentMaker/TentMaker'
 import { MyLayoutsDialog } from '../ui/pick/MyLayoutsDialog'
 import { PickScreen } from '../ui/pick/PickScreen'
 import { createLayoutFromTent, getLastLayoutId, getLayout, layoutCount, listLayoutSummaries } from './layoutRepo'
@@ -22,6 +24,11 @@ let pickReturn: { layoutId: string } | null = null
 
 export function getPickReturn(): { layoutId: string } | null {
   return pickReturn
+}
+
+/** 테스트용 */
+export function clearPickReturn(): void {
+  pickReturn = null
 }
 
 export function setPickReturn(layoutId: string | null): void {
@@ -49,6 +56,7 @@ export function PickRoute(): JSX.Element {
   const [returnTo, setReturnTo] = useState(() => pickReturn)
   // 같은 화면에서 두 번 눌러도(빠른 두 번 탭) 배치를 하나만 만들고 한 번만 옮겨 갑니다.
   const leaving = useRef(false)
+  const [making, setMaking] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -78,6 +86,13 @@ export function PickRoute(): JSX.Element {
     leaveTo(layout.id)
   }
 
+  const startWithTent = (tent: Tent) => {
+    setMaking(false)
+    if (leaving.current) return
+    const layout = createLayoutFromTent(tent)
+    leaveTo(layout.id)
+  }
+
   const retry = () => {
     setError(undefined)
     setAttempt((a) => a + 1)
@@ -103,7 +118,7 @@ export function PickRoute(): JSX.Element {
         layoutCount={layoutCount()}
         showCancel={returnTo !== null}
         onPick={pick}
-        onMake={() => {}}
+        onMake={() => setMaking(true)}
         onOpenMyLayouts={() => setDialogOpen(true)}
         onCancel={cancel}
         onRetry={retry}
@@ -115,6 +130,7 @@ export function PickRoute(): JSX.Element {
         onNew={startNew}
         onClose={() => setDialogOpen(false)}
       />
+      {making && <TentMaker mode="start" myTentNames={[]} onConfirm={startWithTent} onCancel={() => setMaking(false)} />}
     </>
   )
 }
