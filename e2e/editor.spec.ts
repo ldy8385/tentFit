@@ -283,8 +283,17 @@ test.describe('도형 도구(2026-10-14)', () => {
     await form.getByLabel('프리셋 이름').fill('네오에어 R')
     await form.getByRole('button', { name: '프리셋으로 저장' }).click()
     await expect.poll(() => sent).toMatchObject({ preset: { name: '네오에어 R', brand: '써머레스트', shape: { kind: 'rect', w: 200, h: 60 } } })
+    const firstId = (sent as { preset: { id: string } }).preset.id
+    // 저장한 프리셋에서 온 물건: [프리셋 고치기]는 같은 id, [새 프리셋으로 저장]은 새 id
+    await form.getByRole('button', { name: '프리셋 고치기' }).click()
+    await expect.poll(() => (sent as { preset: { id: string } }).preset.id).toBe(firstId)
+    sent = null
+    await form.getByLabel('프리셋 이름').fill('네오에어 R 라지')
+    await form.getByRole('button', { name: '새 프리셋으로 저장' }).click()
+    await expect.poll(() => (sent as { preset: { id: string } } | null)?.preset.id ?? firstId).not.toBe(firstId)
     const lib = page.getByRole('complementary', { name: '라이브러리' })
-    await expect(lib.getByText('네오에어 R')).toBeVisible()
+    await expect(lib.getByText('네오에어 R', { exact: true })).toBeVisible()
+    await expect(lib.getByText('네오에어 R 라지', { exact: true })).toBeVisible()
     await expect(lib.getByLabel('제조사')).toBeVisible()
   })
 })
