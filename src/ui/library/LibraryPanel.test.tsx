@@ -51,10 +51,11 @@ describe('LibraryPanel', () => {
     expect(chips.map((c) => c.textContent)).toEqual(['전체', '매트', '의자', '테이블', '수납·가구', '깔개', '기타'])
     fireEvent.click(screen.getByRole('button', { name: '의자' }))
     expect(rows().map((r) => r.getAttribute('aria-label'))).toEqual([
+      // 이름순(소유자 요청 2026-10-14)
       '로우 체어 추가',
       '릴렉스 체어 추가',
-      '원형 스툴 추가',
       '벤치 추가',
+      '원형 스툴 추가',
     ])
     expect(screen.getByRole('button', { name: '의자' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByRole('button', { name: '전체' }).getAttribute('aria-pressed')).toBe('false')

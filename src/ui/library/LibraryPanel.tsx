@@ -6,7 +6,7 @@ import { useStores, useUi } from '../../app/stores'
 import { CategoryChips } from './CategoryChips'
 import { dimsText } from '../panels/itemDims'
 import { BrandSelect } from './BrandSelect'
-import { emptyLibraryText, filterByBrand, filterByCategory, type CategoryFilter } from './libraryUtils'
+import { emptyLibraryText, filterByBrand, filterByCategory, sortByName, type CategoryFilter } from './libraryUtils'
 import { ShapeSwatch } from './ShapeSwatch'
 import './library.css'
 
@@ -20,7 +20,7 @@ export function LibraryPanel() {
   const [filter, setFilter] = useState<CategoryFilter>('ALL')
   const [brand, setBrand] = useState<string | null>(null)
   const all = useItemPresets()
-  const presets = useMemo(() => filterByBrand(filterByCategory(all, filter), brand), [all, filter, brand])
+  const presets = useMemo(() => sortByName(filterByBrand(filterByCategory(all, filter), brand)), [all, filter, brand])
 
   const add = (preset: ItemPreset) => {
     addPresetItem(stores, preset)

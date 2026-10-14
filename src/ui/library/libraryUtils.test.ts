@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ItemPreset } from '../../core/model'
-import { brandOptions, categoryFilters, emptyLibraryText, filterByBrand, filterByCategory } from './libraryUtils'
+import { brandOptions, categoryFilters, emptyLibraryText, filterByBrand, filterByCategory, sortByName } from './libraryUtils'
 
 const p = (id: string, category: ItemPreset['category']): ItemPreset => ({
   id,
@@ -48,5 +48,14 @@ describe('제조사 필터', () => {
   it('null이면 그대로, 제조사면 그 제조사만', () => {
     expect(filterByBrand(list, null)).toBe(list)
     expect(filterByBrand(list, '써머레스트').map((x) => x.id)).toEqual(['a', 'd'])
+  })
+})
+
+describe('sortByName(라이브러리 이름순, 소유자 요청 2026-10-14)', () => {
+  const named = (name: string): ItemPreset => ({ id: name, name, category: 'MAT', shape: { kind: 'rect', w: 1, h: 1 }, color: 'green', countsArea: true })
+  it('한국어 순서(한글 가나다 → 영문 알파벳, 대소문자 무시), 숫자는 크기순, 원본은 그대로', () => {
+    const src = [named('Tensor Regular'), named('매트 10'), named('Eclipse Long'), named('매트 2'), named('eclipse Regular'), named('가방')]
+    expect(sortByName(src).map((p) => p.name)).toEqual(['가방', '매트 2', '매트 10', 'Eclipse Long', 'eclipse Regular', 'Tensor Regular'])
+    expect(src[0]!.name).toBe('Tensor Regular')
   })
 })

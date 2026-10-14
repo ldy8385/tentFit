@@ -36,3 +36,10 @@ export function brandOptions(presets: readonly ItemPreset[]): string[] {
 export function filterByBrand(presets: ItemPreset[], brand: string | null): ItemPreset[] {
   return brand === null ? presets : presets.filter((p) => p.brand === brand)
 }
+
+const NAME_COLLATOR = new Intl.Collator('ko', { numeric: true, sensitivity: 'base' })
+
+/** 라이브러리 목록 이름순(소유자 요청 2026-10-14): 한국어 순서(한글 가나다 → 영문 알파벳, 대소문자 무시), 숫자는 크기순. 새 배열 */
+export function sortByName(presets: readonly ItemPreset[]): ItemPreset[] {
+  return [...presets].sort((a, b) => NAME_COLLATOR.compare(a.name, b.name))
+}
