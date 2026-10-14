@@ -794,3 +794,14 @@ describe('육각형 템플릿 입력(업체 도면식)', () => {
     expect(tent().outer.kind).toBe('polygon')
   })
 })
+
+describe('그리기 — 상하좌우로만', () => {
+  it('appendDrawPoint에 right를 주면 0·90°로만 맞춘다', () => {
+    stores = storesWith([IN1])
+    ui().setMode('tent')
+    startDrawingAction(stores, 'newInner')
+    appendDrawPoint(stores, [0, 0])
+    appendDrawPoint(stores, [100, 30], { right: true })
+    expect(ui().drawing?.points).toEqual([[0, 0], [100, 0]])
+  })
+})

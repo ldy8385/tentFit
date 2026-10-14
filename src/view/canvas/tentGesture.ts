@@ -14,6 +14,7 @@ import {
   tentHandles,
   tentHitAt,
 } from '../tentEdit'
+import { lockToAxis } from '../axisLock'
 import { screenToWorld, type View } from '../viewport'
 
 /** 이보다 작게 움직였으면(cm, 저장 단위 0.1cm의 절반) 끌기를 커밋하지 않습니다(Board의 MOVE_EPS_CM과 같은 값). */
@@ -170,11 +171,14 @@ export function tentDragStep(
   drag: TentDrag,
   screen: Pt,
   view: View,
+  opts?: { axisLock?: boolean },
 ): { preview: TentPreview; commit: TentDragCommit | null } {
   const w = screenToWorld(view, screen)
+  // 상하좌우로만(Shift·[상하좌우] 토글): 누른 점 기준 이동량이 큰 축만 남깁니다.
+  const [rx, ry] = opts?.axisLock === true ? lockToAxis(w[0] - drag.startWorld[0], w[1] - drag.startWorld[1]) : [w[0] - drag.startWorld[0], w[1] - drag.startWorld[1]]
   if (drag.kind === 'inner') {
     const target: TentTarget = { innerId: drag.innerId }
-    const d = tentDragDelta({ dx: w[0] - drag.startWorld[0], dy: w[1] - drag.startWorld[1], layout, target })
+    const d = tentDragDelta({ dx: rx, dy: ry, layout, target })
     const r = previewInnerMove(layout, drag.innerId, d.dx, d.dy)
     const invalid = r.issues.length > 0
     const moved = Math.abs(d.dx) >= TENT_MOVE_EPS_CM || Math.abs(d.dy) >= TENT_MOVE_EPS_CM
@@ -182,7 +186,7 @@ export function tentDragStep(
       !invalid && moved && innerExists(layout, drag.innerId) ? { kind: 'inner', innerId: drag.innerId, dx: d.dx, dy: d.dy } : null
     return { preview: { target, tent: r.tent, invalid }, commit }
   }
-  const d = tentDragDelta({ dx: w[0] - drag.startWorld[0], dy: w[1] - drag.startWorld[1], layout, target: drag.target })
+  const d = tentDragDelta({ dx: rx, dy: ry, layout, target: drag.target })
   const world: Pt = [drag.from[0] + d.dx, drag.from[1] + d.dy]
   const r = previewVertexDrag(layout, drag.target, drag.index, world)
   const invalid = r.issues.length > 0

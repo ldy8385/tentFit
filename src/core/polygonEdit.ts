@@ -122,18 +122,21 @@ export function drawGridOrigin(tent: Pick<Tent, 'outer'>, outerPending: boolean)
   return outerPending ? [0, 0] : gridOriginOf(tent)
 }
 
+/** 상하좌우로만 그릴 때(Shift·[상하좌우] 토글)의 방향 단위(도) */
+export const DRAW_RIGHT_ANGLE_DEG = 90
+
 /**
  * 그리는 점 맞춤(설계 §2.2). prev가 null이면 gridOrigin 기준 10cm 격자,
- * 아니면 prev에서 raw까지의 방향을 15° 단위로, 길이를 10cm 단위(최소 10cm)로. 0.1cm 반올림.
+ * 아니면 prev에서 raw까지의 방향을 stepDeg(기본 15°) 단위로, 길이를 10cm 단위(최소 10cm)로. 0.1cm 반올림.
  */
-export function snapDrawPoint(prev: Pt | null, raw: Pt, gridOrigin: Pt): Pt {
+export function snapDrawPoint(prev: Pt | null, raw: Pt, gridOrigin: Pt, stepDeg: number = DRAW_ANGLE_STEP_DEG): Pt {
   if (prev === null) {
     const g = (v: number, o: number) => round1(o + Math.round((v - o) / DRAW_GRID_CM) * DRAW_GRID_CM)
     return [g(raw[0], gridOrigin[0]), g(raw[1], gridOrigin[1])]
   }
   const vx = raw[0] - prev[0]
   const vy = raw[1] - prev[1]
-  const step = (DRAW_ANGLE_STEP_DEG * Math.PI) / 180
+  const step = (stepDeg * Math.PI) / 180
   const angle = Math.round(Math.atan2(vy, vx) / step) * step
   const len = Math.max(DRAW_GRID_CM, Math.round(Math.hypot(vx, vy) / DRAW_GRID_CM) * DRAW_GRID_CM)
   return [round1(prev[0] + len * Math.cos(angle)), round1(prev[1] + len * Math.sin(angle))]

@@ -96,7 +96,8 @@ button.tf-sheet__grabber {
 
 .tf-sheet__actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* [90도][복제][삭제][상하좌우] 한 줄(시트 높이를 늘리지 않음) */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -113,4 +114,11 @@ button.tf-sheet__grabber {
 
 .tf-sheet__action--danger {
   color: var(--danger);
+}
+
+/* [상하좌우] 토글이 켜졌을 때(휴대폰 직선 이동) */
+.tf-sheet__action[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
 }

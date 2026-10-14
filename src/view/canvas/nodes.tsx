@@ -226,6 +226,8 @@ export type ItemShapeProps = {
   zoom: number
   selected: boolean
   dragDistance: number
+  /** 상하좌우로만 이동(Shift·[상하좌우] 토글) 고정. Konva가 끄는 동안 절대 위치를 넘겨 부릅니다 */
+  dragBoundFunc?(pos: { x: number; y: number }): { x: number; y: number }
   register(id: string, node: Konva.Group | null): void
   onDragStart(e: Konva.KonvaEventObject<DragEvent>): void
   onDragEnd(e: Konva.KonvaEventObject<DragEvent>): void
@@ -256,6 +258,7 @@ function sameItemProps(a: ItemShapeProps, b: ItemShapeProps): boolean {
     (!p.labelVisible || a.zoom === b.zoom) &&
     a.selected === b.selected &&
     a.dragDistance === b.dragDistance &&
+    a.dragBoundFunc === b.dragBoundFunc &&
     a.register === b.register &&
     a.onDragStart === b.onDragStart &&
     a.onDragEnd === b.onDragEnd
@@ -267,7 +270,7 @@ function sameItemProps(a: ItemShapeProps, b: ItemShapeProps): boolean {
  * 라벨 상자는 도형의 로컬 bbox와 같게 둬서 Transformer 상자가 도형과 같아지게 합니다. 거꾸로 보이는 각도면 180° 뒤집습니다.
  */
 export const ItemShape = memo(function ItemShape(props: ItemShapeProps): JSX.Element {
-  const { node, zoom, selected, dragDistance, register, onDragStart, onDragEnd } = props
+  const { node, zoom, selected, dragDistance, dragBoundFunc, register, onDragStart, onDragEnd } = props
   const id = node.id
   const ref = useCallback(
     (g: Konva.Group | null) => {
@@ -293,6 +296,7 @@ export const ItemShape = memo(function ItemShape(props: ItemShapeProps): JSX.Ele
       listening={!node.dimmed}
       opacity={node.dimmed ? DIM_OPACITY : 1}
       dragDistance={dragDistance}
+      dragBoundFunc={dragBoundFunc}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >

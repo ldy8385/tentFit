@@ -234,3 +234,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 휴대폰 텐트 시트 [상하좌우] 토글 */
+.tf-tent__axis {
+  align-self: flex-start;
+}
+
+.tf-tent__axis[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}

@@ -254,3 +254,11 @@ describe('centerPolygon·minEdgeLength', () => {
     expect(minEdgeLength([[0, 0], [300, 0], [300, 400], [0, 0.01]])).toBeCloseTo(0.01, 9)
   })
 })
+
+describe('snapDrawPoint — 상하좌우로만(각도 단위 90°)', () => {
+  it('각도 단위를 90°로 주면 0·90·180·270°로만 맞춘다', () => {
+    expect(snapDrawPoint([0, 0], [100, 30], [0, 0], 90)).toEqual([100, 0])
+    expect(snapDrawPoint([0, 0], [20, -150], [0, 0], 90)).toEqual([0, -150])
+    expect(snapDrawPoint([0, 0], [100, 30], [0, 0])).toEqual([Math.round(100 * Math.cos(Math.PI / 12) * 10) / 10, Math.round(100 * Math.sin(Math.PI / 12) * 10) / 10])
+  })
+})

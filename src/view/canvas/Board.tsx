@@ -25,7 +25,7 @@ import {
   tentControlsEnabled,
 } from '../../app/tentActions'
 import { LIMITS, normAngle, round1, type Item, type Pt, type Shape } from '../../core/model'
-import { drawGridOrigin } from '../../core/polygonEdit'
+import { DRAW_ANGLE_STEP_DEG, DRAW_RIGHT_ANGLE_DEG, drawGridOrigin } from '../../core/polygonEdit'
 import { expandSelection } from '../../core/ops/groups'
 import { applyTransform, moveItems } from '../../core/ops/items'
 import { toPointerKind, type PointerKind } from '../../store/ui'
@@ -35,6 +35,7 @@ import { GestureArbiter, TAP_SLOP, type GestureOutput, type PointerSample } from
 import { buildScene } from '../scene'
 import { INVALID_EDIT_STYLE } from '../tentEdit'
 import { fitBBoxFor, screenToWorld, wheelAction, worldToScreen, type View } from '../viewport'
+import { axisBoundPosition } from '../axisLock'
 import { drawTapEffect, lengthLabel, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
 import { DrawLayer } from './DrawLayer'
 import { itemsInRect, rectFromCorners } from './marquee'
@@ -82,7 +83,7 @@ type Overlay = {
   /** 텐트 끌기 미리보기(문서 밖 화면 상태, §8). 손을 떼거나 되돌리면 null */
   tentPreview: TentPreview | null
   /** 그리는 중 고무줄 끝(화면 px — 휠 이동 뒤에도 포인터에 붙어 있게 월드가 아니라 화면 좌표). 안 보이면 null */
-  drawPointer: { screen: Pt; pointer: PointerKind } | null
+  drawPointer: { screen: Pt; pointer: PointerKind; right: boolean } | null
 }
 
 type Session = { kind: 'drag'; leadId: string; ids: string[] } | { kind: 'transform'; ids: string[] }
@@ -171,6 +172,10 @@ class BoardController {
   private pressInDraw = false
   /** 첫 포인터를 누른 화면 점(고무줄을 탭/끌기 경계 안에서만 보이게) */
   private pressStart: Pt | null = null
+  /** Shift를 누르고 있음(포인터·키 이벤트로 갱신). 끄는 동안 누르면 상하좌우로만 이동 */
+  private shiftDown = false
+  /** 지금 Konva로 끄는 물건의 끌기 시작 절대 위치(상하좌우로만 이동 기준점) */
+  private dragStartAbs: { x: number; y: number } | null = null
 
   constructor(
     private readonly stores: Stores,
@@ -211,7 +216,20 @@ class BoardController {
     return group ? { kind: 'item', id: group.id() } : null
   }
 
+  /** 상하좌우로만 이동할지: PC는 Shift를 누르는 동안, 휴대폰은 시트 [상하좌우] 토글(ui.axisLock) */
+  private axisLocked(): boolean {
+    return this.shiftDown || this.stores.ui.getState().axisLock
+  }
+
+  /** Konva dragBoundFunc: 상하좌우로만이면 끌기 시작 절대 위치 기준 한 축으로 고정(여러 개·그룹은 Transformer가 같은 이동량으로 따라옴) */
+  readonly dragBound = (pos: { x: number; y: number }): { x: number; y: number } => {
+    const start = this.dragStartAbs
+    if (start === null || !this.axisLocked()) return pos
+    return axisBoundPosition(start, pos)
+  }
+
   readonly onPointerDown = (e: PointerEvent): void => {
+    this.shiftDown = e.shiftKey
     // 오른쪽 버튼(겹친 물건 목록)은 이후 계획에서 붙입니다.
     if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return
     blurActiveInput()
@@ -274,6 +292,7 @@ class BoardController {
   }
 
   readonly onPointerMove = (e: PointerEvent): void => {
+    this.shiftDown = e.shiftKey
     if (this.arbiter.pointerCount === 0) {
       this.hoverRubber(e)
       return
@@ -359,6 +378,7 @@ class BoardController {
   }
 
   readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === 'Shift') this.shiftDown = true
     if (e.code !== 'Space' || e.isComposing || isEditable(e.target) || isEditable(document.activeElement)) return
     this.space = true
     if (this.host) this.host.style.cursor = 'grab'
@@ -367,11 +387,13 @@ class BoardController {
   }
 
   readonly onKeyUp = (e: KeyboardEvent): void => {
+    if (e.key === 'Shift') this.shiftDown = false
     if (e.code !== 'Space') return
     this.releaseSpace()
   }
 
   readonly releaseSpace = (): void => {
+    this.shiftDown = false
     this.space = false
     if (this.host) this.host.style.cursor = ''
   }
@@ -390,7 +412,7 @@ class BoardController {
   }
 
   private showRubber(screen: Pt, pointer: PointerKind): void {
-    this.overlay.setState({ drawPointer: { screen: [screen[0], screen[1]], pointer } })
+    this.overlay.setState({ drawPointer: { screen: [screen[0], screen[1]], pointer, right: this.axisLocked() } })
   }
 
   private hideRubber(): void {
@@ -420,13 +442,13 @@ class BoardController {
    * 그리는 중 탭: 첫 점 근처면 닫기(finishDrawing), 아니면 점(appendDrawPoint — 맞춤·교차 판정·문구는 그쪽).
    * 누르는 사이 다른 손가락으로 [그리기 완료]·[그리기 취소]를 눌러 그리기가 끝났으면 탭을 버립니다(대상 선택으로 새지 않게).
    */
-  private onDrawTap(o: { x: number; y: number; pointer: PointerKind }): void {
+  private onDrawTap(o: { x: number; y: number; pointer: PointerKind; shift: boolean }): void {
     const ui = this.stores.ui.getState()
     const drawing = ui.drawing
     if (drawing === null || !tentControlsEnabled(ui)) return
     const effect = drawTapEffect(drawing, [o.x, o.y], o.pointer, ui.view)
     if (effect.kind === 'close') finishDrawing(this.stores)
-    else appendDrawPoint(this.stores, effect.raw)
+    else appendDrawPoint(this.stores, effect.raw, { right: o.shift || ui.axisLock })
   }
 
   readonly onVisibility = (): void => {
@@ -570,7 +592,7 @@ class BoardController {
       this.openGesture()
     }
     const ui = this.stores.ui.getState()
-    const { preview } = tentDragStep(this.stores.doc.getState().layout, drag, p, ui.view)
+    const { preview } = tentDragStep(this.stores.doc.getState().layout, drag, p, ui.view, { axisLock: this.axisLocked() })
     this.overlay.setState({ tentPreview: preview })
   }
 
@@ -585,7 +607,9 @@ class BoardController {
     this.tentDrag = null
     this.tentDragLive = false
     if (!live) return
-    const { commit } = tentDragStep(this.stores.doc.getState().layout, drag, p, this.stores.ui.getState().view)
+    const { commit } = tentDragStep(this.stores.doc.getState().layout, drag, p, this.stores.ui.getState().view, {
+      axisLock: this.axisLocked(),
+    })
     this.overlay.setState({ tentPreview: null })
     this.closeGesture()
     this.tentPrev = null
@@ -728,6 +752,8 @@ class BoardController {
       return
     }
     if (this.session) return // Transformer가 함께 끄는 다른 노드
+    // 상하좌우로만 이동의 기준점(dragstart는 첫 위치 갱신 전에 옴)
+    this.dragStartAbs = node.absolutePosition()
     const id = node.id()
     const ui = this.stores.ui.getState()
     const ids = ui.selection.includes(id)
@@ -744,6 +770,7 @@ class BoardController {
       this.restoreNodes([node.id()])
       return
     }
+    this.dragStartAbs = null
     const lead = this.nodes.get(s.leadId)
     const item = this.stores.doc.getState().layout.items.find((it) => it.id === s.leadId)
     const dx = lead && item ? lead.x() - item.x : 0
@@ -858,7 +885,10 @@ function DrawEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | nul
   const tent = useDoc((s) => s.layout.tent)
   const ptr = useStore(props.overlay, (s) => s.drawPointer)
   if (drawing === null) return null
-  const rubber = ptr === null ? null : rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending))
+  const rubber =
+    ptr === null
+      ? null
+      : rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending), ptr.right ? DRAW_RIGHT_ANGLE_DEG : DRAW_ANGLE_STEP_DEG)
   return <DrawLayer drawing={drawing} rubber={rubber} zoom={view.zoom} />
 }
 
@@ -870,7 +900,7 @@ function DrawLengthBadge(props: { overlay: StoreApi<Overlay> }): JSX.Element | n
   const tent = useDoc((s) => s.layout.tent)
   const ptr = useStore(props.overlay, (s) => s.drawPointer)
   if (drawing === null || ptr === null) return null
-  const r = rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending))
+  const r = rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending), ptr.right ? DRAW_RIGHT_ANGLE_DEG : DRAW_ANGLE_STEP_DEG)
   if (r.from === null || r.lengthCm === null) return null
   const a = worldToScreen(view, r.from)
   const b = worldToScreen(view, r.to)
@@ -1126,6 +1156,7 @@ export function Board(): JSX.Element {
               zoom={zoom}
               selected={selected.has(n.id)}
               dragDistance={TAP_SLOP[pointer]}
+              dragBoundFunc={ctl.dragBound}
               register={ctl.register}
               onDragStart={ctl.onDragStart}
               onDragEnd={ctl.onDragEnd}

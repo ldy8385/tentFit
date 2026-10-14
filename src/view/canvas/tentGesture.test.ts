@@ -232,3 +232,22 @@ describe('classifyTentPress — 단계 잠금·외곽 없음(Plan 4.1)', () => {
     expect(classifyTentPress(LAYOUT, null, VIEW1, [0, 0], 'touch', 'inners', true)).toEqual({ kind: 'none' })
   })
 })
+
+describe('tentDragStep — 상하좌우로만(axisLock)', () => {
+  it('이너 끌기: 이동량이 큰 축만 커밋한다', () => {
+    const drag = tentDragFor({ kind: 'inner', innerId: 'a' }, 1, 'mouse', [-300, 0], VIEW1)
+    if (drag === null) throw new Error('끌기 후보 없음')
+    const free = tentDragStep(LAYOUT, drag, [-260, 15], VIEW1)
+    expect(free.commit).toEqual({ kind: 'inner', innerId: 'a', dx: 40, dy: 15 })
+    const locked = tentDragStep(LAYOUT, drag, [-260, 15], VIEW1, { axisLock: true })
+    expect(locked.commit).toEqual({ kind: 'inner', innerId: 'a', dx: 40, dy: 0 })
+  })
+
+  it('꼭짓점 끌기도 한 축만', () => {
+    const hit = classifyTentPress(LAYOUT, 'outer', VIEW1, [500, -200], 'mouse')
+    const drag = tentDragFor(hit, 1, 'mouse', [500, -200], VIEW1)
+    if (drag === null || drag.kind !== 'vertex') throw new Error('꼭짓점 끌기 아님')
+    const locked = tentDragStep(LAYOUT, drag, [510, -240], VIEW1, { axisLock: true })
+    expect(locked.commit).toEqual({ kind: 'vertex', target: 'outer', index: drag.index, world: [500, -240] })
+  })
+})

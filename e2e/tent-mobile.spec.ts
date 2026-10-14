@@ -440,3 +440,19 @@ test('최종 리뷰: 텐트 모드 토스트는 요약 칩에 가리지 않고 �
   expect(t.y + t.height).toBeLessThanOrEqual(bar.y)
 })
 
+
+test('휴대폰 [상하좌우] 토글: 켜면 이너를 비스듬히 끌어도 한 축으로만 움직인다', async ({ page }) => {
+  await openEditorWith(page)
+  await enterTentModeByUi(page)
+  const inner = await innerNamed(page, '이너 1')
+  await tapCanvas(page, await worldToClient(page, inner.x, inner.y))
+  await expect(tentSheet(page)).toBeVisible()
+  const toggle = tentSheet(page).getByRole('button', { name: '상하좌우로만 이동', exact: true })
+  await toggle.tap()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(async () => isCanvasAt(page, await worldToClient(page, inner.x, inner.y))).toBe(true)
+  const from = await worldToClient(page, inner.x, inner.y)
+  await touchDrag(page, from, { x: from.x + 45, y: from.y + 12 }, 10)
+  await expect.poll(async () => (await innerNamed(page, '이너 1')).x).not.toBe(inner.x)
+  expect((await innerNamed(page, '이너 1')).y).toBe(inner.y)
+})

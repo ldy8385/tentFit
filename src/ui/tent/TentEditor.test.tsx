@@ -599,3 +599,16 @@ describe('육각형 칸(업체 도면식: 가로·세로·윗·아랫변)', () =
     expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['뒤', '앞'])
   })
 })
+
+describe('상하좌우로만 이동 토글(텐트 시트)', () => {
+  it('시트에는 [상하좌우] 토글이 있고 PC 패널에는 없다(PC는 Shift)', () => {
+    const stores = setup(TWO_INNERS, { variant: 'sheet', target: 'i1' })
+    fireEvent.click(within(editor()).getByRole('button', { name: '상하좌우로만 이동' }))
+    expect(stores.ui.getState().axisLock).toBe(true)
+  })
+
+  it('PC 패널에는 토글이 없다', () => {
+    setup(TWO_INNERS, { target: 'i1' })
+    expect(within(editor()).queryByRole('button', { name: '상하좌우로만 이동' })).toBeNull()
+  })
+})

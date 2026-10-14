@@ -53,6 +53,8 @@ export type UiState = {
   outerPending: boolean
   /** 패널에서 포커스한 변·꼭짓점 칸(대상이 바뀌거나 모드가 바뀌면 지움) */
   polygonFocus: PolygonFocus | null
+  /** 휴대폰 [상하좌우] 토글: 끌기·그리기를 가로·세로로만(PC는 끄는 동안 Shift) */
+  axisLock: boolean
   setSelection(ids: string[]): void
   toggleSelected(id: string): void
   clearSelection(): void
@@ -100,6 +102,7 @@ export type UiState = {
         | 'desktopPanel'
         | 'areaExpanded'
         | 'editorDialog'
+        | 'axisLock'
       >
     >,
   ): void
@@ -200,6 +203,7 @@ export function createUiStore(
       tentLock: 'none',
       outerPending: false,
       polygonFocus: null,
+      axisLock: false,
 
       setSelection(ids) {
         const next = unique(ids)

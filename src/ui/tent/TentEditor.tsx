@@ -43,6 +43,7 @@ import { NumberField } from '../fields/NumberField'
 import { TextField } from '../fields/TextField'
 import { NAME_MAX_LENGTH } from '../fields/limits'
 import '../panels/panels.css'
+import { AxisLockToggle } from '../common/AxisLockToggle'
 import { MenuButton } from '../shell/MenuButton'
 import { COORDS_LABEL, Disclosure, PolygonFields } from './PolygonFields'
 import { DRAWING_HINT, innerShapeMenu, KIND_LABELS, TEMPLATE_KINDS } from './shapeMenu'
@@ -170,6 +171,9 @@ export function TentEditor(p: {
           </li>
         )}
       </ul>
+
+      {/* 휴대폰은 Shift가 없어 시트에 [상하좌우] 토글을 둡니다(이너·꼭짓점 끌기, 그리기 0·90°) */}
+      {p.variant === 'sheet' && <AxisLockToggle className="tf-btn tf-tent__axis" />}
 
       {drawing ? (
         <p className="tf-panel__empty">{DRAWING_HINT}</p>

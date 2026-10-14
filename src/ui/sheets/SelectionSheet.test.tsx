@@ -117,3 +117,17 @@ describe('SelectionSheet 여러 개', () => {
     expect(screen.queryByTestId('selection-sheet')).toBeNull()
   })
 })
+
+describe('상하좌우로만 이동 토글(휴대폰, Shift 대신)', () => {
+  it('[상하좌우] 버튼이 ui.axisLock을 켜고 끄며 눌림 상태를 보인다', () => {
+    const a = item('a')
+    const stores = setup([a], ['a'])
+    const toggle = screen.getByRole('button', { name: '상하좌우로만 이동' })
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(toggle)
+    expect(stores.ui.getState().axisLock).toBe(true)
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(toggle)
+    expect(stores.ui.getState().axisLock).toBe(false)
+  })
+})

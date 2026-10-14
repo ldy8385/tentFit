@@ -584,3 +584,12 @@ describe('polygonFocus(패널 변·각도 칸 포커스 → 캔버스 강조)', 
     expect(ui.getState().polygonFocus).toBeNull()
   })
 })
+
+describe('axisLock(휴대폰 「상하좌우로만 이동」 토글)', () => {
+  it('기본 꺼짐, patch로 켜고 끈다', () => {
+    const ui = createUiStore()
+    expect(ui.getState().axisLock).toBe(false)
+    ui.getState().patch({ axisLock: true })
+    expect(ui.getState().axisLock).toBe(true)
+  })
+})

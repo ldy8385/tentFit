@@ -38,6 +38,7 @@ import {
   setEdgeLength,
   setVertexAngle,
   snapDrawPoint,
+  DRAW_RIGHT_ANGLE_DEG,
 } from '../core/polygonEdit'
 import {
   attachBBoxToWall,
@@ -492,13 +493,14 @@ function samePoint(a: Pt | undefined, b: Pt): boolean {
  * 탭 한 번의 점(설계 §2.2): 맞춤(첫 점 10cm 격자, 다음 점 15°·10cm) 뒤, 첫 점에 다시 맞춰지면(점 3개 이상) 닫고,
  * 길이 0·교차면 찍지 않고 토스트 「선이 겹쳐요」와 false. 점은 문서 밖입니다.
  */
-export function appendDrawPoint(stores: Stores, rawWorld: Pt): boolean {
+export function appendDrawPoint(stores: Stores, rawWorld: Pt, opts?: { right?: boolean }): boolean {
   const ui = stores.ui.getState()
   const drawing = ui.drawing
   if (drawing === null) return false
   const pts = drawing.points
   const origin = drawGridOrigin(stores.doc.getState().layout.tent, ui.outerPending)
-  const p = snapDrawPoint(pts[pts.length - 1] ?? null, rawWorld, origin)
+  // 상하좌우로만(Shift·[상하좌우] 토글)이면 방향 단위 90°
+  const p = snapDrawPoint(pts[pts.length - 1] ?? null, rawWorld, origin, opts?.right === true ? DRAW_RIGHT_ANGLE_DEG : undefined)
   if (!inRange(p[0], LIMITS.coord) || !inRange(p[1], LIMITS.coord)) return false
   if (pts.length >= 3 && samePoint(pts[0], p)) return finishDrawing(stores).ok
   if (segmentCrosses(pts, p)) {

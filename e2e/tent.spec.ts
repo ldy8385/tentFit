@@ -629,3 +629,40 @@ test('화면 크기: 고르기 화면 가로 스크롤 없음, 만들기 화면 
 function xy(p: { x: number; y: number }): [number, number] {
   return [p.x, p.y]
 }
+
+test.describe('상하좌우로만 이동(Shift, 소유자 요청)', () => {
+  test('Shift를 누른 채 비스듬히 끌면 물건은 가로로만, 이너는 세로로만 움직이고(각 1칸), 그리기 점은 0·90°로 맞춘다', async ({ page }) => {
+    await openEditorWith(page)
+    const item = await addMat(page)
+    const from = await worldToClient(page, item.x, item.y)
+    await page.keyboard.down('Shift')
+    await dragBetween(page, from, { x: from.x + 80, y: from.y + 25 })
+    await page.keyboard.up('Shift')
+    await expect.poll(async () => (await getDoc(page)).layout.items.find((i) => i.id === item.id)?.x).not.toBe(item.x)
+    const moved = (await getDoc(page)).layout.items.find((i) => i.id === item.id)!
+    expect(moved.y).toBe(item.y)
+    expect(moved.x).toBeGreaterThan(item.x)
+
+    await enterTentModeByUi(page)
+    const inner = await innerNamed(page, '이너 1')
+    const at = await worldToClient(page, inner.x, inner.y)
+    await page.keyboard.down('Shift')
+    await dragBetween(page, at, { x: at.x + 12, y: at.y + 50 })
+    await page.keyboard.up('Shift')
+    await expect.poll(async () => (await innerNamed(page, '이너 1')).y).not.toBe(inner.y)
+    expect((await innerNamed(page, '이너 1')).x).toBe(inner.x)
+
+    await tentEditor(page).getByRole('button', { name: '+ 이너', exact: true }).click()
+    await tentEditor(page).getByRole('menuitem', { name: '자유 그리기', exact: true }).click()
+    await drawPoints(page, [[100, -100]])
+    const p2 = await worldToClient(page, 200, -70)
+    await page.keyboard.down('Shift')
+    await page.mouse.click(p2.x, p2.y)
+    await page.keyboard.up('Shift')
+    await nextFrames(page)
+    expect((await getUi(page)).drawing?.points).toEqual([
+      [100, -100],
+      [200, -100],
+    ])
+  })
+})

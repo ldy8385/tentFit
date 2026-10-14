@@ -4,6 +4,7 @@
 import type { JSX } from 'react'
 import { useMemo, useState } from 'react'
 import { useDoc, useStores, useUi } from '../../app/stores'
+import { AxisLockToggle } from '../common/AxisLockToggle'
 import { formatNumber } from '../fields/numberInput'
 import { ItemFields } from '../panels/ItemFields'
 import { MultiFields } from '../panels/MultiFields'
@@ -63,6 +64,7 @@ export function SelectionSheet(): JSX.Element {
         >
           삭제
         </button>
+        <AxisLockToggle className="tf-sheet__action" />
       </div>
       {expanded && (single ? <ItemFields item={first} compact /> : <MultiFields compact />)}
     </BottomSheet>

@@ -3,7 +3,7 @@
 // 점 추가 검증(맞춤·교차·길이 0)과 문구는 app/tentActions(appendDrawPoint·finishDrawing)가 합니다(같은 동작 두 벌 금지).
 // 고무줄은 탭과 같은 core.snapDrawPoint를 써서 "보인 곳 = 찍힌 곳"이 됩니다.
 import { round1, type Pt } from '../../core/model'
-import { snapDrawPoint } from '../../core/polygonEdit'
+import { DRAW_ANGLE_STEP_DEG, snapDrawPoint } from '../../core/polygonEdit'
 import type { Drawing, PointerKind, TentLock } from '../../store/ui'
 import { TAP_SLOP } from '../gestures'
 import { VERTEX_GRAB_PX } from '../tentEdit'
@@ -25,13 +25,23 @@ export function drawTapEffect(drawing: Drawing, tap: Pt, pointer: PointerKind, v
 
 export type RubberBand = { from: Pt | null; to: Pt; lengthCm: number | null; closes: boolean }
 
-/** 고무줄: 마지막 점(없으면 null) → 포인터에서 찍힐 점(첫 점 근처면 첫 점)과 길이(cm). origin = 첫 점 격자 원점. */
-export function rubberBand(drawing: Drawing, pointerScreen: Pt, pointer: PointerKind, view: View, origin: Pt): RubberBand {
+/**
+ * 고무줄: 마지막 점(없으면 null) → 포인터에서 찍힐 점(첫 점 근처면 첫 점)과 길이(cm). origin = 첫 점 격자 원점.
+ * stepDeg = 방향 단위(기본 15°, 상하좌우로만이면 90°) — 탭과 같은 값을 넘겨야 "보인 곳 = 찍힌 곳".
+ */
+export function rubberBand(
+  drawing: Drawing,
+  pointerScreen: Pt,
+  pointer: PointerKind,
+  view: View,
+  origin: Pt,
+  stepDeg: number = DRAW_ANGLE_STEP_DEG,
+): RubberBand {
   const pts = drawing.points
   const last = pts[pts.length - 1] ?? null
   const closes = nearFirst(drawing, pointerScreen, pointer, view)
   const first = pts[0]
-  const to: Pt = closes && first !== undefined ? [first[0], first[1]] : snapDrawPoint(last, screenToWorld(view, pointerScreen), origin)
+  const to: Pt = closes && first !== undefined ? [first[0], first[1]] : snapDrawPoint(last, screenToWorld(view, pointerScreen), origin, stepDeg)
   return { from: last, to, lengthCm: last === null ? null : Math.hypot(to[0] - last[0], to[1] - last[1]), closes }
 }
 

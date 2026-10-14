@@ -93,3 +93,10 @@ describe('tentDim(잠긴 쪽·다시 그리는 원본 흐리게)', () => {
     expect(n.innerIds.size).toBe(0)
   })
 })
+
+describe('rubberBand — 상하좌우로만', () => {
+  it('각도 단위 90°면 고무줄 끝도 가로·세로로만', () => {
+    const r = rubberBand({ goal: 'outer', points: [[0, 0]] }, [300, 110], 'mouse', V, [0, 0], 90)
+    expect(r.to).toEqual([100, 0])
+  })
+})
