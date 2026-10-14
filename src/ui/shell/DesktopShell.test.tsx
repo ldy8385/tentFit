@@ -8,7 +8,16 @@ import { DesktopShell } from './DesktopShell'
 
 // 이웃 작업의 화면은 자리만 확인합니다(각자 테스트가 따로 있음). Board는 react-konva라 happy-dom에서 그리지 않습니다.
 vi.mock('../../view/canvas/Board', () => ({ Board: () => <div data-testid="mock-board" /> }))
-vi.mock('../library/LibraryPanel', () => ({ LibraryPanel: () => <div data-testid="mock-library-panel" /> }))
+vi.mock('../library/LibraryPanel', () => ({
+  LibraryPanel: (p: { onCollapse?: () => void }) => (
+    <div data-testid="mock-library-panel">
+      <h2>라이브러리</h2>
+      <button type="button" onClick={p.onCollapse}>
+        라이브러리 접기
+      </button>
+    </div>
+  ),
+}))
 vi.mock('../panels/PropertiesPanel', () => ({ PropertiesPanel: () => <div data-testid="mock-properties" /> }))
 vi.mock('../area/AreaSummary', () => ({ AreaSummary: () => <div data-testid="mock-area-summary" /> }))
 vi.mock('../area/WarningPanel', () => ({ WarningPanel: () => <div data-testid="mock-warning-panel" /> }))
@@ -96,5 +105,19 @@ describe('DesktopShell', () => {
     expect(screen.queryByTestId('mock-tent-editor')).toBeNull()
     act(() => stores.ui.getState().patch({ desktopPanel: 'auto' }))
     expect(screen.getByTestId('mock-tent-editor')).toBeTruthy()
+  })
+})
+
+describe('라이브러리 접기(2026-10-14)', () => {
+  it('[‹]로 접으면 얇은 띠, [›]로 펼침, 이 브라우저에 기억', () => {
+    window.localStorage.removeItem('tentfit.libraryCollapsed')
+    renderShell()
+    fireEvent.click(screen.getByRole('button', { name: '라이브러리 접기' }))
+    expect(screen.getByTestId('desktop-shell').getAttribute('data-lib-collapsed')).toBe('true')
+    expect(screen.queryByRole('heading', { name: '라이브러리' })).toBeNull()
+    expect(window.localStorage.getItem('tentfit.libraryCollapsed')).toBe('1')
+    fireEvent.click(screen.getByRole('button', { name: '라이브러리 펼치기' }))
+    expect(screen.getByRole('heading', { name: '라이브러리' })).toBeTruthy()
+    expect(window.localStorage.getItem('tentfit.libraryCollapsed')).toBe('0')
   })
 })

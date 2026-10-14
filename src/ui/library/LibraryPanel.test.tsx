@@ -34,6 +34,27 @@ function renderPanel() {
 
 const rows = () => within(screen.getByRole('list')).getAllByRole('button')
 
+describe('접기 버튼', () => {
+  it('onCollapse가 있으면 제목 옆 [‹]가 부르고, 없으면 버튼 없음', () => {
+    const onCollapse = vi.fn()
+    const stores = createStores(createLayout({ name: 't', outer: { kind: 'rect', w: 600, h: 300 }, inners: [] }, { name: 'l', id: 'L', now: '2026-10-14T00:00:00.000Z' }))
+    const { unmount } = render(
+      <StoresProvider stores={stores}>
+        <LibraryPanel onCollapse={onCollapse} />
+      </StoresProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: '라이브러리 접기' }))
+    expect(onCollapse).toHaveBeenCalledTimes(1)
+    unmount()
+    render(
+      <StoresProvider stores={stores}>
+        <LibraryPanel />
+      </StoresProvider>,
+    )
+    expect(screen.queryByRole('button', { name: '라이브러리 접기' })).toBeNull()
+  })
+})
+
 describe('LibraryPanel', () => {
   it('기본 프리셋 20개를 행(이름·치수)으로 보여 주고 [내 도형] 탭은 없다', () => {
     renderPanel()

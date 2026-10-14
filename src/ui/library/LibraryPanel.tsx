@@ -14,7 +14,8 @@ import './library.css'
  * PC 왼쪽 라이브러리(스펙 §4.1). [내 도형] 탭은 Plan 7에서 붙이므로 지금은 탭 줄 없이 기본 프리셋만 보여 줍니다.
  * 항목 클릭 = 화면 가운데에 놓고 선택(D35). 텐트 편집·측정 중에는 흐리게 하고 막습니다(§4.3).
  */
-export function LibraryPanel() {
+/** onCollapse가 있으면 제목 옆에 [‹](라이브러리 접기, PC 셸) */
+export function LibraryPanel(p: { onCollapse?: () => void } = {}) {
   const stores = useStores()
   const locked = useUi((s) => s.mode !== 'place' || s.measuring)
   const [filter, setFilter] = useState<CategoryFilter>('ALL')
@@ -30,7 +31,14 @@ export function LibraryPanel() {
 
   return (
     <aside className="tf-lib" aria-label="라이브러리" data-locked={locked ? 'true' : 'false'}>
-      <h2 className="tf-lib__title">라이브러리</h2>
+      <div className="tf-lib__head">
+        <h2 className="tf-lib__title">라이브러리</h2>
+        {p.onCollapse !== undefined && (
+          <button type="button" className="tf-lib__collapse" aria-label="라이브러리 접기" title="라이브러리 접기" onClick={p.onCollapse}>
+            ‹
+          </button>
+        )}
+      </div>
       <CategoryChips presets={all} value={filter} onChange={setFilter} disabled={locked} />
       <BrandSelect presets={all} value={brand} onChange={setBrand} disabled={locked} />
       {presets.length === 0 && <p className="tf-lib__empty">{emptyLibraryText(filter)}</p>}

@@ -3,9 +3,12 @@
 
 /* ── PC 3단(폭 768px·높이 560px 이상, useIsDesktop) ───────────── */
 .shell-desktop {
+  /* 라이브러리 폭: 실제 매트 이름(최장 약 236px, 2026-10-14)이 한 줄에 들어가게. 좁은 화면은 두 줄로 */
+  --lib-w: 352px;
+  --right-w: 320px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  grid-template-columns: var(--lib-w) minmax(0, 1fr) var(--right-w);
   grid-template-areas:
     'top top top'
     'left center right';
@@ -13,10 +16,48 @@
   background: var(--bg-app);
 }
 
+@media (max-width: 1365.98px) {
+  .shell-desktop {
+    --lib-w: 300px;
+  }
+}
+
 @media (max-width: 1023.98px) {
   .shell-desktop {
-    grid-template-columns: 200px minmax(0, 1fr) 280px;
+    --lib-w: 240px;
+    --right-w: 280px;
   }
+}
+
+/* 라이브러리 접기: 얇은 띠(펼치기 버튼)만 */
+.shell-desktop[data-lib-collapsed='true'] {
+  --lib-w: 48px;
+}
+
+.shell-libtab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  height: 100%;
+  padding: var(--sp-3) 0;
+  border: 0;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.shell-libtab:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.shell-libtab__text {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.1em;
 }
 
 .shell-desktop > .shell-topbar {
