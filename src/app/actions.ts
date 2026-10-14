@@ -1,14 +1,20 @@
 // UI(라이브러리·새 도형 폼·속성 패널·시트·단축키)가 함께 쓰는 물건 문서 동작. 같은 동작은 여기 한 곳에만 둡니다
 // (Plan 3 보류 Minor #23 — ui/panels/commands.ts는 이 파일을 다시 내보내기만 합니다). 텐트 동작은 tentActions.ts.
 // 문서는 doc.commit(recipe)로만 바꾸고, recipe 안에서는 core ops만 부릅니다(스펙 §7 규칙 2).
-import { normAngle, type Item, type ItemPreset, type Pt } from '../core/model'
+import { normAngle, type Item, type ItemPreset, type Pt, type Shape } from '../core/model'
+import { centerPolygon } from '../core/polygonEdit'
+import { withRadii } from '../core/radii'
+import { rotateAround } from '../core/ops/util'
 import {
   addItem,
   deleteItems,
   duplicateItems,
   itemFromPreset,
   makeItem,
+  moveItems,
   newItemPosition,
+  nextColor,
+  setItemShape,
   resizeItem,
   rotateItems,
   selectionPivot,
@@ -49,6 +55,37 @@ export function addPresetItem(stores: Stores, preset: ItemPreset): string {
 
 export function addCustomItem(stores: Stores, input: NewItemInput): string {
   return insertItem(stores, makeItem(input, placementPoint(stores)))
+}
+
+/** 도형을 로컬 원점이 bbox 가운데가 되게(다각형만 옮김, 반지름 유지). offset = 원래 원점 기준 새 원점 자리 */
+function centeredShape(shape: Shape): { shape: Shape; offset: Pt } {
+  if (shape.kind !== 'polygon') return { shape, offset: [0, 0] }
+  const { center, points } = centerPolygon(shape.points)
+  return { shape: withRadii({ kind: 'polygon', points }, shape.radii), offset: center }
+}
+
+/** 물건 그리기 화면의 결과로 새 물건(매트, 소유자 요청 2026-10-14). 이름이 비면 「새 매트」 */
+export function addDrawnItem(stores: Stores, name: string, shape: Shape): string {
+  const layout = stores.doc.getState().layout
+  return addCustomItem(stores, {
+    name: name.trim() === '' ? '새 매트' : name.trim(),
+    shape: centeredShape(shape).shape,
+    color: nextColor(layout),
+    category: 'MAT',
+    countsArea: true,
+  })
+}
+
+/** 모양 편집 결과로 물건 도형을 바꿉니다(보이는 자리 그대로, 1칸). */
+export function replaceItemShape(stores: Stores, id: string, shape: Shape): void {
+  const { shape: next, offset } = centeredShape(shape)
+  stores.doc.getState().commit((d) => {
+    const it = d.items.find((x) => x.id === id)
+    if (it === undefined) return
+    setItemShape(d, id, next)
+    const [ox, oy] = rotateAround(offset, [0, 0], it.rotation)
+    if (ox !== 0 || oy !== 0) moveItems(d, [id], ox, oy)
+  })
 }
 
 /** 이름·색·카테고리·점유 면적 포함(속성 패널) */

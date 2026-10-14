@@ -228,6 +228,22 @@ export function defaultOuterTemplate(kind: TemplateKind): ShapeTemplate {
   }
 }
 
+/** 물건(매트) 그리기 화면의 예시 기본값(소유자 요청 2026-10-14): 1인 매트 크기 안팎 */
+export function defaultItemTemplate(kind: TemplateKind): ShapeTemplate {
+  switch (kind) {
+    case 'rect':
+      return { kind: 'rect', w: 190, h: 60 }
+    case 'trapezoid':
+      return { kind: 'trapezoid', front: 50, back: 65, depth: 190, offset: 0 }
+    case 'ngon':
+      return { kind: 'ngon', n: 6, sizeBy: 'diameter', size: 60 }
+    case 'circle':
+      return { kind: 'circle', d: 50 }
+    case 'hexagon':
+      return { kind: 'hexagon', w: 190, h: 60, edge: 150 }
+  }
+}
+
 /** 이너 예시 기본값(설계 §2.1): s = newInnerSide(외곽), 사다리꼴 뒷변 = round10(0.7s)(최소 10) */
 export function defaultInnerTemplate(kind: TemplateKind, outer: Shape): ShapeTemplate {
   const s = newInnerSide(outer)

@@ -101,6 +101,8 @@ export function TentEditor(p: {
   title?: string
   /** 대상이 없을 때 안내(기본 「편집할 곳을 고르세요」) */
   emptyText?: string
+  /** 외곽 이름(물건 그리기 화면은 「모양」) */
+  outerLabel?: string
 }): JSX.Element {
   const stores = useStores()
   const layout = useDoc((s) => s.layout)
@@ -140,7 +142,7 @@ export function TentEditor(p: {
               onClick={() => select('outer')}
             >
               <span className="tf-tent__dot tf-tent__dot--outer" aria-hidden="true" />
-              <span className="tf-tent__name">외곽</span>
+              <span className="tf-tent__name">{p.outerLabel ?? '외곽'}</span>
               <span className="tf-tent__meta">{shapeSummary(tent.outer, tent.outerTemplate)}</span>
             </button>
           </li>
@@ -183,7 +185,7 @@ export function TentEditor(p: {
       ) : live === null ? (
         <p className="tf-panel__empty">{p.emptyText ?? EMPTY_TARGET_TEXT}</p>
       ) : (
-        <TargetFields target={live} layout={layout} vertexIndex={vertexIndex} enabled={enabled} variant={p.variant} />
+        <TargetFields target={live} layout={layout} vertexIndex={vertexIndex} enabled={enabled} variant={p.variant} outerLabel={p.outerLabel} />
       )}
 
       {!maker && (
@@ -285,6 +287,7 @@ function TargetFields(p: {
   vertexIndex: number | null
   enabled: boolean
   variant: TentEditorVariant
+  outerLabel?: string
 }): JSX.Element {
   const stores = useStores()
   const { target, layout, enabled } = p
@@ -296,7 +299,7 @@ function TargetFields(p: {
   const { shape } = found
   const template = editableTemplate(shape, found.template)
   const inner: Inner | undefined = target === 'outer' ? undefined : layout.tent.inners.find((it) => it.id === target.innerId)
-  const name = targetName(layout.tent, target) ?? ''
+  const name = (target === 'outer' ? p.outerLabel : undefined) ?? targetName(layout.tent, target) ?? ''
   const isCircle = shape.kind === 'circle'
   const free = template === null
   // 표는 [꼭짓점 직접 편집](예시 모양)이나 「좌표로 고치기」(자유 다각형)를 눌렀을 때만 펼칩니다.

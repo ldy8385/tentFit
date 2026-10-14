@@ -4,7 +4,7 @@
 import type { JSX } from 'react'
 import { useStores, useUi } from '../../app/stores'
 import { addInnerShape, setMakerOuterShape, startDrawingAction, tentControlsEnabled } from '../../app/tentActions'
-import type { TemplateKind } from '../../core/templates'
+import { defaultItemTemplate, type TemplateKind } from '../../core/templates'
 import { ShapeCircleIcon, ShapeFreeIcon, ShapeHexagonIcon, ShapeNgonIcon, ShapeRectIcon, ShapeTrapezoidIcon } from '../shell/icons'
 import { FREE_DRAW_LABEL, KIND_LABELS, TEMPLATE_KINDS } from '../tent/shapeMenu'
 
@@ -23,12 +23,12 @@ function KindIcon(p: { kind: TemplateKind }): JSX.Element {
   }
 }
 
-export function ShapeTools(p: { step: 1 | 2 }): JSX.Element {
+export function ShapeTools(p: { step: 1 | 2; item?: boolean }): JSX.Element {
   const stores = useStores()
   const drawing = useUi((s) => s.drawing !== null)
   const enabled = useUi((s) => tentControlsEnabled(s)) && !drawing
   const pick = (kind: TemplateKind) => {
-    if (p.step === 1) setMakerOuterShape(stores, kind)
+    if (p.step === 1) setMakerOuterShape(stores, kind, p.item === true ? defaultItemTemplate(kind) : undefined)
     else addInnerShape(stores, kind)
   }
   return (

@@ -12,6 +12,7 @@ import { applyDim } from '../../app/dimActions'
 import { KeepRatioToggle } from '../common/KeepRatioToggle'
 import { deleteAndDeselect, duplicateAndSelect, resize, rotateBy90, setProps, setRotation } from './commands'
 import { RadiusFields } from './RadiusFields'
+import { SavePresetForm } from './SavePresetForm'
 import { itemDims } from './itemDims'
 import './panels.css'
 
@@ -70,6 +71,11 @@ export function ItemFields(p: { item: Item; compact?: boolean }): JSX.Element {
           <RadiusFields subject={{ kind: 'item', id: item.id }} shape={item.shape} />
         </>
       )}
+      {/* 꼭짓점·그리기·꼭짓점마다 둥글기는 물건 그리기 화면에서(소유자 요청 2026-10-14) */}
+      <button type="button" className="tf-btn" onClick={() => stores.ui.getState().patch({ itemMaker: { editId: item.id } })}>
+        모양 편집
+      </button>
+      {import.meta.env.DEV && !compact && <SavePresetForm key={item.id} item={item} />}
 
       <div className="tf-rotate-row" data-compact={compact}>
         {/* 회전은 아무 실수나 받고 [0,360)으로 정규화합니다(§5.1). 400 → 40 */}

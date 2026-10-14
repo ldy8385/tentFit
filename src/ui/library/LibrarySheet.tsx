@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ItemPreset } from '../../core/model'
 import { addPresetItem } from '../../app/actions'
-import { loadItemPresets } from '../../app/presets'
+import { useItemPresets } from '../../app/presets'
 import { useStores } from '../../app/stores'
 import { BottomSheet } from '../sheets/BottomSheet'
 import { CategoryChips } from './CategoryChips'
@@ -19,7 +19,7 @@ export function LibrarySheet() {
   const stores = useStores()
   const [filter, setFilter] = useState<CategoryFilter>('ALL')
   const [brand, setBrand] = useState<string | null>(null)
-  const all = loadItemPresets()
+  const all = useItemPresets()
   const presets = useMemo(() => filterByBrand(filterByCategory(all, filter), brand), [all, filter, brand])
 
   const pick = (preset: ItemPreset) => {
@@ -53,6 +53,13 @@ export function LibrarySheet() {
             onClick={() => stores.ui.getState().patch({ mobileSheet: 'newShape' })}
           >
             + 새 도형 만들기
+          </button>
+          <button
+            type="button"
+            className="tf-libsheet__new"
+            onClick={() => stores.ui.getState().patch({ mobileSheet: 'none', itemMaker: { editId: null } })}
+          >
+            그려서 만들기
           </button>
         </div>
       </div>

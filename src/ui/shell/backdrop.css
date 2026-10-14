@@ -1,0 +1,78 @@
+/* 배경 이미지 컨트롤(소유자 요청 2026-10-14). 캔버스 오른쪽 위. */
+.tf-backdrop {
+  position: absolute;
+  top: calc(var(--overlay-top, 0px) + 16px);
+  right: 16px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  pointer-events: none;
+}
+
+.tf-backdrop > * {
+  pointer-events: auto;
+}
+
+.tf-backdrop__toggle {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+}
+
+.tf-backdrop__toggle[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.tf-backdrop__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 220px;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.14);
+}
+
+.tf-backdrop__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 13px;
+}
+
+.tf-backdrop__row input {
+  flex: 1;
+}
+
+.tf-backdrop .tf-btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tf-backdrop__banner {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--overlay-top, 0px) + 72px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.14);
+  font-size: 13px;
+  white-space: nowrap;
+}

@@ -10,10 +10,11 @@
 import Konva from 'konva'
 import type { Box } from 'konva/lib/shapes/Transformer'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
-import { Layer, Stage, Transformer } from 'react-konva'
+import { Image as KImage, Layer, Rect, Stage, Transformer } from 'react-konva'
 import { useStore } from 'zustand'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStats, useZones } from '../../app/derived'
+import { moveBackdrop, scaleBackdropAt } from '../../app/backdropActions'
 import { useDoc, useStores, useUi, type Stores } from '../../app/stores'
 import {
   appendDrawPoint,
@@ -174,6 +175,8 @@ class BoardController {
   private tentDragLive = false
   /** 마지막 자동 맞춤 보기. 사용자가 보기를 바꾸지 않았으면 크기가 바뀔 때 다시 맞춥니다. */
   private autoFit: View | null = null
+  /** 이번 누름이 배경 이미지 맞추기 중에 시작됐음(끌기 = 이미지 이동, 두 손가락 = 이미지 크기, 탭 = 없음) */
+  private pressInBackdrop = false
   /** 이번 누름이 자유 그리기 중에 시작됐음(탭 = 점, 끌기 = 화면 이동, 텐트 대상 판정 안 함) */
   private pressInDraw = false
   /** 첫 포인터를 누른 화면 점(고무줄을 탭/끌기 경계 안에서만 보이게) */
@@ -271,9 +274,13 @@ class BoardController {
       this.tentPrev = null
       this.tentDrag = null
       this.tentDragLive = false
-      this.pressInDraw = tentMode && ui.drawing !== null && tentControlsEnabled(ui)
+      this.pressInBackdrop = ui.backdrop?.adjusting === true
+      this.pressInDraw = !this.pressInBackdrop && tentMode && ui.drawing !== null && tentControlsEnabled(ui)
       this.pressStart = p
-      if (this.pressInDraw) {
+      if (this.pressInBackdrop) {
+        // 맞추기 중에는 물건·텐트를 잡지 않습니다(Konva 끌기도 잠금).
+        this.lock()
+      } else if (this.pressInDraw) {
         if (!panOverride) this.showRubber(p, kind)
       } else if (tentMode) {
         if (!panOverride) onNode = this.pressTent(p, kind, e.pointerId)
@@ -289,7 +296,7 @@ class BoardController {
       if (panOverride) this.lock()
     }
     // 텐트 모드의 바닥·외곽선 끌기는 포인터 종류와 상관없이 화면 이동입니다(R10, 마우스도 범위 선택 아님).
-    this.handle(this.arbiter.down(sample, onNode, this.pressInTent || this.pressInDraw ? 'pan' : 'marquee'))
+    this.handle(this.arbiter.down(sample, onNode, this.pressInTent || this.pressInDraw || this.pressInBackdrop ? 'pan' : 'marquee'))
     if (this.arbiter.pointerCount >= 2) {
       this.lock()
       this.hideRubber()
@@ -343,6 +350,7 @@ class BoardController {
       // 터치 고무줄은 누르는 동안만 보입니다(마우스·펜은 hover로 이어짐). setTimeout(afterAllUp)보다 먼저 지웁니다.
       if (this.pressInDraw && this.overlay.getState().drawPointer?.pointer === 'touch') this.hideRubber()
       this.pressInDraw = false
+      this.pressInBackdrop = false
       this.pressStart = null
       this.afterAllUp()
     }
@@ -380,6 +388,11 @@ class BoardController {
     e.preventDefault()
     const a = wheelAction(e)
     const ui = this.stores.ui.getState()
+    if (ui.backdrop?.adjusting === true) {
+      if (a.type === 'zoom') scaleBackdropAt(this.stores, a.factor, screenToWorld(ui.view, this.local(e)))
+      else moveBackdrop(this.stores, a.dx / ui.view.zoom, a.dy / ui.view.zoom)
+      return
+    }
     if (a.type === 'zoom') ui.zoomAt(a.factor, this.local(e))
     else ui.panBy(a.dx, a.dy)
   }
@@ -482,12 +495,15 @@ class BoardController {
     for (const o of outs) {
       switch (o.type) {
         case 'pan':
-          ui.panBy(o.dx, o.dy)
+          if (this.pressInBackdrop) moveBackdrop(this.stores, o.dx / ui.view.zoom, o.dy / ui.view.zoom)
+          else ui.panBy(o.dx, o.dy)
           break
         case 'zoom':
-          ui.zoomAt(o.factor, [o.cx, o.cy])
+          if (this.pressInBackdrop) scaleBackdropAt(this.stores, o.factor, screenToWorld(ui.view, [o.cx, o.cy]))
+          else ui.zoomAt(o.factor, [o.cx, o.cy])
           break
         case 'tap':
+          if (this.pressInBackdrop) break
           if (this.pressInDraw) this.onDrawTap(o)
           else if (this.pressInTent) this.onTentTap()
           else this.onTap(o.onNode, o.shift)
@@ -935,6 +951,47 @@ function DrawLengthBadge(props: { overlay: StoreApi<Overlay> }): JSX.Element | n
   )
 }
 
+/** 이미지 주소 → 불러온 HTMLImageElement(불러오는 중·실패면 null) */
+function useHtmlImage(url: string | null): HTMLImageElement | null {
+  const [loaded, setLoaded] = useState<{ url: string; img: HTMLImageElement } | null>(null)
+  useEffect(() => {
+    if (url === null) return
+    const img = new window.Image()
+    img.onload = () => setLoaded({ url, img })
+    img.src = url
+    return () => {
+      img.onload = null
+    }
+  }, [url])
+  return loaded !== null && loaded.url === url ? loaded.img : null
+}
+
+/** 배경 이미지(맨 아래 층, 격자 아래). 맞추기 중이면 점선 테두리 */
+function BackdropImage(): JSX.Element | null {
+  const bd = useUi((s) => s.backdrop)
+  const img = useHtmlImage(bd?.url ?? null)
+  if (bd === null || img === null) return null
+  const h = bd.w * bd.aspect
+  return (
+    <>
+      <KImage image={img} x={bd.x - bd.w / 2} y={bd.y - h / 2} width={bd.w} height={h} opacity={bd.opacity} listening={false} />
+      {bd.adjusting && (
+        <Rect
+          x={bd.x - bd.w / 2}
+          y={bd.y - h / 2}
+          width={bd.w}
+          height={h}
+          stroke={THEME['select']}
+          strokeWidth={1.5}
+          dash={[6, 4]}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      )}
+    </>
+  )
+}
+
 /** 도형 위 치수 층 연결: 텐트 끌기 미리보기 동안에는 숨깁니다(값이 손을 뗄 때 바뀜). */
 function DimLayer(props: { overlay: StoreApi<Overlay>; busy: boolean; dimmed: ReadonlySet<string> }): JSX.Element | null {
   const dragging = useStore(props.overlay, (s) => s.tentPreview !== null)
@@ -1005,6 +1062,7 @@ export function Board(): JSX.Element {
   const drawing = useUi((s) => s.drawing)
   const tentLock = useUi((s) => s.tentLock)
   const outerPending = useUi((s) => s.outerPending)
+  const adjustingBackdrop = useUi((s) => s.backdrop?.adjusting === true)
 
   const hostRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage>(null)
@@ -1155,6 +1213,7 @@ export function Board(): JSX.Element {
         scaleY={zoom}
       >
         <Layer listening={false}>
+          <BackdropImage />
           {scene.grid.map((g) => (
             <GridShape key={g.level} level={g.level} lines={g.lines} />
           ))}
@@ -1211,7 +1270,7 @@ export function Board(): JSX.Element {
         </Layer>
       </Stage>
       <BoardOverlay store={overlay} />
-      <DimLayer overlay={overlay} busy={activeIds.size > 0} dimmed={dimmedIds} />
+      <DimLayer overlay={overlay} busy={activeIds.size > 0 || adjustingBackdrop} dimmed={dimmedIds} />
     </div>
   )
 }

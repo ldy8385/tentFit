@@ -205,3 +205,86 @@ test('리뷰 회귀: 새 도형 폼의 입력칸·스위치·select에서 Enter�
   expect((await getDoc(page)).layout.items).toEqual([])
   await expect(form).toBeVisible()
 })
+
+// ── 도형 위 치수·모서리·물건 그리기·배경 이미지·프리셋 저장(소유자 요청 2026-10-14) ──────────────
+
+type ExtraUi = { keepRatio: boolean; backdrop: { x: number; y: number; w: number; opacity: number; adjusting: boolean } | null }
+
+test.describe('도형 도구(2026-10-14)', () => {
+  test('캔버스 숫자: 가로를 눌러 고치면 비율 유지로 전체 배율, 모서리 둥글기 → R 숫자, 끄면 그 축만', async ({ page }) => {
+    const item = await createItem(page, MAT_ITEM)
+    const dims = page.getByTestId('dim-overlay')
+    await dims.getByRole('button', { name: /^가로 200cm/ }).click()
+    await dims.getByRole('textbox', { name: '가로', exact: true }).fill('300')
+    await page.keyboard.press('Enter')
+    await expect.poll(async () => (await getDoc(page)).layout.items.find((it) => it.id === item.id)?.shape).toEqual({ kind: 'rect', w: 300, h: 90 })
+
+    const props = page.getByTestId('properties-panel')
+    await props.getByLabel('모서리 둥글기', { exact: true }).fill('5')
+    await props.getByLabel('모서리 둥글기', { exact: true }).press('Enter')
+    await expect(dims.locator('[data-kind="radius"]')).toHaveCount(4)
+
+    await dims.getByRole('button', { name: /^세로 90cm/ }).click()
+    await dims.getByRole('switch', { name: '비율 유지' }).uncheck()
+    await dims.getByRole('textbox', { name: '세로', exact: true }).fill('120')
+    await page.keyboard.press('Enter')
+    await expect
+      .poll(async () => (await getDoc(page)).layout.items.find((it) => it.id === item.id)?.shape)
+      .toEqual({ kind: 'rect', w: 300, h: 120, radii: [5, 5, 5, 5] })
+  })
+
+  test('[그려서 만들기] → 예시 사각형(190×60) → [캔버스에 추가] = 새 매트, [모양 편집]으로 다시 열기', async ({ page }) => {
+    const before = (await getDoc(page)).layout.items.length
+    await page.getByRole('button', { name: '그려서 만들기' }).click()
+    const maker = page.getByTestId('tent-maker')
+    await expect(maker.getByRole('heading', { name: '물건 그리기' })).toBeVisible()
+    await maker.getByTestId('maker-shape-tools').getByRole('button', { name: '사각형', exact: true }).click()
+    await maker.getByRole('button', { name: '캔버스에 추가' }).click()
+    await expect(maker).toHaveCount(0)
+    await expect.poll(async () => (await getDoc(page)).layout.items.length).toBe(before + 1)
+    const made = (await getDoc(page)).layout.items.at(-1)!
+    expect(made).toMatchObject({ name: '새 매트', category: 'MAT', shape: { kind: 'rect', w: 190, h: 60 } })
+    expect((await getUi(page)).selection).toEqual([made.id])
+
+    await page.getByTestId('properties-panel').getByRole('button', { name: '모양 편집' }).click()
+    await expect(page.getByTestId('tent-maker').getByRole('heading', { name: '모양 편집' })).toBeVisible()
+    await page.getByTestId('tent-maker').getByRole('button', { name: '취소', exact: true }).click()
+    await expect(page.getByTestId('tent-maker')).toHaveCount(0)
+  })
+
+  test('배경 이미지: 깔고 투명도·맞추기(끌기 = 이미지 이동, 화면은 그대로)·빼기', async ({ page }) => {
+    // 2×1 PNG
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEUlEQVR42mNk+M9QzwAEjDAGACCDAv8cI7IoAAAAAElFTkSuQmCC', 'base64')
+    await page.getByTestId('backdrop-file').setInputFiles({ name: 'mat.png', mimeType: 'image/png', buffer: png })
+    await expect.poll(async () => ((await getUi(page)) as unknown as ExtraUi).backdrop?.opacity).toBe(0.5)
+    await page.getByRole('slider', { name: '투명도' }).fill('30')
+    await page.getByRole('button', { name: '위치·크기 맞추기' }).click()
+    const ui0 = (await getUi(page)) as unknown as ExtraUi & { view: unknown }
+    const a = await worldToClient(page, 0, 0)
+    await dragBetween(page, a, { x: a.x + 50, y: a.y })
+    const ui1 = (await getUi(page)) as unknown as ExtraUi & { view: unknown }
+    expect(ui1.view).toEqual(ui0.view)
+    expect(ui1.backdrop!.x).toBeGreaterThan(ui0.backdrop!.x + 10)
+    expect(ui1.backdrop!.opacity).toBe(0.3)
+    await page.getByRole('button', { name: '완료' }).click()
+    await page.getByRole('button', { name: '빼기' }).click()
+    await expect.poll(async () => ((await getUi(page)) as unknown as ExtraUi).backdrop).toBeNull()
+  })
+
+  test('로컬 [프리셋으로 저장]: 제조사·이름으로 보내고 라이브러리·제조사 필터에 바로 보임', async ({ page }) => {
+    let sent: unknown = null
+    await page.route('**/__tentfit/item-presets', async (route) => {
+      sent = route.request().postDataJSON()
+      await route.fulfill({ json: { ok: true } })
+    })
+    await createItem(page, MAT_ITEM)
+    const form = page.getByTestId('save-preset')
+    await form.getByLabel('제조사').fill('써머레스트')
+    await form.getByLabel('프리셋 이름').fill('네오에어 R')
+    await form.getByRole('button', { name: '프리셋으로 저장' }).click()
+    await expect.poll(() => sent).toMatchObject({ preset: { name: '네오에어 R', brand: '써머레스트', shape: { kind: 'rect', w: 200, h: 60 } } })
+    const lib = page.getByRole('complementary', { name: '라이브러리' })
+    await expect(lib.getByText('네오에어 R')).toBeVisible()
+    await expect(lib.getByLabel('제조사')).toBeVisible()
+  })
+})

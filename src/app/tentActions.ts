@@ -623,10 +623,9 @@ export function defineFirstOuter(stores: Stores, outer: Shape, outerTemplate?: S
  * 만들기 화면 단계 ①의 예시 모양(설계 §1.1): 외곽 없음이면 그 예시로 첫 외곽, 아니면 외곽을 그 예시 기본값으로 바꿈(1칸).
  * 외곽을 고르고 맞춤 보기. 측정 중·외곽 잠금이면 아무것도 하지 않음.
  */
-export function setMakerOuterShape(stores: Stores, kind: TemplateKind): void {
+export function setMakerOuterShape(stores: Stores, kind: TemplateKind, tpl: ShapeTemplate = defaultOuterTemplate(kind)): void {
   const ui = stores.ui.getState()
   if (!tentControlsEnabled(ui) || ui.tentLock === 'outer') return
-  const tpl = defaultOuterTemplate(kind)
   if (ui.outerPending) {
     defineFirstOuter(stores, shapeFromTemplate(tpl), tpl)
     return

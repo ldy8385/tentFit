@@ -23,6 +23,12 @@ export type DrawGoal = 'outer' | 'newInner' | { innerId: string }
 export type Drawing = { goal: DrawGoal; points: Pt[] }
 /** 만들기 화면 단계 잠금(설계 §1.1): 단계 ① = 'inners', 단계 ② = 'outer', 편집기 = 'none' */
 export type TentLock = 'none' | 'outer' | 'inners'
+/**
+ * 배경 이미지(소유자 요청 2026-10-14): 캔버스 맨 아래에 깔고 그 위에 그립니다. 편집하는 동안만(저장·내보내기 안 함).
+ * url = 이미지 주소(object URL), x·y = 가운데(월드 cm), w = 가로(cm), aspect = 세로/가로, opacity = 0~1,
+ * adjusting = 맞추기 중(끌기 = 이미지 이동, 휠·두 손가락 = 이미지 크기, 탭 = 아무것도 안 함)
+ */
+export type Backdrop = { url: string; x: number; y: number; w: number; aspect: number; opacity: number; adjusting: boolean }
 /** 패널에서 포커스한 자유 다각형 칸(변 길이 = edge, 꼭짓점 각도 = vertex, 번호는 0부터). 캔버스가 그 변·꼭짓점을 강조합니다. */
 export type PolygonFocus = { kind: 'edge' | 'vertex'; index: number }
 export type UiState = {
@@ -57,6 +63,11 @@ export type UiState = {
   axisLock: boolean
   /** 「비율 유지」(소유자 요청 2026-10-14, 기본 켬): 변·가로·세로 숫자를 바꾸면 전체를 같은 배율로. 끄면 그 변·축만 */
   keepRatio: boolean
+  /** 물건 그리기·모양 편집 화면(소유자 요청 2026-10-14). editId가 있으면 그 물건의 모양 편집, 없으면 새 물건 */
+  itemMaker: { editId: string | null } | null
+  /** 배경 이미지(없으면 null) */
+  backdrop: Backdrop | null
+  setBackdrop(b: Backdrop | null): void
   setSelection(ids: string[]): void
   toggleSelected(id: string): void
   clearSelection(): void
@@ -106,6 +117,7 @@ export type UiState = {
         | 'editorDialog'
         | 'axisLock'
         | 'keepRatio'
+        | 'itemMaker'
       >
     >,
   ): void
@@ -208,6 +220,8 @@ export function createUiStore(
       polygonFocus: null,
       axisLock: false,
       keepRatio: true,
+      backdrop: null,
+      itemMaker: null,
 
       setSelection(ids) {
         const next = unique(ids)
@@ -357,6 +371,9 @@ export function createUiStore(
       },
       requestReveal() {
         set({ revealRequest: get().revealRequest + 1 })
+      },
+      setBackdrop(b) {
+        if (b !== get().backdrop) set({ backdrop: b })
       },
       patch(p) {
         const cur = get()

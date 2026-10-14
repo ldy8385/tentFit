@@ -14,7 +14,7 @@ import { useShortcuts } from '../../app/shortcuts'
 import { createStores, StoresProvider, useDoc, useStores, useUi, type Stores } from '../../app/stores'
 import { MAKER_CANVAS_HOST_TEST_ID, MAKER_HOOK_KEY, installTestHook } from '../../app/testHook'
 import { tentIssues } from '../../core/ops/tent'
-import { newId, type Tent } from '../../core/model'
+import { newId, type Shape, type Tent } from '../../core/model'
 import { initialTentName, makerConfirmTent, makerLayout } from '../../app/tentMaker/makerTent'
 import { toPointerKind } from '../../store/ui'
 import { Board } from '../../view/canvas/Board'
@@ -22,6 +22,7 @@ import { useFocusTrap } from '../common/useFocusTrap'
 import { NAME_MAX_LENGTH } from '../fields/limits'
 import { TextField } from '../fields/TextField'
 import { ScaleBarView, ToastHost, ZoomControls } from '../shell/CanvasOverlay'
+import { BackdropControl } from '../shell/BackdropControl'
 import { BackIcon, RedoIcon, UndoIcon } from '../shell/icons'
 import { useRevealOnSheet, useSheetInsets } from '../shell/sheetHooks'
 import { useIsDesktop } from '../shell/useIsDesktop'
@@ -34,13 +35,25 @@ import '../panels/panels.css'
 import '../shell/shell.css'
 import './tentMaker.css'
 
-export type TentMakerMode = 'start' | 'swap'
+/** item = 물건(매트) 그리기, itemEdit = 물건 모양 편집(소유자 요청 2026-10-14). 둘 다 한 단계(외곽 = 물건 모양)입니다. */
+export type TentMakerMode = 'start' | 'swap' | 'item' | 'itemEdit'
 
 /** 확정 버튼 문구(§4.7-8). 휴대폰은 짧은 글자를 보이고 접근 이름은 전체 문구입니다(시안 02 Mobile). */
 export const CONFIRM_LABELS: Readonly<Record<TentMakerMode, { full: string; short: string }>> = {
   start: { full: '이 텐트로 시작', short: '시작' },
   swap: { full: '이 텐트로 바꾸기', short: '바꾸기' },
+  item: { full: '캔버스에 추가', short: '추가' },
+  itemEdit: { full: '모양 바꾸기', short: '바꾸기' },
 }
+
+function isItemMode(mode: TentMakerMode): boolean {
+  return mode === 'item' || mode === 'itemEdit'
+}
+
+/** 물건 그리기 화면 문구 */
+export const ITEM_GUIDE = '예시 모양을 고르거나 자유롭게 그려 모양을 만드세요 · 배경 이미지를 깔고 따라 그릴 수 있어요'
+export const ITEM_NEED_SHAPE_REASON = '예시 모양을 고르거나 그려서 모양을 만드세요'
+export const DEFAULT_ITEM_NAME = '새 매트'
 
 /** 단계 ① [다음]이 꺼진 사유(외곽 없음) */
 export const NEED_OUTER_REASON = '예시 모양을 고르거나 그려서 외곽을 만드세요'
@@ -59,12 +72,19 @@ function markOf(state: unknown): unknown {
   return typeof state === 'object' && state !== null ? (state as { tentMaker?: unknown }).tentMaker : undefined
 }
 
-/** 만들기 화면 임시 스토어: 텐트 모드, 외곽 없음, 단계 ① 잠금(이너) */
-function createMakerStores(name: string): Stores {
-  const stores = createStores(makerLayout(name), { mode: 'tent' })
+/** 만들기 화면 임시 스토어: 텐트 모드, 외곽 없음(initialShape가 있으면 그 모양), 단계 ① 잠금(이너) */
+function createMakerStores(name: string, initialShape?: Shape): Stores {
+  const layout = makerLayout(name)
+  if (initialShape !== undefined) {
+    layout.tent.outer = structuredClone(initialShape)
+    if (initialShape.kind === 'rect') layout.tent.outerTemplate = { kind: 'rect', w: initialShape.w, h: initialShape.h }
+    if (initialShape.kind === 'circle') layout.tent.outerTemplate = { kind: 'circle', d: initialShape.d }
+  }
+  const stores = createStores(layout, { mode: 'tent' })
   const ui = stores.ui.getState()
-  ui.setOuterPending(true)
+  ui.setOuterPending(initialShape === undefined)
   ui.setTentLock('inners')
+  if (initialShape !== undefined) ui.selectTentTarget('outer')
   return stores
 }
 
@@ -73,9 +93,11 @@ export function TentMaker(p: {
   myTentNames: readonly string[]
   onConfirm(tent: Tent): void
   onCancel(): void
+  /** 물건 모양 편집(itemEdit): 처음 모양 */
+  initialShape?: Shape
 }): JSX.Element {
-  const [initialName] = useState(() => initialTentName(p.myTentNames))
-  const [stores] = useState(() => createMakerStores(initialName))
+  const [initialName] = useState(() => (isItemMode(p.mode) ? DEFAULT_ITEM_NAME : initialTentName(p.myTentNames)))
+  const [stores] = useState(() => createMakerStores(initialName, p.initialShape))
   const [name, setName] = useState(initialName)
 
   // ── history: 열 때 항목 하나, popstate로 닫힘 ─────────────────
@@ -159,20 +181,24 @@ function MakerScreen(p: {
 
   const issues = tentIssues(tent)
   const outerIssue = issues.find((i) => i.path === 'tent.outer')
+  const item = isItemMode(p.mode)
   const reason = drawing
     ? DRAWING_REASON
     : step === 1
       ? outerPending
-        ? NEED_OUTER_REASON
+        ? item
+          ? ITEM_NEED_SHAPE_REASON
+          : NEED_OUTER_REASON
         : (outerIssue?.message ?? '')
       : (issues[0]?.message ?? '')
   const ready = reason === ''
 
-  const primaryFull = step === 1 ? '다음' : CONFIRM_LABELS[p.mode].full
-  const primaryText = step === 1 ? '다음' : isDesktop ? CONFIRM_LABELS[p.mode].full : `✓ ${CONFIRM_LABELS[p.mode].short}`
+  const finalStep = item || step === 2
+  const primaryFull = finalStep ? CONFIRM_LABELS[p.mode].full : '다음'
+  const primaryText = finalStep ? (isDesktop ? CONFIRM_LABELS[p.mode].full : `✓ ${CONFIRM_LABELS[p.mode].short}`) : '다음'
   const onPrimary = () => {
     if (!ready) return
-    if (step === 1) {
+    if (!finalStep) {
       stores.ui.getState().setTentLock('outer')
       setStep(2)
       return
@@ -189,9 +215,9 @@ function MakerScreen(p: {
   }
 
   const nameField =
-    step === 1 ? (
+    step === 1 && p.mode !== 'itemEdit' ? (
       <div className="tf-maker__name">
-        <TextField label="텐트 이름" value={p.name} targetId="maker-tent-name" maxLength={NAME_MAX_LENGTH} onCommit={(_id, v) => p.onName(v)} />
+        <TextField label={item ? '이름' : '텐트 이름'} value={p.name} targetId="maker-tent-name" maxLength={NAME_MAX_LENGTH} onCommit={(_id, v) => p.onName(v)} />
       </div>
     ) : null
 
@@ -212,12 +238,14 @@ function MakerScreen(p: {
           <BackIcon />
         </button>
         <h1 id={titleId} className="tf-maker__title">
-          텐트 만들기
+          {p.mode === 'item' ? '물건 그리기' : p.mode === 'itemEdit' ? '모양 편집' : '텐트 만들기'}
         </h1>
-        <ol className="tf-maker__steps" aria-label="단계">
-          <li aria-current={step === 1 ? 'step' : undefined}>① 외곽</li>
-          <li aria-current={step === 2 ? 'step' : undefined}>② 이너</li>
-        </ol>
+        {!item && (
+          <ol className="tf-maker__steps" aria-label="단계">
+            <li aria-current={step === 1 ? 'step' : undefined}>① 외곽</li>
+            <li aria-current={step === 2 ? 'step' : undefined}>② 이너</li>
+          </ol>
+        )}
         <div className="tf-maker__actions">
           <button
             type="button"
@@ -258,14 +286,20 @@ function MakerScreen(p: {
         {reason}
       </p>
 
-      <ShapeTools step={step} />
+      <ShapeTools step={step} item={item} />
 
       <div className="tf-maker__body">
-        <MakerCanvas desktop={isDesktop} step={step} nameField={nameField} />
+        <MakerCanvas desktop={isDesktop} step={step} nameField={nameField} item={item} />
         {isDesktop && (
-          <aside className="tf-maker__panel" aria-label={STEP_TITLES[step]}>
+          <aside className="tf-maker__panel" aria-label={item ? '모양' : STEP_TITLES[step]}>
             {nameField}
-            <TentEditor variant="panel" context="maker" title={STEP_TITLES[step]} emptyText={STEP_GUIDES[step]} />
+            <TentEditor
+              variant="panel"
+              context="maker"
+              title={item ? '모양' : STEP_TITLES[step]}
+              emptyText={item ? ITEM_GUIDE : STEP_GUIDES[step]}
+              outerLabel={item ? '모양' : undefined}
+            />
           </aside>
         )}
       </div>
@@ -279,7 +313,7 @@ function MakerScreen(p: {
 }
 
 /** 캔버스 + 위 컨트롤(축척·확대·그리기 막대·토스트) + 휴대폰 시트 */
-function MakerCanvas(p: { desktop: boolean; step: 1 | 2; nameField: JSX.Element | null }): JSX.Element {
+function MakerCanvas(p: { desktop: boolean; step: 1 | 2; nameField: JSX.Element | null; item: boolean }): JSX.Element {
   const zoom = useUi((s) => s.view.zoom)
   const insetTop = useUi((s) => s.insets.top)
   const insetBottom = useUi((s) => s.insets.bottom)
@@ -295,6 +329,7 @@ function MakerCanvas(p: { desktop: boolean; step: 1 | 2; nameField: JSX.Element 
       </div>
       <div className="shell-overlay" style={style}>
         <ScaleBarView zoom={zoom} />
+        <BackdropControl />
         {p.desktop && <ZoomControls zoom={zoom} />}
         {p.desktop && drawing && <DrawTools variant="bar" />}
         <div className="shell-toast">
@@ -303,7 +338,7 @@ function MakerCanvas(p: { desktop: boolean; step: 1 | 2; nameField: JSX.Element 
       </div>
       {!p.desktop && (
         <div className="shell-mobile__sheet" ref={sheetHostRef} data-testid="maker-sheet-host">
-          {!drawing && <MakerSheet step={p.step} nameField={p.nameField} />}
+          {!drawing && <MakerSheet step={p.step} nameField={p.nameField} item={p.item} />}
         </div>
       )}
     </div>
@@ -311,12 +346,12 @@ function MakerCanvas(p: { desktop: boolean; step: 1 | 2; nameField: JSX.Element 
 }
 
 /** 휴대폰 늘 보이는 시트(판단 Q13): 제목 = 대상 이름(없으면 단계 제목), × = 선택 해제(대상이 있을 때만) */
-function MakerSheet(p: { step: 1 | 2; nameField: JSX.Element | null }): JSX.Element {
+function MakerSheet(p: { step: 1 | 2; nameField: JSX.Element | null; item: boolean }): JSX.Element {
   const stores = useStores()
   const tent = useDoc((s) => s.layout.tent)
   const target = useUi((s) => s.tentTarget)
   const [expanded, setExpanded] = useState(false)
-  const title = (target === null ? null : targetName(tent, target)) ?? SHEET_TITLES[p.step]
+  const title = p.item ? '모양' : ((target === null ? null : targetName(tent, target)) ?? SHEET_TITLES[p.step])
   return (
     <BottomSheet
       title={title}
@@ -327,7 +362,7 @@ function MakerSheet(p: { step: 1 | 2; nameField: JSX.Element | null }): JSX.Elem
       testId="tent-maker-sheet"
     >
       {p.nameField}
-      <TentEditor variant="sheet" context="maker" emptyText={STEP_GUIDES[p.step]} />
+      <TentEditor variant="sheet" context="maker" emptyText={p.item ? ITEM_GUIDE : STEP_GUIDES[p.step]} outerLabel={p.item ? '모양' : undefined} />
     </BottomSheet>
   )
 }

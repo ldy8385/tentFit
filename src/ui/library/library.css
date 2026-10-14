@@ -227,3 +227,10 @@
   font: inherit;
   font-size: 16px;
 }
+
+/* [+ 새 도형]·[그려서 만들기] 두 줄(소유자 요청 2026-10-14) */
+.tf-lib__footer,
+.tf-libsheet__footer {
+  display: grid;
+  gap: var(--sp-2);
+}

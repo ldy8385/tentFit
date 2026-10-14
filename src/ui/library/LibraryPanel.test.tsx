@@ -12,7 +12,7 @@ vi.mock('../../app/presets', async (importOriginal) => {
   const items = actual.itemPresetsFrom(legacy).map((it) =>
     it.id === 'items/mat-single-200x60' ? { ...it, brand: '써머레스트' } : it.id === 'items/mat-wide-200x76' ? { ...it, brand: '니모' } : it,
   )
-  return { ...actual, loadItemPresets: () => items }
+  return { ...actual, loadItemPresets: () => items, useItemPresets: () => items }
 })
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
 import { LibraryPanel } from './LibraryPanel'

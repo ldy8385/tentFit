@@ -217,3 +217,24 @@
 .tf-multi[data-compact='true'] .tf-multi__check {
   display: none;
 }
+
+/* 로컬 전용 [프리셋으로 저장](소유자 요청 2026-10-14) */
+.tf-preset-save {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+}
+
+.tf-preset-save legend {
+  padding: 0 var(--sp-1);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.tf-preset-save label {
+  display: grid;
+  gap: var(--sp-1);
+}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ItemPreset } from '../../core/model'
 import { addPresetItem } from '../../app/actions'
-import { loadItemPresets } from '../../app/presets'
+import { useItemPresets } from '../../app/presets'
 import { useStores, useUi } from '../../app/stores'
 import { CategoryChips } from './CategoryChips'
 import { dimsText } from '../panels/itemDims'
@@ -19,7 +19,7 @@ export function LibraryPanel() {
   const locked = useUi((s) => s.mode !== 'place' || s.measuring)
   const [filter, setFilter] = useState<CategoryFilter>('ALL')
   const [brand, setBrand] = useState<string | null>(null)
-  const all = loadItemPresets()
+  const all = useItemPresets()
   const presets = useMemo(() => filterByBrand(filterByCategory(all, filter), brand), [all, filter, brand])
 
   const add = (preset: ItemPreset) => {
@@ -60,6 +60,14 @@ export function LibraryPanel() {
           onClick={() => stores.ui.getState().patch({ desktopPanel: 'newShape' })}
         >
           + 새 도형
+        </button>
+        <button
+          type="button"
+          className="tf-lib__new"
+          disabled={locked}
+          onClick={() => stores.ui.getState().patch({ itemMaker: { editId: null } })}
+        >
+          그려서 만들기
         </button>
       </div>
     </aside>
