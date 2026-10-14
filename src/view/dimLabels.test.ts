@@ -6,9 +6,10 @@ const V = { zoom: 2, panX: 500, panY: 400 }
 const AT0 = { x: 0, y: 0, rotation: 0 }
 
 describe('dimModel', () => {
-  it('사각형: 가로(아래)·세로(오른쪽) 치수선만, 변 숫자 없음', () => {
+  it('사각형: 가로(아래)·세로(오른쪽) 치수선만, 변 숫자 없음(모서리 포인트 4개는 따로)', () => {
     const m = dimModel({ kind: 'rect', w: 200, h: 60 }, AT0, V)
-    expect(m.labels.map((l) => [l.id, l.name, l.text])).toEqual([
+    expect(m.labels.filter((l) => l.key.kind === 'radius')).toHaveLength(4)
+    expect(m.labels.filter((l) => l.key.kind !== 'radius').map((l) => [l.id, l.name, l.text])).toEqual([
       ['w', '가로', '200'],
       ['h', '세로', '60'],
     ])
@@ -49,14 +50,20 @@ describe('dimModel', () => {
     expect(dimModel({ kind: 'rect', w: 10, h: 10 }, AT0, { zoom: (MIN_LABEL_SPAN_PX - 1) / 10, panX: 0, panY: 0 })).toEqual({ labels: [], lines: [] })
   })
 
-  it('반지름이 있는 꼭짓점에만 R 숫자(바깥쪽)', () => {
+  it('모서리 포인트는 모든 꼭짓점에(둥근 곳은 R 숫자, 뾰족한 곳은 글자 없음), 바깥쪽으로', () => {
     const m = dimModel({ kind: 'rect', w: 200, h: 60, radii: [0, 0, 10, 0] }, AT0, V)
     const r = m.labels.filter((l) => l.key.kind === 'radius')
-    expect(r.map((l) => [l.name, l.text])).toEqual([['모서리 3 반지름', 'R 10']])
+    expect(r.map((l) => [l.name, l.text, l.value])).toEqual([
+      ['모서리 1(왼쪽 위) 둥글기', '', 0],
+      ['모서리 2(오른쪽 위) 둥글기', '', 0],
+      ['모서리 3(오른쪽 아래) 둥글기', 'R 10', 10],
+      ['모서리 4(왼쪽 아래) 둥글기', '', 0],
+    ])
     // 오른쪽 아래 꼭짓점(700,460)에서 바깥 대각선으로 RADIUS_LABEL_GAP_PX
     const d = RADIUS_LABEL_GAP_PX / Math.SQRT2
-    expect(r[0]!.at[0]).toBeCloseTo(700 + d, 6)
-    expect(r[0]!.at[1]).toBeCloseTo(460 + d, 6)
+    expect(r[2]!.at[0]).toBeCloseTo(700 + d, 6)
+    expect(r[2]!.at[1]).toBeCloseTo(460 + d, 6)
+    expect(r[2]!.dir![0]).toBeCloseTo(Math.SQRT1_2, 6)
   })
 
   it('보이는 영역 밖이면 반대쪽 바깥, 그것도 밖이면 도형 안쪽에 치수선', () => {

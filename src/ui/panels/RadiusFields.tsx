@@ -7,19 +7,13 @@ import { applyAllRadii, applyDim, type DimSubject } from '../../app/dimActions'
 import { useStores } from '../../app/stores'
 import { cornerRing, effectiveRadii } from '../../core/geom'
 import { LIMITS, round1, type Shape } from '../../core/model'
+import { cornerLabel } from '../../view/dimLabels'
 import { NumberField } from '../fields/NumberField'
 
 export const RADIUS_ALL_LABEL = '모서리 둥글기'
 export const RADIUS_HINT = '위 칸은 모든 모서리에 같은 값, 아래 칸은 그 모서리만 · 0이면 뾰족'
 
-/** 사각형 모서리 위치(꼭짓점 순서: 왼쪽 위부터 시계 방향) */
-const RECT_CORNERS = ['왼쪽 위', '오른쪽 위', '오른쪽 아래', '왼쪽 아래'] as const
 
-/** 모서리 칸 이름: 「모서리 i」, 사각형은 「모서리 i(왼쪽 위)」 */
-export function cornerLabel(shape: Shape, index: number): string {
-  const pos = shape.kind === 'rect' ? RECT_CORNERS[index] : undefined
-  return pos === undefined ? `모서리 ${index + 1}` : `모서리 ${index + 1}(${pos})`
-}
 
 /** 대상 → 칸 id 앞부분 */
 export function subjectFieldId(s: DimSubject, suffix: string): string {

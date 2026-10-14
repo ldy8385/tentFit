@@ -51,7 +51,26 @@ function subjectKey(s: DimSubject): string {
   return s.target === 'outer' ? 'tent:outer' : `tent:${s.target.innerId}`
 }
 
-type Edit = { subject: DimSubject; subjectKey: string; key: DimKey; id: string; name: string; at: Pt; text: string; error: string | null }
+type Edit = { subject: DimSubject; subjectKey: string; key: DimKey; id: string; name: string; at: Pt; dir?: Pt; text: string; error: string | null }
+
+/** 모서리 둥글기 입력 창(PC) 크기·모서리 포인트와의 여백(px). 창은 도형 바깥쪽 옆에 띄워 모서리·도형을 가리지 않습니다. */
+const CORNER_POP = { w: 196, h: 96, gap: 16, margin: 8 }
+
+type Box = { left: number; top: number; right: number; bottom: number }
+
+/** 모서리 포인트(at) 옆, 바깥쪽(dir)으로 띄운 창 자리. 보이는 영역을 넘으면 반대쪽으로 돌리고 안으로 당깁니다. */
+export function cornerPopoverPos(at: Pt, dir: Pt, area: Box): { left: number; top: number } {
+  const { w, h, gap, margin } = CORNER_POP
+  const right = at[0] + gap
+  const leftSide = at[0] - gap - w
+  let left = dir[0] >= 0 ? right : leftSide
+  if (left < area.left + margin) left = right
+  if (left + w > area.right - margin) left = leftSide
+  let top = dir[1] >= 0 ? at[1] - h / 4 : at[1] - (h * 3) / 4
+  top = Math.min(Math.max(top, area.top + margin), area.bottom - margin - h)
+  left = Math.min(Math.max(left, area.left + margin), area.right - margin - w)
+  return { left, top }
+}
 
 const TICK_PX = 5
 /** 캔버스 위쪽 칩이 차지하는 높이(px): PC는 모드 칩, 휴대폰은 요약 칩 + 모드 칩 */
@@ -129,7 +148,8 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
   if (active === null) return null
   // 위쪽 칩(PC 모드 칩, 휴대폰 요약·모드 칩) 자리는 피합니다.
   const top = insets.top + (desktop ? TOP_CHIPS_DESKTOP_PX : TOP_CHIPS_MOBILE_PX)
-  const model = dimModel(active.shape, active.place, view, { left: 0, top, right: size.width, bottom: size.height - insets.bottom })
+  const area = { left: 0, top, right: size.width, bottom: size.height - insets.bottom }
+  const model = dimModel(active.shape, active.place, view, area)
   const radiusEdit = edit?.key.kind === 'radius'
   const circle = active.shape.kind === 'circle'
 
@@ -137,7 +157,17 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
     closedRef.current = false
     // 휴대폰 키보드는 누른 그 순간(같은 이벤트 처리 안)에 포커스해야 올라옵니다.
     flushSync(() =>
-      setEdit({ subject: active.subject, subjectKey: subjectKey(active.subject), key: l.key, id: l.id, name: l.name, at: l.at, text: String(l.value), error: null }),
+      setEdit({
+        subject: active.subject,
+        subjectKey: subjectKey(active.subject),
+        key: l.key,
+        id: l.id,
+        name: l.name,
+        at: l.at,
+        ...(l.dir !== undefined ? { dir: l.dir } : {}),
+        text: String(l.value),
+        error: null,
+      }),
     )
     inputRef.current?.focus()
     inputRef.current?.select()
@@ -172,17 +202,26 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
     close()
   }
 
-  const editing = edit !== null ? (model.labels.find((l) => l.id === edit.id)?.at ?? edit.at) : null
+  const editingLabel = edit !== null ? model.labels.find((l) => l.id === edit.id) : undefined
+  const editing = edit !== null ? (editingLabel?.at ?? edit.at) : null
+  const cornerDir = editingLabel?.dir ?? edit?.dir
+  // 모서리 둥글기 창은 모서리 옆에(가리지 않게), 그 밖의 숫자는 그 숫자 자리에
+  const popStyle =
+    !desktop || editing === null
+      ? undefined
+      : radiusEdit && cornerDir !== undefined
+        ? cornerPopoverPos(editing, cornerDir, area)
+        : { left: editing[0], top: editing[1] }
 
   const editor =
     edit === null ? null : (
       <div
         ref={boxRef}
-        className={desktop ? 'tf-dimedit' : 'tf-dimbar'}
+        className={desktop ? (radiusEdit ? 'tf-dimedit tf-dimedit--corner' : 'tf-dimedit') : 'tf-dimbar'}
         data-canvas-ui=""
         role="group"
         aria-label={`${edit.name} 고치기`}
-        style={desktop && editing !== null ? { left: editing[0], top: editing[1] } : undefined}
+        style={popStyle}
         onBlur={onBlur}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
@@ -191,7 +230,7 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
           }
         }}
       >
-        {!desktop && <span className="tf-dimbar__name">{edit.name}</span>}
+        {(!desktop || radiusEdit) && <span className={desktop ? 'tf-dimedit__title' : 'tf-dimbar__name'}>{edit.name}</span>}
         <span className="tf-dimedit__row">
           <input
             ref={inputRef}
@@ -213,7 +252,7 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
               }
             }}
           />
-          <span className="tf-dimedit__unit">cm</span>
+          <span className="tf-dimedit__unit">{radiusEdit ? 'cm (0 = 뾰족)' : 'cm'}</span>
         </span>
         {!radiusEdit && !circle && <KeepRatioToggle className="tf-dimedit__ratio" />}
         {!desktop && (
@@ -240,13 +279,14 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
       {/* 패널의 모서리 칸에 들어가 있으면 그 모서리 강조(물건. 텐트 대상은 텐트 편집 층이 꼭짓점을 강조) */}
       {active.subject.kind === 'item' && focusVertex !== null && <CornerFocus active={active} index={focusVertex} view={view} />}
       {model.labels.map((l) =>
-        edit !== null && desktop && l.id === edit.id ? null : (
+        edit !== null && desktop && l.id === edit.id && l.key.kind !== 'radius' ? null : (
           <button
             key={l.id}
             type="button"
             className="tf-dim"
             data-dim={l.id}
             data-kind={l.key.kind}
+            data-dot={l.text === '' ? 'true' : undefined}
             data-active={edit?.id === l.id}
             aria-label={`${l.name} ${l.value}cm 고치기`}
             style={{ left: l.at[0], top: l.at[1] }}

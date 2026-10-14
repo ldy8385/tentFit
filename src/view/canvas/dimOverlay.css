@@ -157,3 +157,31 @@
   fill: var(--accent-soft);
   fill-opacity: 0.6;
 }
+
+/* 모서리 포인트: 뾰족한 모서리는 글자 없는 점(누르면 둥글기 창) */
+.tf-dim[data-dot='true'] {
+  min-width: 0;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-style: solid;
+  border-width: 1.5px;
+  border-color: var(--accent);
+}
+
+.tf-dim[data-dot='true']::before {
+  inset: -10px;
+}
+
+/* 모서리 둥글기 창(PC): 모서리 옆에 띄움 — 자리는 스크립트가 정함(transform 없음) */
+.tf-dimedit--corner {
+  transform: none;
+  width: 196px;
+  box-sizing: border-box;
+}
+
+.tf-dimedit__title {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+}

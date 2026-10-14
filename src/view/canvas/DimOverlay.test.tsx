@@ -5,7 +5,7 @@ import { StoresProvider, createStores, type Stores } from '../../app/stores'
 import { createLayout, type Item, type Tent } from '../../core/model'
 import { installFakeMatchMedia, type FakeMedia } from '../../ui/shell/fakeMatchMedia'
 import { DESKTOP_QUERY } from '../../ui/shell/useIsDesktop'
-import { activeDimSubject, DimOverlay } from './DimOverlay'
+import { activeDimSubject, cornerPopoverPos, DimOverlay } from './DimOverlay'
 
 const TENT: Tent = { name: 't', outer: { kind: 'rect', w: 600, h: 300 }, outerTemplate: { kind: 'rect', w: 600, h: 300 }, inners: [] }
 const MAT: Item = { id: 'm', name: '매트', shape: { kind: 'rect', w: 200, h: 60 }, x: 0, y: 0, rotation: 0, color: 'green', category: 'MAT', countsArea: true }
@@ -104,6 +104,33 @@ describe('DimOverlay', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '가로' }), { target: { value: '220' } })
     fireEvent.click(screen.getByRole('button', { name: '확인' }))
     expect(mat(s).shape).toEqual({ kind: 'rect', w: 220, h: 66 })
+  })
+})
+
+describe('모서리 포인트(소유자 요청 2026-10-14)', () => {
+  it('뾰족한 모서리 점을 누르면 옆에 둥글기 창, 그 모서리만 둥글게(점은 그대로 보임)', () => {
+    const s = setup()
+    const dot = screen.getByRole('button', { name: '모서리 3(오른쪽 아래) 둥글기 0cm 고치기' })
+    expect(dot.getAttribute('data-dot')).toBe('true')
+    fireEvent.click(dot)
+    const pop = screen.getByRole('group', { name: '모서리 3(오른쪽 아래) 둥글기 고치기' })
+    expect(pop.className).toContain('tf-dimedit--corner')
+    expect(screen.getByRole('button', { name: /^모서리 3\(오른쪽 아래\) 둥글기/ })).toBeTruthy()
+    const input = screen.getByRole('textbox', { name: '모서리 3(오른쪽 아래) 둥글기' })
+    fireEvent.change(input, { target: { value: '12' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(mat(s).shape).toEqual({ kind: 'rect', w: 200, h: 60, radii: [0, 0, 12, 0] })
+    expect(screen.getByRole('button', { name: '모서리 3(오른쪽 아래) 둥글기 12cm 고치기' }).textContent).toBe('R 12')
+  })
+
+  it('창 자리: 바깥쪽 옆에 여백 두고, 화면 끝이면 반대쪽으로·안으로', () => {
+    const area = { left: 0, top: 0, right: 1000, bottom: 800 }
+    expect(cornerPopoverPos([500, 400], [0.7, 0.7], area)).toEqual({ left: 516, top: 376 })
+    expect(cornerPopoverPos([500, 400], [-0.7, -0.7], area)).toEqual({ left: 500 - 16 - 196, top: 400 - 72 })
+    // 오른쪽 끝 → 왼쪽으로
+    expect(cornerPopoverPos([950, 400], [0.7, 0.7], area).left).toBe(950 - 16 - 196)
+    // 아래 끝 → 안으로
+    expect(cornerPopoverPos([500, 790], [0.7, 0.7], area).top).toBe(800 - 8 - 96)
   })
 })
 

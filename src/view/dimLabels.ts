@@ -43,6 +43,17 @@ export type DimLabel = {
   value: number
   /** 화면 가운데 */
   at: Pt
+  /** 모서리 포인트만: 도형 바깥쪽 단위 방향(화면). 입력 창을 이쪽으로 띄웁니다 */
+  dir?: Pt
+}
+
+/** 사각형 모서리 위치(꼭짓점 순서: 왼쪽 위부터 시계 방향) */
+const RECT_CORNERS = ['왼쪽 위', '오른쪽 위', '오른쪽 아래', '왼쪽 아래'] as const
+
+/** 모서리 이름: 「모서리 i」, 사각형은 「모서리 i(왼쪽 위)」(패널 칸·캔버스 포인트가 같이 씀) */
+export function cornerLabel(shape: Shape, index: number): string {
+  const pos = shape.kind === 'rect' ? RECT_CORNERS[index] : undefined
+  return pos === undefined ? `모서리 ${index + 1}` : `모서리 ${index + 1}(${pos})`
 }
 
 export type DimLine = { id: 'w' | 'h'; a: Pt; b: Pt; ext: Array<[Pt, Pt]> }
@@ -186,11 +197,11 @@ export function dimModel(shape: Shape, place: DimPlacement, view: View, bounds?:
     }
   }
 
-  // 모서리 반지름(반지름이 있는 꼭짓점만)
+  // 모서리 포인트(모든 꼭짓점, 소유자 요청 2026-10-14): 둥근 모서리는 「R 10」, 뾰족한 모서리는 점(글자 없음). 누르면 옆에 둥글기 입력 창
   const eff = effectiveRadii(cornerRing(shape), shape.radii)
   for (let i = 0; i < n; i++) {
     const r = eff[i] ?? 0
-    if (!(r > 0.05)) continue
+    const rounded = r > 0.05
     const v = corners[i] as Pt
     const p = corners[(i - 1 + n) % n] as Pt
     const q = corners[(i + 1) % n] as Pt
@@ -200,10 +211,11 @@ export function dimModel(shape: Shape, place: DimPlacement, view: View, bounds?:
     labels.push({
       id: `r${i}`,
       key: { kind: 'radius', index: i },
-      name: `모서리 ${i + 1} 반지름`,
-      text: `R ${fmt(r)}`,
-      value: round1(r),
+      name: `${cornerLabel(shape, i)} 둥글기`,
+      text: rounded ? `R ${fmt(r)}` : '',
+      value: rounded ? round1(r) : 0,
       at: [v[0] + d[0] * RADIUS_LABEL_GAP_PX, v[1] + d[1] * RADIUS_LABEL_GAP_PX],
+      dir: d,
     })
   }
   return { labels, lines }
