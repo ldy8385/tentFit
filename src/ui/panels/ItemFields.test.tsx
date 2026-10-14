@@ -230,6 +230,17 @@ describe('모서리 둥글기(소유자 요청 2026-10-14)', () => {
     expect(docItem(stores, 'a')?.shape).toEqual({ kind: 'rect', w: 200, h: 60 })
   })
 
+  it('모서리마다 칸(사각형은 위치 이름): 그 모서리만 바뀌고, 칸에 들어가면 캔버스가 그 모서리를 강조', () => {
+    const stores = setup([item('a', { shape: { kind: 'rect', w: 200, h: 60 } })], ['a'])
+    expect(['모서리 1(왼쪽 위)', '모서리 2(오른쪽 위)', '모서리 3(오른쪽 아래)', '모서리 4(왼쪽 아래)'].map((l) => input(l).value)).toEqual(['0', '0', '0', '0'])
+    act(() => input('모서리 3(오른쪽 아래)').focus())
+    expect(stores.ui.getState().polygonFocus).toEqual({ kind: 'vertex', index: 2 })
+    typeAndEnter('모서리 3(오른쪽 아래)', '12')
+    expect(docItem(stores, 'a')?.shape).toEqual({ kind: 'rect', w: 200, h: 60, radii: [0, 0, 12, 0] })
+    act(() => input('모서리 3(오른쪽 아래)').blur())
+    expect(stores.ui.getState().polygonFocus).toBeNull()
+  })
+
   it('꼭짓점마다 다르면 빈칸과 안내, 원은 칸이 없다', () => {
     setup([item('a', { shape: { kind: 'rect', w: 200, h: 60, radii: [5, 0, 0, 0] } })], ['a'])
     expect(input('모서리 둥글기').value).toBe('')

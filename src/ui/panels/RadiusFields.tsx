@@ -1,5 +1,6 @@
-// 모서리 둥글기 칸(소유자 요청 2026-10-14): 「모든 모서리」 한 칸 + 고른 꼭짓점이 있으면 그 꼭짓점 칸. 물건 속성·텐트 편집 패널이 함께 씁니다.
-// 꼭짓점마다 다른 값은 캔버스의 「R」 숫자를 눌러도 고칠 수 있습니다. 문서 동작은 app/dimActions만 부릅니다.
+// 모서리 둥글기 칸(소유자 요청 2026-10-14): 「모든 모서리」 한 칸 + 모서리마다 한 칸(사각형은 위치 이름). 물건 속성·텐트 편집 패널이 함께 씁니다.
+// 모서리 칸에 들어가 있는 동안 캔버스가 그 모서리를 강조합니다(ui.polygonFocus). 캔버스의 「R」 숫자를 눌러도 고칠 수 있습니다.
+// 문서 동작은 app/dimActions만 부릅니다.
 // 칸 targetId는 '<대상>@r<번호|all>'라 포커스 뒤 대상이 바뀌어도 포커스 때 대상에 반영됩니다(useDraftField 규칙).
 import type { JSX } from 'react'
 import { applyAllRadii, applyDim, type DimSubject } from '../../app/dimActions'
@@ -9,7 +10,16 @@ import { LIMITS, round1, type Shape } from '../../core/model'
 import { NumberField } from '../fields/NumberField'
 
 export const RADIUS_ALL_LABEL = '모서리 둥글기'
-export const RADIUS_HINT = '모든 모서리에 같은 값 · 0이면 뾰족 · 캔버스의 R 숫자로 꼭짓점마다 고칠 수 있어요'
+export const RADIUS_HINT = '위 칸은 모든 모서리에 같은 값, 아래 칸은 그 모서리만 · 0이면 뾰족'
+
+/** 사각형 모서리 위치(꼭짓점 순서: 왼쪽 위부터 시계 방향) */
+const RECT_CORNERS = ['왼쪽 위', '오른쪽 위', '오른쪽 아래', '왼쪽 아래'] as const
+
+/** 모서리 칸 이름: 「모서리 i」, 사각형은 「모서리 i(왼쪽 위)」 */
+export function cornerLabel(shape: Shape, index: number): string {
+  const pos = shape.kind === 'rect' ? RECT_CORNERS[index] : undefined
+  return pos === undefined ? `모서리 ${index + 1}` : `모서리 ${index + 1}(${pos})`
+}
 
 /** 대상 → 칸 id 앞부분 */
 export function subjectFieldId(s: DimSubject, suffix: string): string {
@@ -29,14 +39,13 @@ export function parseSubjectFieldId(id: string): { subject: DimSubject; suffix: 
   return null
 }
 
-export function RadiusFields(p: { subject: DimSubject; shape: Shape; vertexIndex?: number | null; enabled?: boolean }): JSX.Element | null {
+export function RadiusFields(p: { subject: DimSubject; shape: Shape; enabled?: boolean }): JSX.Element | null {
   const stores = useStores()
   const { shape } = p
   if (shape.kind === 'circle') return null
   const eff = effectiveRadii(cornerRing(shape), shape.radii).map(round1)
   const first = eff[0] ?? 0
   const same = eff.every((r) => r === first)
-  const v = p.vertexIndex ?? null
   const disabled = p.enabled === false
 
   const commit = (id: string, value: number): string | void => {
@@ -65,18 +74,26 @@ export function RadiusFields(p: { subject: DimSubject; shape: Shape; vertexIndex
         disabled={disabled}
         onCommit={commit}
       />
-      {v !== null && v < eff.length && (
-        <NumberField
-          label={`${v + 1}번 꼭짓점 둥글기`}
-          unit="cm"
-          value={eff[v] ?? 0}
-          targetId={subjectFieldId(p.subject, `r${v}`)}
-          min={0}
-          max={LIMITS.length[1]}
-          disabled={disabled}
-          onCommit={commit}
-        />
-      )}
+      <div className="tf-radius__grid" role="group" aria-label="모서리마다 둥글기">
+        {eff.map((r, i) => (
+          <div
+            key={i}
+            onFocus={() => stores.ui.getState().setPolygonFocus({ kind: 'vertex', index: i })}
+            onBlur={() => stores.ui.getState().setPolygonFocus(null)}
+          >
+            <NumberField
+              label={cornerLabel(shape, i)}
+              unit="cm"
+              value={r}
+              targetId={subjectFieldId(p.subject, `r${i}`)}
+              min={0}
+              max={LIMITS.length[1]}
+              disabled={disabled}
+              onCommit={commit}
+            />
+          </div>
+        ))}
+      </div>
       <p className="tf-hint">{same ? RADIUS_HINT : `꼭짓점마다 달라요 · ${RADIUS_HINT}`}</p>
     </div>
   )

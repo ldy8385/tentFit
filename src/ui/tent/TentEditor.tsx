@@ -370,7 +370,7 @@ function TargetFields(p: {
         />
       )}
 
-      {!isCircle && <RadiusFields subject={{ kind: 'tent', target }} shape={shape} vertexIndex={p.vertexIndex} enabled={enabled} />}
+      {!isCircle && <RadiusFields subject={{ kind: 'tent', target }} shape={shape} enabled={enabled} />}
 
       {!isCircle && !free && !showTable && (
         <button type="button" className="tf-btn" disabled={!enabled} onClick={() => setTableFor(tid)}>

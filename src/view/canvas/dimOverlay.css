@@ -149,3 +149,11 @@
   flex-basis: 100%;
   max-width: none;
 }
+
+/* 패널 모서리 칸에 들어가 있는 동안 그 모서리 */
+.tf-dims__corner {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  fill: var(--accent-soft);
+  fill-opacity: 0.6;
+}

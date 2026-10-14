@@ -16,7 +16,9 @@ import { KeepRatioToggle } from '../../ui/common/KeepRatioToggle'
 import { checkNumber, INPUT_FONT_PX } from '../../ui/fields/numberInput'
 import { useVisualViewport } from '../../ui/fields/useVisualViewport'
 import { useIsDesktop } from '../../ui/shell/useIsDesktop'
+import { cornerRing, transformRing } from '../../core/geom'
 import { dimModel, type DimLabel, type DimLine, type DimPlacement } from '../dimLabels'
+import { worldToScreen, type View } from '../viewport'
 import '../../ui/panels/panels.css'
 import './dimOverlay.css'
 
@@ -98,6 +100,7 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
   const outerPending = useUi((s) => s.outerPending)
   const selection = useUi((s) => s.selection)
   const keepRatio = useUi((s) => s.keepRatio)
+  const focusVertex = useUi((s) => (s.polygonFocus?.kind === 'vertex' ? s.polygonFocus.index : null))
   const size = useUi((s) => s.size)
   const insets = useUi((s) => s.insets)
   const desktop = useIsDesktop()
@@ -234,6 +237,8 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
   return (
     <div className="tf-dims" data-canvas-ui="" data-testid="dim-overlay" data-keep-ratio={keepRatio}>
       <DimLines lines={model.lines} />
+      {/* 패널의 모서리 칸에 들어가 있으면 그 모서리 강조(물건. 텐트 대상은 텐트 편집 층이 꼭짓점을 강조) */}
+      {active.subject.kind === 'item' && focusVertex !== null && <CornerFocus active={active} index={focusVertex} view={view} />}
       {model.labels.map((l) =>
         edit !== null && desktop && l.id === edit.id ? null : (
           <button
@@ -253,6 +258,21 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
       )}
       {desktop ? editor : <MobileBar>{editor}</MobileBar>}
     </div>
+  )
+}
+
+/** 고른 물건의 모서리 하나를 화면에 동그라미로 */
+function CornerFocus(p: { active: ActiveDim; index: number; view: View }): JSX.Element | null {
+  const { shape, place } = p.active
+  if (shape.kind === 'circle') return null
+  const corner = cornerRing(shape)[p.index]
+  if (corner === undefined) return null
+  const [w] = transformRing([corner], place.x, place.y, place.rotation)
+  const [x, y] = worldToScreen(p.view, w as Pt)
+  return (
+    <svg className="tf-dims__svg" aria-hidden="true" data-testid="corner-focus">
+      <circle className="tf-dims__corner" cx={x} cy={y} r={10} />
+    </svg>
   )
 }
 

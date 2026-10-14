@@ -601,9 +601,9 @@ describe('변 번호 안내(소유자 피드백: 변 1·2·3이 어디인지)', 
 })
 
 describe('모서리 둥글기(소유자 요청 2026-10-14)', () => {
-  it('꼭짓점을 고르면 그 꼭짓점 칸, 템플릿은 그대로', () => {
-    const stores = setup(TWO_INNERS, { target: 'outer', vertex: 1 })
-    typeEnter(field('2번 꼭짓점 둥글기'), '25')
+  it('모서리마다 칸으로 그 모서리만, 템플릿은 그대로', () => {
+    const stores = setup(TWO_INNERS, { target: 'outer' })
+    typeEnter(field('모서리 2(오른쪽 위)'), '25')
     expect(stores.doc.getState().layout.tent.outer).toEqual({ kind: 'rect', w: 600, h: 300, radii: [0, 25, 0, 0] })
     expect(stores.doc.getState().layout.tent.outerTemplate).toEqual({ kind: 'rect', w: 600, h: 300 })
     expect(field('모서리 둥글기').value).toBe('')

@@ -238,3 +238,15 @@
   display: grid;
   gap: var(--sp-1);
 }
+
+/* 모서리마다 둥글기(소유자 요청 2026-10-14): 두 줄 격자 */
+.tf-radius {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.tf-radius__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
