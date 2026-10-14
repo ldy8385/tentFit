@@ -8,7 +8,7 @@ import type { JSX } from 'react'
 import { Circle, Group, Line, Rect, Text } from 'react-konva'
 import { ringBBox } from '../../core/geom'
 import type { Layout, Pt } from '../../core/model'
-import { targetWorldRing, type TentTarget } from '../../core/ops/tent'
+import { targetWorldOutline, targetWorldRing, type TentTarget } from '../../core/ops/tent'
 import type { PolygonFocus } from '../../store/ui'
 import { THEME } from '../../ui/theme'
 import { edgeLabels, INVALID_EDIT_STYLE, tentHandles, type EdgeLabel } from '../tentEdit'
@@ -163,12 +163,14 @@ export function TentLayer(props: TentLayerProps): JSX.Element | null {
 
   const shown: Layout = preview ? { ...layout, tent: preview.tent } : layout
   const ring = targetWorldRing(shown, target)
+  // 선택 테두리는 보이는 윤곽(둥근 모서리 포함), 핸들·강조 변은 꼭짓점 고리
+  const outline = targetWorldOutline(shown, target)
   const isInner = target !== 'outer'
   const color = isInner ? THEME['info'] : THEME['accent']
   const invalid = preview?.invalid ?? false
   // 끄는 중에는 꼭짓점만(+ 는 변이 바뀌는 동안 튀므로 숨김)
   const handles = tentHandles(shown, target, view).filter((h) => preview === null || h.kind === 'vertex')
-  const points = flat(ring)
+  const points = flat(outline)
   const danger = themeColor(INVALID_EDIT_STYLE.stroke)
   const box = ring.length > 0 ? ringBBox(ring) : null
   const focus = props.focus ?? null

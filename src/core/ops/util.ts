@@ -1,5 +1,6 @@
 // 문서 조작(ops) 공용 도우미. ops 밖에서는 쓰지 않습니다.
 import { LIMITS, round1, type Item, type Layout, type Pt, type Shape } from '../model'
+import { withRadii } from '../radii'
 
 /** 길이를 LIMITS.length 범위로 자르고 0.1cm로 반올림합니다. */
 export function clampLen(v: number): number {
@@ -21,11 +22,11 @@ export function roundPt(p: Pt): Pt {
 export function normalizeShape(s: Shape): Shape {
   switch (s.kind) {
     case 'rect':
-      return { kind: 'rect', w: clampLen(s.w), h: clampLen(s.h) }
+      return withRadii({ kind: 'rect', w: clampLen(s.w), h: clampLen(s.h) }, s.radii)
     case 'circle':
       return { kind: 'circle', d: clampLen(s.d) }
     case 'polygon':
-      return { kind: 'polygon', points: s.points.map((p) => roundPt(p)) }
+      return withRadii({ kind: 'polygon', points: s.points.map((p) => roundPt(p)) }, s.radii)
   }
 }
 

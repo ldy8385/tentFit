@@ -140,6 +140,16 @@ function toResult(a: Attempt): EditResult {
   return a.kind === 'rejected' ? { ok: false, error: a.error } : OK
 }
 
+/** 텐트 문서 조작 하나를 거부 판정(새 이슈면 거부, 같으면 기록 없음) 뒤 커밋합니다. 다른 동작 모듈(dimActions)용. */
+export function tryTentEdit(stores: Stores, recipe: (d: Layout) => void): EditResult {
+  return toResult(attempt(stores, recipe))
+}
+
+/** 이 대상에 텐트 편집을 쓸 수 있는지(측정 잠금 + 만들기 단계 잠금). 다른 동작 모듈(dimActions)용. */
+export function canEditTentTarget(stores: Stores, target: TentTarget): boolean {
+  return canEdit(stores, target)
+}
+
 /** 대상이 지금 배치에 있는지(외곽은 늘 있음) */
 function targetExists(layout: Layout, target: TentTarget): boolean {
   return target === 'outer' || layout.tent.inners.some((it) => it.id === target.innerId)
@@ -393,7 +403,7 @@ function applyLocalPolygon(stores: Stores, target: TentTarget, points: Pt[]): Ed
   if (minEdgeLength(rounded) < MIN_EDGE_CM) return { ok: false, error: ZERO_EDGE_MESSAGE }
   return toResult(
     attempt(stores, (d) => {
-      setTargetPolygon(d, target, points, 'local')
+      setTargetPolygon(d, target, points, 'local', { keepRadii: true })
     }),
   )
 }

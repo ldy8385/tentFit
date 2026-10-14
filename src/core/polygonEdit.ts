@@ -89,6 +89,18 @@ export function setEdgeLength(points: readonly Pt[], edgeIndex: number, length: 
 }
 
 /**
+ * 아무 변이나 길이를 바꿉니다(캔버스 변 길이 편집, 소유자 요청 2026-10-14). 0 ≤ edgeIndex ≤ n−2는 setEdgeLength 그대로(닫는 변이 흡수),
+ * 닫는 변(n−1)은 그 변이 처음이 되게 돌려 같은 규칙을 쓰므로 바로 앞 변(n−2)이 흡수합니다(점 0도 움직임). 반올림하지 않습니다.
+ */
+export function setAnyEdgeLength(points: readonly Pt[], edgeIndex: number, length: number): Pt[] {
+  const n = points.length
+  if (edgeIndex !== n - 1 || n < 3) return setEdgeLength(points, edgeIndex, length)
+  const rotated = [at(points, n - 1), ...points.slice(0, n - 1)]
+  const moved = setEdgeLength(rotated, 0, length)
+  return [...moved.slice(1), moved[0] as Pt]
+}
+
+/**
  * 꼭짓점 vertexIndex(0부터, 1 ≤ vertexIndex ≤ n−2)의 내각을 deg로: p[vertexIndex+1 … n−1]을
  * p[vertexIndex] 둘레로 (지금 내각 − deg)만큼(다각형 방향에 맞춘 쪽으로) 돌립니다. 반올림하지 않습니다.
  * 번호가 범위 밖이면 그대로 복사본.

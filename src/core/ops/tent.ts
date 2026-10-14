@@ -13,12 +13,13 @@ import {
   type ShapeTemplate,
   type Tent,
 } from '../model'
-import { ringBBox, shapeRing, transformRing } from '../geom'
+import { cornerRing, ringBBox, shapeRing, transformRing } from '../geom'
+import { cornerCount, radiiOf, withRadii } from '../radii'
 import { centerPolygon } from '../polygonEdit'
 import { newInnerSide, shapeFromTemplate, shapesEqual } from '../templates'
 import { innersOverlap, validateTent, type Issue } from '../validate'
 import type { Zones } from '../zones'
-import { clampCoord, clampLen, cloneJson, roundPt, rotateAround } from './util'
+import { clampCoord, clampLen, cloneJson, normalizeShape, roundPt, rotateAround } from './util'
 
 export type TentTarget = 'outer' | { innerId: string }
 
@@ -74,10 +75,15 @@ function unchanged(current: ShapeTemplate | undefined, shape: Shape, tpl: ShapeT
   return current !== undefined && sameTemplate(current, tpl) && shapesEqual(shape, made)
 }
 
-/** 꼭짓점 번호의 기준이 되는 로컬 고리(항상 새 배열). 다각형은 points 순서 그대로, 사각형·원은 geom.shapeRing 순서. */
+/** 템플릿으로 새로 만든 도형에 지금 도형의 모서리 반지름을 이어 붙입니다(꼭짓점 수가 같을 때만). */
+function carryRadii(from: Shape, made: Shape): Shape {
+  if (from.kind === 'circle' || made.kind === 'circle' || cornerCount(from) !== cornerCount(made)) return made
+  return withRadii(made, radiiOf(from))
+}
+
+/** 꼭짓점 번호의 기준이 되는 로컬 고리(항상 새 배열). 다각형은 points 순서 그대로, 사각형·원은 geom.cornerRing 순서(모서리 반지름과 무관). */
 function localRing(shape: Shape): Pt[] {
-  const ring = shape.kind === 'polygon' ? shape.points : shapeRing(shape)
-  return ring.map((p): Pt => [p[0], p[1]])
+  return cornerRing(shape)
 }
 
 function findInner(tent: Tent, innerId: string): Inner | undefined {
@@ -93,8 +99,12 @@ type TargetRef = {
   x: number
   y: number
   rotation: number
-  /** 도형을 자유 다각형으로 바꾸고 템플릿을 버립니다(§4.4-6). */
-  writePolygon: (points: Pt[]) => void
+  /** 도형을 자유 다각형으로 바꾸고 템플릿을 버립니다(§4.4-6). radii가 있으면 모서리 반지름(꼭짓점 순서)도 씁니다. */
+  writePolygon: (points: Pt[], radii?: readonly number[]) => void
+}
+
+function polygonOf(points: Pt[], radii: readonly number[] | undefined): Shape {
+  return withRadii({ kind: 'polygon', points: points.map((p) => roundPt(p)) }, radii)
 }
 
 function resolve(d: Layout, target: TentTarget): TargetRef | null {
@@ -104,8 +114,8 @@ function resolve(d: Layout, target: TentTarget): TargetRef | null {
       x: 0,
       y: 0,
       rotation: 0,
-      writePolygon: (points) => {
-        d.tent.outer = { kind: 'polygon', points: points.map((p) => roundPt(p)) }
+      writePolygon: (points, radii) => {
+        d.tent.outer = polygonOf(points, radii)
         delete d.tent.outerTemplate
       },
     }
@@ -117,8 +127,8 @@ function resolve(d: Layout, target: TentTarget): TargetRef | null {
     x: inner.x,
     y: inner.y,
     rotation: inner.rotation,
-    writePolygon: (points) => {
-      inner.shape = { kind: 'polygon', points: points.map((p) => roundPt(p)) }
+    writePolygon: (points, radii) => {
+      inner.shape = polygonOf(points, radii)
       delete inner.template
     },
   }
@@ -127,7 +137,7 @@ function resolve(d: Layout, target: TentTarget): TargetRef | null {
 /** 외곽 템플릿을 바꿉니다. 정규화한 템플릿이 지금과 같고 도형도 같으면 아무것도 쓰지 않습니다. */
 export function setOuterTemplate(d: Layout, t: ShapeTemplate): void {
   const tpl = normalizeTemplate(t)
-  const made = shapeFromTemplate(tpl)
+  const made = carryRadii(d.tent.outer, shapeFromTemplate(tpl))
   if (unchanged(d.tent.outerTemplate, d.tent.outer, tpl, made)) return
   d.tent.outerTemplate = tpl
   d.tent.outer = made
@@ -138,7 +148,7 @@ export function setInnerTemplate(d: Layout, innerId: string, t: ShapeTemplate): 
   const inner = findInner(d.tent, innerId)
   if (!inner) return
   const tpl = normalizeTemplate(t)
-  const made = shapeFromTemplate(tpl)
+  const made = carryRadii(inner.shape, shapeFromTemplate(tpl))
   if (unchanged(inner.template, inner.shape, tpl, made)) return
   inner.template = tpl
   inner.shape = made
@@ -152,7 +162,15 @@ export function targetWorldRing(layout: Layout, target: TentTarget): Pt[] {
   return transformRing(localRing(inner.shape), inner.x, inner.y, inner.rotation)
 }
 
-/** 편집 대상의 로컬 고리(이너는 회전 전). 다각형은 점 그대로, 사각형은 shapeRing 순서. 원·없는 이너는 []. */
+/** 편집 대상의 월드 윤곽(모서리 반지름을 넣은 고리 — 선택 테두리용). 없는 이너면 []. */
+export function targetWorldOutline(layout: Layout, target: TentTarget): Pt[] {
+  if (target === 'outer') return shapeRing(layout.tent.outer)
+  const inner = findInner(layout.tent, target.innerId)
+  if (!inner) return []
+  return transformRing(shapeRing(inner.shape), inner.x, inner.y, inner.rotation)
+}
+
+/** 편집 대상의 로컬 고리(이너는 회전 전). 다각형은 점 그대로, 사각형은 cornerRing 순서. 원·없는 이너는 []. */
 export function targetLocalRing(layout: Layout, target: TentTarget): Pt[] {
   const shape = target === 'outer' ? layout.tent.outer : findInner(layout.tent, target.innerId)?.shape
   if (shape === undefined || shape.kind === 'circle') return []
@@ -171,7 +189,7 @@ export function setVertex(d: Layout, target: TentTarget, index: number, world: P
   const pts = localRing(ref.shape)
   if (!Number.isInteger(index) || index < 0 || index >= pts.length) return
   pts[index] = toLocal(ref, world)
-  ref.writePolygon(pts)
+  ref.writePolygon(pts, radiiOf(ref.shape))
 }
 
 /** edgeIndex번 변(꼭짓점 edgeIndex → edgeIndex+1)의 중점에 꼭짓점을 넣습니다. 새 점의 번호는 edgeIndex+1. */
@@ -184,7 +202,9 @@ export function insertVertex(d: Layout, target: TentTarget, edgeIndex: number): 
   const b = pts[(edgeIndex + 1) % pts.length]
   if (a === undefined || b === undefined) return
   pts.splice(edgeIndex + 1, 0, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])
-  ref.writePolygon(pts)
+  const radii = radiiOf(ref.shape)
+  radii.splice(edgeIndex + 1, 0, 0)
+  ref.writePolygon(pts, radii)
 }
 
 /** 꼭짓점을 지웁니다. 3개 이하가 되면 지우지 않고 false(§6.9). 원·없는 번호도 false. */
@@ -194,7 +214,9 @@ export function deleteVertex(d: Layout, target: TentTarget, index: number): bool
   const pts = localRing(ref.shape)
   if (pts.length <= 3 || !Number.isInteger(index) || index < 0 || index >= pts.length) return false
   pts.splice(index, 1)
-  ref.writePolygon(pts)
+  const radii = radiiOf(ref.shape)
+  radii.splice(index, 1)
+  ref.writePolygon(pts, radii)
   return true
 }
 
@@ -280,15 +302,23 @@ export function addInnerFromPolygon(d: Layout, worldPoints: readonly Pt[], id: s
 /**
  * 대상 도형을 자유 다각형으로(템플릿 버림, 설계 §2.2 다시 그리기·§2.3 cm 맞추기). space 'world'면 대상 로컬로 바꿉니다
  * (외곽 = 그대로, 이너 = 이동 빼고 반대로 회전 — x·y·회전은 그대로). 원도 다각형이 됩니다.
- * 템플릿이 없고 반올림한 점이 지금과 같으면 아무것도 쓰지 않습니다.
+ * keepRadii면 지금 모서리 반지름을 그대로(꼭짓점 수가 같을 때, cm 맞추기), 아니면 버립니다(다시 그리기).
+ * 템플릿이 없고 반올림한 점·반지름이 지금과 같으면 아무것도 쓰지 않습니다.
  */
-export function setTargetPolygon(d: Layout, target: TentTarget, points: readonly Pt[], space: 'world' | 'local'): void {
+export function setTargetPolygon(
+  d: Layout,
+  target: TentTarget,
+  points: readonly Pt[],
+  space: 'world' | 'local',
+  opts?: { keepRadii?: boolean },
+): void {
   const ref = resolve(d, target)
   if (!ref) return
   const local = points.map((p) => roundPt(space === 'world' ? toLocal(ref, p) : [p[0], p[1]]))
+  const radii = opts?.keepRadii === true && cornerCount(ref.shape) === local.length ? radiiOf(ref.shape) : undefined
   const hasTemplate = target === 'outer' ? d.tent.outerTemplate !== undefined : findInner(d.tent, target.innerId)?.template !== undefined
-  if (!hasTemplate && shapesEqual(ref.shape, { kind: 'polygon', points: local }, 0)) return
-  ref.writePolygon(local)
+  if (!hasTemplate && shapesEqual(ref.shape, polygonOf(local, radii), 0)) return
+  ref.writePolygon(local, radii)
 }
 
 /**
@@ -308,6 +338,29 @@ export function setTargetShapeTemplate(d: Layout, target: TentTarget, t: ShapeTe
   const off = rotateAround(c, [0, 0], inner.rotation)
   moveInnerTo(d, inner.id, inner.x + off[0], inner.y + off[1])
   setInnerTemplate(d, inner.id, t)
+}
+
+/**
+ * 대상 도형과 템플릿을 통째로(도형 위 치수·모서리 반지름, 소유자 요청 2026-10-14). 템플릿이 있으면 그 템플릿으로 다시 만든 도형에
+ * spec 도형의 반지름을 붙이고, 없으면 도형을 정리해 쓰고 템플릿을 버립니다. 이너의 위치·회전은 그대로, 같으면 아무것도 쓰지 않습니다.
+ */
+export function setTargetSpec(d: Layout, target: TentTarget, spec: { shape: Shape; template?: ShapeTemplate }): void {
+  const tpl = spec.template === undefined ? undefined : normalizeTemplate(spec.template)
+  const shape = tpl === undefined ? normalizeShape(spec.shape) : carryRadii(spec.shape, shapeFromTemplate(tpl))
+  const same = (cur: ShapeTemplate | undefined, curShape: Shape) =>
+    shapesEqual(curShape, shape, 0) && (tpl === undefined ? cur === undefined : cur !== undefined && sameTemplate(cur, tpl))
+  if (target === 'outer') {
+    if (same(d.tent.outerTemplate, d.tent.outer)) return
+    d.tent.outer = shape
+    if (tpl === undefined) delete d.tent.outerTemplate
+    else d.tent.outerTemplate = tpl
+    return
+  }
+  const inner = findInner(d.tent, target.innerId)
+  if (!inner || same(inner.template, inner.shape)) return
+  inner.shape = shape
+  if (tpl === undefined) delete inner.template
+  else inner.template = tpl
 }
 
 /** 이너를 절대 위치로 옮깁니다(0.1cm 반올림). 같은 자리면 아무것도 쓰지 않습니다. */

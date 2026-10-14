@@ -125,10 +125,108 @@ export function circleRing(r: number, cx = 0, cy = 0): Pt[] {
   return vs.map((v): Pt => [nz(cx + v.x / SCALE), nz(cy + v.y / SCALE)])
 }
 
+// ── 모서리 곡률(소유자 요청 2026-10-14) ─────────────────────────
+
+/** 일직선·되접힘으로 보는 사잇각 여유(라디안) */
+const FILLET_ANGLE_EPS = 1e-6
+
+type CornerFrame = { u1: Pt; u2: Pt; half: number } | null
+
+/** 꼭짓점 i에서 앞·뒤 꼭짓점으로 가는 단위 벡터와 사잇각의 절반. 일직선·되접힘·길이 0이면 null. */
+function cornerFrame(points: readonly Pt[], i: number): CornerFrame {
+  const n = points.length
+  const cur = points[i] as Pt
+  const prev = points[(i - 1 + n) % n] as Pt
+  const next = points[(i + 1) % n] as Pt
+  const l1 = Math.hypot(prev[0] - cur[0], prev[1] - cur[1])
+  const l2 = Math.hypot(next[0] - cur[0], next[1] - cur[1])
+  if (!(l1 > 1e-9) || !(l2 > 1e-9)) return null
+  const u1: Pt = [(prev[0] - cur[0]) / l1, (prev[1] - cur[1]) / l1]
+  const u2: Pt = [(next[0] - cur[0]) / l2, (next[1] - cur[1]) / l2]
+  const alpha = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])))
+  if (alpha < FILLET_ANGLE_EPS || alpha > Math.PI - FILLET_ANGLE_EPS) return null
+  return { u1, u2, half: alpha / 2 }
+}
+
+/**
+ * 꼭짓점마다 실제로 쓸 반지름. 요청값(없거나 음수·NaN이면 0)으로 접점 거리 t = r / tan(사잇각/2)를 구하고,
+ * 한 변의 두 접점 거리 합이 변 길이를 넘으면 그 변의 두 꼭짓점을 같은 비율로 줄입니다(긴 사각형에 큰 반지름 → 양끝 반원).
+ * 일직선 꼭짓점은 0. 길이는 points와 같습니다.
+ */
+export function effectiveRadii(points: readonly Pt[], radii: readonly number[] | undefined): number[] {
+  const n = points.length
+  const frames = points.map((_, i) => (n >= 3 ? cornerFrame(points, i) : null))
+  const t = frames.map((f, i) => {
+    const r = radii?.[i] ?? 0
+    return f === null || !(r > 0) ? 0 : r / Math.tan(f.half)
+  })
+  const factor = points.map((p, i) => {
+    const q = points[(i + 1) % n] as Pt
+    const sum = (t[i] ?? 0) + (t[(i + 1) % n] ?? 0)
+    const len = Math.hypot(q[0] - p[0], q[1] - p[1])
+    return sum > len && sum > 0 ? len / sum : 1
+  })
+  return frames.map((f, i) => {
+    if (f === null) return 0
+    const k = Math.min(factor[i] ?? 1, factor[(i - 1 + n) % n] ?? 1)
+    return (t[i] ?? 0) * k * Math.tan(f.half)
+  })
+}
+
+/** 반지름이 하나라도 0보다 큰지 */
+export function hasRadii(radii: readonly number[] | undefined): boolean {
+  return radii !== undefined && radii.some((r) => r > 0)
+}
+
+/** 꼭짓점 고리에 반지름대로 원호(0.1cm 오차 다각형)를 넣은 윤곽. 반지름이 없으면 복사본. */
+export function filletRing(points: readonly Pt[], radii: readonly number[] | undefined): Pt[] {
+  if (!hasRadii(radii) || points.length < 3) return points.map((p): Pt => [p[0], p[1]])
+  const eff = effectiveRadii(points, radii)
+  const out: Pt[] = []
+  const push = (p: Pt) => {
+    const last = out[out.length - 1]
+    if (last === undefined || Math.abs(last[0] - p[0]) > 1e-9 || Math.abs(last[1] - p[1]) > 1e-9) out.push([nz(p[0]), nz(p[1])])
+  }
+  points.forEach((cur, i) => {
+    const r = eff[i] ?? 0
+    const f = r > 0 ? cornerFrame(points, i) : null
+    if (f === null) {
+      push(cur)
+      return
+    }
+    const t = r / Math.tan(f.half)
+    const a: Pt = [cur[0] + f.u1[0] * t, cur[1] + f.u1[1] * t]
+    const b: Pt = [cur[0] + f.u2[0] * t, cur[1] + f.u2[1] * t]
+    const bx = f.u1[0] + f.u2[0]
+    const by = f.u1[1] + f.u2[1]
+    const bl = Math.hypot(bx, by)
+    const dist = r / Math.sin(f.half)
+    const c: Pt = [cur[0] + (bx / bl) * dist, cur[1] + (by / bl) * dist]
+    const a0 = Math.atan2(a[1] - c[1], a[0] - c[0])
+    let sweep = Math.atan2(b[1] - c[1], b[0] - c[0]) - a0
+    if (sweep > Math.PI) sweep -= 2 * Math.PI
+    if (sweep < -Math.PI) sweep += 2 * Math.PI
+    const steps = Math.max(2, Math.ceil((circleSegments(r) * Math.abs(sweep)) / (2 * Math.PI)))
+    push(a)
+    for (let k = 1; k < steps; k++) {
+      const th = a0 + (sweep * k) / steps
+      push([c[0] + r * Math.cos(th), c[1] + r * Math.sin(th)])
+    }
+    push(b)
+  })
+  const first = out[0]
+  const last = out[out.length - 1]
+  if (out.length > 1 && first && last && Math.abs(first[0] - last[0]) <= 1e-9 && Math.abs(first[1] - last[1]) <= 1e-9) out.pop()
+  return out
+}
+
 // ── 도형 → 고리 ───────────────────────────────────────────────
 
-/** 로컬 좌표 고리. rect는 왼쪽 위부터 시계 방향(y 아래), circle은 넓이 보존 다각형. */
-export function shapeRing(shape: Shape): Pt[] {
+/**
+ * 꼭짓점 고리(로컬). rect는 왼쪽 위부터 시계 방향(y 아래), polygon은 points 그대로, circle은 넓이 보존 다각형.
+ * 모서리 반지름과 상관없는 "뾰족한" 꼭짓점입니다(꼭짓점 핸들·변 번호·변 길이의 기준).
+ */
+export function cornerRing(shape: Shape): Pt[] {
   switch (shape.kind) {
     case 'rect': {
       const hw = shape.w / 2
@@ -145,6 +243,12 @@ export function shapeRing(shape: Shape): Pt[] {
     case 'polygon':
       return shape.points.map(([x, y]): Pt => [x, y])
   }
+}
+
+/** 로컬 좌표 윤곽 고리: 꼭짓점 고리에 모서리 반지름(radii)을 넣은 것. 넓이·겹침·그리기의 기준입니다. */
+export function shapeRing(shape: Shape): Pt[] {
+  const corners = cornerRing(shape)
+  return shape.kind === 'circle' ? corners : filletRing(corners, shape.radii)
 }
 
 function cosSin(deg: number): [number, number] {

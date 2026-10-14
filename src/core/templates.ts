@@ -1,5 +1,6 @@
 import { LIMITS, round1 } from './model'
 import type { Pt, Shape, ShapeTemplate } from './model'
+import { sameRadii } from './radii'
 
 /** 정N각형: 외접원 지름 → 한 변 */
 export function ngonSideFromDiameter(n: number, diameter: number): number {
@@ -102,16 +103,17 @@ export function shapeFromTemplate(t: ShapeTemplate): Shape {
   }
 }
 
-/** 두 도형이 tol(cm) 안에서 같은지. 다각형은 같은 순서의 꼭짓점끼리 x·y를 각각 비교합니다. */
+/** 두 도형이 tol(cm) 안에서 같은지. 다각형은 같은 순서의 꼭짓점끼리 x·y를 각각 비교합니다. 모서리 반지름도 봅니다(없음 = 0). */
 export function shapesEqual(a: Shape, b: Shape, tol = 0.1): boolean {
   const near = (u: number, v: number) => Math.abs(u - v) <= tol + 1e-9
   switch (a.kind) {
     case 'rect':
-      return b.kind === 'rect' && near(a.w, b.w) && near(a.h, b.h)
+      return b.kind === 'rect' && near(a.w, b.w) && near(a.h, b.h) && sameRadii(a.radii, b.radii, 4, tol)
     case 'circle':
       return b.kind === 'circle' && near(a.d, b.d)
     case 'polygon': {
       if (b.kind !== 'polygon' || a.points.length !== b.points.length) return false
+      if (!sameRadii(a.radii, b.radii, a.points.length, tol)) return false
       return a.points.every((p, i) => {
         const q = b.points[i]
         return q !== undefined && near(p[0], q[0]) && near(p[1], q[1])

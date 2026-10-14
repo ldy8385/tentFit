@@ -15,6 +15,8 @@ import {
   type Shape,
 } from '../model'
 import { labelPoint, outerRing, pointInRing, ringBBox, worldRing } from '../geom'
+import { withRadii } from '../radii'
+import { shapesEqual } from '../templates'
 import { ringIssue } from '../validate'
 import type { Zones } from '../zones'
 import { groupBlocks, normalizeGroups } from './groups'
@@ -163,6 +165,15 @@ export function rotateItems(d: Layout, ids: string[], pivot: Pt, deltaDeg: numbe
   }
 }
 
+/** 물건 도형을 통째로 바꿉니다(도형 위 치수·모서리 반지름·모양 편집). 정리한 도형이 지금과 같으면 쓰지 않습니다. */
+export function setItemShape(d: Layout, id: string, shape: Shape): void {
+  const it = findItem(d, id)
+  if (!it) return
+  const next = normalizeShape(shape)
+  if (shapesEqual(it.shape, next, 0)) return
+  it.shape = next
+}
+
 export function setItemProps(
   d: Layout,
   id: string,
@@ -217,7 +228,7 @@ export function resizeItem(d: Layout, id: string, dims: { w?: number; h?: number
     const sy = dims.h !== undefined && bh > 0 ? clampLen(dims.h) / bh : 1
     if (sx === 1 && sy === 1) return
     const next = safeScalePolygon(s.points, sx, sy)
-    if (next) it.shape = { kind: 'polygon', points: next }
+    if (next) it.shape = withRadii({ kind: 'polygon', points: next }, s.radii)
   }
 }
 
@@ -248,7 +259,7 @@ export function applyTransform(
     s.d = clampLen(s.d * k)
   } else if (t.scaleX !== 1 || t.scaleY !== 1) {
     const next = safeScalePolygon(s.points, t.scaleX, t.scaleY)
-    if (next) it.shape = { kind: 'polygon', points: next }
+    if (next) it.shape = withRadii({ kind: 'polygon', points: next }, s.radii)
   }
 }
 

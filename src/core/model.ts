@@ -34,10 +34,15 @@ const IsoDateTimeSchema = z.iso.datetime({ offset: true })
 
 export const PtSchema = z.tuple([CoordSchema, CoordSchema])
 
-const RectShapeSchema = z.object({ kind: z.literal('rect'), w: LengthSchema, h: LengthSchema })
+/**
+ * 모서리 반지름(cm, 소유자 요청 2026-10-14). 꼭짓점 순서(사각형은 왼쪽 위부터 시계 방향, 다각형은 points 순서)와 같은 길이,
+ * 0은 뾰족. 변 길이보다 크면 그리는 쪽(geom.effectiveRadii)이 줄여 씁니다. 없으면 모두 0.
+ */
+const RadiiSchema = z.array(z.number().min(0).max(LIMITS.length[1]))
+const RectShapeSchema = z.object({ kind: z.literal('rect'), w: LengthSchema, h: LengthSchema, radii: RadiiSchema.optional() })
 const CircleShapeSchema = z.object({ kind: z.literal('circle'), d: LengthSchema })
 /** 꼭짓점 수·자기교차·넓이 규칙(§5.3-3)은 validate.ts가 검사합니다. */
-const PolygonShapeSchema = z.object({ kind: z.literal('polygon'), points: z.array(PtSchema) })
+const PolygonShapeSchema = z.object({ kind: z.literal('polygon'), points: z.array(PtSchema), radii: RadiiSchema.optional() })
 
 export const ShapeSchema = z.discriminatedUnion('kind', [RectShapeSchema, CircleShapeSchema, PolygonShapeSchema])
 

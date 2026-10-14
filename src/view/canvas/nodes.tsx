@@ -3,6 +3,7 @@
 import type Konva from 'konva'
 import { memo, useCallback, type JSX } from 'react'
 import { Circle, Group, Line, Rect, Shape as KShape, Text } from 'react-konva'
+import { hasRadii, shapeRing } from '../../core/geom'
 import type { Pt, Shape } from '../../core/model'
 import { THEME } from '../../ui/theme'
 import type { GridLevel, InnerNode, ItemNode, PieceNode, Scene } from '../scene'
@@ -33,9 +34,15 @@ const GRID_STYLE: Record<GridLevel, { stroke: string; width: number }> = {
 
 type GeomStyle = Omit<Konva.ShapeConfig, 'x' | 'y' | 'rotation' | 'sceneFunc'>
 
-/** 도형 하나를 로컬 원점 기준으로 그립니다(사각형은 가운데가 원점, 원은 중심, 다각형은 점 그대로). */
+/** 모서리 반지름이 있는 사각형·다각형(윤곽 고리로 그림) */
+function rounded(shape: Shape): boolean {
+  return shape.kind !== 'circle' && hasRadii(shape.radii)
+}
+
+/** 도형 하나를 로컬 원점 기준으로 그립니다(사각형은 가운데가 원점, 원은 중심, 다각형은 점 그대로, 둥근 모서리는 윤곽 고리). */
 export function Geom(props: { shape: Shape } & GeomStyle): JSX.Element {
   const { shape, ...style } = props
+  if (rounded(shape)) return <Line points={shapeRing(shape).flat()} closed {...style} />
   switch (shape.kind) {
     case 'rect':
       return <Rect x={-shape.w / 2} y={-shape.h / 2} width={shape.w} height={shape.h} {...style} />
@@ -72,7 +79,9 @@ function localBox(shape: Shape): { minX: number; minY: number; maxX: number; max
 /** 도형 윤곽 경로를 만듭니다(채우거나 칠하지 않음). */
 function tracePath(ctx: Konva.Context, shape: Shape): void {
   ctx.beginPath()
-  if (shape.kind === 'rect') {
+  if (rounded(shape)) {
+    shapeRing(shape).forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)))
+  } else if (shape.kind === 'rect') {
     ctx.rect(-shape.w / 2, -shape.h / 2, shape.w, shape.h)
   } else if (shape.kind === 'circle') {
     ctx.arc(0, 0, shape.d / 2, 0, Math.PI * 2, false)
