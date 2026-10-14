@@ -3,6 +3,8 @@ import { expect, test, type Page } from '@playwright/test'
 import type { Item } from '../src/core/model'
 import { computeStats } from '../src/core/stats'
 import {
+  BOX_ITEM,
+  createItem,
   darkestAround,
   dragBetween,
   getDoc,
@@ -10,12 +12,15 @@ import {
   nextFrames,
   openEditorWith,
   statRowPattern,
+  MAT_ITEM,
+  STOOL_ITEM,
   worldToClient,
   type ClientPt,
+  type NewItemSpec,
 } from './helpers'
 
-/** presets/items.json의 items/mat-single-200x60 */
-const MAT = '캠핑 매트 1인'
+/** 시험용 매트 이름(새 도형으로 만듦, 200×60) */
+const MAT = MAT_ITEM.name
 
 // 빈 앱 → 고르기 화면 → '터널 4인 예시' 카드 → 편집기(스펙 §4.7). 아래 좌표는 터널 4인(620×320)을 가정합니다.
 test.beforeEach(async ({ page }) => {
@@ -26,16 +31,9 @@ const library = (page: Page) => page.getByRole('complementary', { name: '라이�
 const properties = (page: Page) => page.getByTestId('properties-panel')
 const areaSummary = (page: Page) => page.getByRole('region', { name: '면적 현황' })
 
-/** 왼쪽 라이브러리에서 물건(기본은 매트)을 눌러 추가하고, 추가된 물건을 돌려줍니다. */
-async function addMatFromLibrary(page: Page, name = MAT): Promise<Item> {
-  const before = (await getDoc(page)).layout.items.length
-  await library(page).getByText(name, { exact: true }).click()
-  await expect.poll(async () => (await getDoc(page)).layout.items.length).toBe(before + 1)
-  const item = (await getDoc(page)).layout.items.at(-1)
-  if (item === undefined) throw new Error('추가된 물건이 없습니다')
-  // Konva는 다음 프레임에 히트 캔버스를 다시 그립니다. 그 전에 누르면 새 물건을 못 맞힙니다.
-  await nextFrames(page)
-  return item
+/** 물건을 만들어 놓습니다(기본은 매트 200×60). 예시 프리셋을 뺀 뒤로는 「새 도형 만들기」를 씁니다. */
+async function addMatFromLibrary(page: Page, spec: NewItemSpec = MAT_ITEM): Promise<Item> {
+  return createItem(page, spec)
 }
 
 async function itemById(page: Page, id: string): Promise<Item | undefined> {
@@ -64,7 +62,7 @@ test('고르기 화면에서 텐트를 고르면 새 배치를 만들어 편집 
   expect(await darkestAround(page, await worldToClient(page, 205, -215))).toBeGreaterThan(160)
 })
 
-test('라이브러리에서 누르면 물건이 추가·선택되고 속성 패널과 면적 현황이 따라 바뀐다', async ({ page }) => {
+test('새 도형으로 만들면 물건이 추가·선택되고 속성 패널과 면적 현황이 따라 바뀐다', async ({ page }) => {
   const empty = computeStats((await getDoc(page)).layout)
   expect(empty.totalFloor.percent).toBe(0)
   await expectAreaSummaryMatchesDoc(page)
@@ -162,9 +160,9 @@ async function zoomOutTo(page: Page, at: ClientPt, maxZoom: number): Promise<num
   return zoom
 }
 
-for (const name of ['수납 박스', '원형 스툴']) {
-  test(`리뷰 회귀: 축소해서 작아진 ${name}도 몸통을 끌면 크기가 아니라 위치가 바뀐다`, async ({ page }) => {
-    const item = await addMatFromLibrary(page, name)
+for (const spec of [BOX_ITEM, STOOL_ITEM]) {
+  test(`리뷰 회귀: 축소해서 작아진 ${spec.name}도 몸통을 끌면 크기가 아니라 위치가 바뀐다`, async ({ page }) => {
+    const item = await addMatFromLibrary(page, spec)
     // 배율 0.6이면 수납 박스 30×21px, 원형 스툴 지름 21px(핸들 잡는 영역 24px에 몸통이 덮이던 크기)
     const zoom = await zoomOutTo(page, await worldToClient(page, item.x, item.y), 0.6)
     const from = await worldToClient(page, item.x, item.y)

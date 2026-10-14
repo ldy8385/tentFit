@@ -5,11 +5,13 @@ import type { Item, Pt } from '../src/core/model'
 import { computeStats } from '../src/core/stats'
 import { previewVertexDrag } from '../src/view/tentEdit'
 import {
+  createItem,
   dragBetween,
   getAppLayouts,
   getDoc,
   getUi,
   MAKER_HOOK,
+  MAT_ITEM,
   nextFrames,
   openEditorWith,
   statRowPattern,
@@ -59,22 +61,11 @@ import {
   vertexWorld,
 } from './tentFlows'
 
-/** presets/items.json의 items/mat-single-200x60 */
-const MAT = '캠핑 매트 1인'
-
-const library = (page: Page) => page.getByRole('complementary', { name: '라이브러리' })
 const areaSummary = (page: Page) => page.getByRole('region', { name: '면적 현황' })
 
-/** 왼쪽 라이브러리에서 매트를 눌러 추가하고, 추가된 물건을 돌려줍니다. */
+/** 매트(200×60)를 새 도형으로 만들어 놓고, 추가된 물건을 돌려줍니다. */
 async function addMat(page: Page): Promise<Item> {
-  const before = (await getDoc(page)).layout.items.length
-  await library(page).getByText(MAT, { exact: true }).click()
-  await expect.poll(async () => (await getDoc(page)).layout.items.length).toBe(before + 1)
-  const item = (await getDoc(page)).layout.items.at(-1)
-  if (item === undefined) throw new Error('추가된 물건이 없습니다')
-  // Konva는 다음 프레임에 히트 캔버스를 다시 그립니다.
-  await nextFrames(page)
-  return item
+  return createItem(page, MAT_ITEM)
 }
 
 test.describe('고르기 화면·내 배치', () => {

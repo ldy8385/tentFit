@@ -19,6 +19,10 @@
             "type": "string",
             "minLength": 1
           },
+          "brand": {
+            "type": "string",
+            "minLength": 1
+          },
           "category": {
             "type": "string",
             "enum": [

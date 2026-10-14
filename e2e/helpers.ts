@@ -5,6 +5,7 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test'
 import type { LayoutSummary } from '../src/app/layoutRepo'
 import type { DocSnapshot, TentfitAppHook, TentfitTestHook, UiSnapshot } from '../src/app/testHook'
+import type { Item } from '../src/core/model'
 import { formatPercent, type StatRow } from '../src/core/stats'
 
 export type { DocSnapshot, LayoutSummary, UiSnapshot }
@@ -345,4 +346,51 @@ export async function touchSecondFinger(page: Page, plan: SecondFingerPlan): Pro
   } finally {
     await fingers.detach()
   }
+}
+
+// ── 물건 만들기(예시 물건 프리셋은 2026-10-14에 뺐으므로 「새 도형 만들기」로 만듭니다) ──
+
+export type NewItemSpec = { name: string; shape: { kind: 'rect'; w: number; h: number } | { kind: 'circle'; d: number } }
+
+/** 예전 프리셋과 같은 이름·치수의 물건들 */
+export const MAT_ITEM: NewItemSpec = { name: '캠핑 매트 1인', shape: { kind: 'rect', w: 200, h: 60 } }
+export const BOX_ITEM: NewItemSpec = { name: '수납 박스', shape: { kind: 'rect', w: 50, h: 35 } }
+export const STOOL_ITEM: NewItemSpec = { name: '원형 스툴', shape: { kind: 'circle', d: 35 } }
+
+/**
+ * 「새 도형 만들기」로 물건을 만들어 놓고(새 물건은 선택됨), 추가된 물건을 돌려줍니다.
+ * PC는 왼쪽 라이브러리 [+ 새 도형], 휴대폰은 툴바 [+물건] → [+ 새 도형 만들기](끝나면 선택 시트).
+ */
+export async function createItem(page: Page, spec: NewItemSpec = MAT_ITEM): Promise<Item> {
+  const touch = test.info().project.use.hasTouch === true
+  const before = (await getDoc(page)).layout.items.length
+  if (touch) {
+    await page.getByTestId('toolbar').getByRole('button', { name: '+물건' }).tap()
+    await page.getByTestId('library-sheet').getByRole('button', { name: /새 도형 만들기/ }).tap()
+  } else {
+    await page.getByRole('complementary', { name: '라이브러리' }).getByRole('button', { name: '+ 새 도형' }).click()
+  }
+  const form = page.getByRole('form', { name: '새 도형 만들기' })
+  await expect(form).toBeVisible()
+  if (spec.shape.kind === 'circle') {
+    const circle = form.getByRole('group', { name: '모양' }).getByRole('button', { name: '원', exact: true })
+    if (touch) await circle.tap()
+    else await circle.click()
+  }
+  await form.getByLabel('이름', { exact: true }).fill(spec.name)
+  if (spec.shape.kind === 'rect') {
+    await form.getByLabel('가로', { exact: true }).fill(String(spec.shape.w))
+    await form.getByLabel('세로', { exact: true }).fill(String(spec.shape.h))
+  } else {
+    await form.getByLabel('지름', { exact: true }).fill(String(spec.shape.d))
+  }
+  const submit = form.getByRole('button', { name: '+ 캔버스에 추가' })
+  if (touch) await submit.tap()
+  else await submit.click()
+  await expect.poll(async () => (await getDoc(page)).layout.items.length).toBe(before + 1)
+  const item = (await getDoc(page)).layout.items.at(-1)
+  if (item === undefined) throw new Error('추가된 물건이 없습니다')
+  // Konva는 다음 프레임에 히트 캔버스를 다시 그립니다. 그 전에 누르면 새 물건을 못 맞힙니다.
+  await nextFrames(page)
+  return item
 }

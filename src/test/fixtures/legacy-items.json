@@ -1,0 +1,32 @@
+{
+  "$schema": "./items.schema.json",
+  "items": [
+    { "id": "items/mat-single-200x60", "name": "캠핑 매트 1인", "category": "MAT", "shape": { "kind": "rect", "w": 200, "h": 60 }, "color": "green", "countsArea": true },
+    { "id": "items/mat-wide-200x76", "name": "와이드 매트", "category": "MAT", "shape": { "kind": "rect", "w": 200, "h": 76 }, "color": "teal", "countsArea": true },
+    { "id": "items/mat-double-200x130", "name": "2인 매트", "category": "MAT", "shape": { "kind": "rect", "w": 200, "h": 130 }, "color": "blue", "countsArea": true },
+    { "id": "items/airbed-queen-203x152", "name": "에어매트 퀸", "category": "MAT", "shape": { "kind": "rect", "w": 203, "h": 152 }, "color": "purple", "countsArea": true },
+    { "id": "items/chair-low-55x60", "name": "로우 체어", "category": "CHAIR", "shape": { "kind": "rect", "w": 55, "h": 60 }, "color": "brown", "countsArea": true },
+    { "id": "items/chair-relax-65x85", "name": "릴렉스 체어", "category": "CHAIR", "shape": { "kind": "rect", "w": 65, "h": 85 }, "color": "brown", "countsArea": true },
+    { "id": "items/stool-round-d35", "name": "원형 스툴", "category": "CHAIR", "shape": { "kind": "circle", "d": 35 }, "color": "sky", "countsArea": true },
+    { "id": "items/bench-120x35", "name": "벤치", "category": "CHAIR", "shape": { "kind": "rect", "w": 120, "h": 35 }, "color": "brown", "countsArea": true },
+    { "id": "items/table-roll-90x60", "name": "롤 테이블", "category": "TABLE", "shape": { "kind": "rect", "w": 90, "h": 60 }, "color": "brown", "countsArea": true },
+    { "id": "items/table-kitchen-120x40", "name": "키친 테이블", "category": "TABLE", "shape": { "kind": "rect", "w": 120, "h": 40 }, "color": "gray", "countsArea": true },
+    { "id": "items/table-round-d80", "name": "원형 테이블", "category": "TABLE", "shape": { "kind": "circle", "d": 80 }, "color": "purple", "countsArea": true },
+    {
+      "id": "items/table-hex-80",
+      "name": "육각 테이블",
+      "category": "TABLE",
+      "shape": { "kind": "polygon", "points": [[40, 0], [20, 34.6], [-20, 34.6], [-40, 0], [-20, -34.6], [20, -34.6]] },
+      "color": "brown",
+      "countsArea": true
+    },
+    { "id": "items/cot-190x65", "name": "야전침대", "category": "FURNITURE", "shape": { "kind": "rect", "w": 190, "h": 65 }, "color": "gray", "countsArea": true },
+    { "id": "items/shelf-80x35", "name": "폴딩 선반", "category": "FURNITURE", "shape": { "kind": "rect", "w": 80, "h": 35 }, "color": "brown", "countsArea": true },
+    { "id": "items/icebox-60x40", "name": "아이스박스", "category": "FURNITURE", "shape": { "kind": "rect", "w": 60, "h": 40 }, "color": "blue", "countsArea": true },
+    { "id": "items/storage-box-50x35", "name": "수납 박스", "category": "FURNITURE", "shape": { "kind": "rect", "w": 50, "h": 35 }, "color": "gray", "countsArea": true },
+    { "id": "items/rug-200x140", "name": "러그", "category": "RUG", "shape": { "kind": "rect", "w": 200, "h": 140 }, "color": "sky", "countsArea": false },
+    { "id": "items/rug-round-d150", "name": "원형 러그", "category": "RUG", "shape": { "kind": "circle", "d": 150 }, "color": "pink", "countsArea": false },
+    { "id": "items/stove-d45", "name": "난로", "category": "ETC", "shape": { "kind": "circle", "d": 45 }, "color": "gray", "countsArea": true },
+    { "id": "items/wagon-90x50", "name": "캠핑 웨건", "category": "ETC", "shape": { "kind": "rect", "w": 90, "h": 50 }, "color": "teal", "countsArea": true }
+  ]
+}

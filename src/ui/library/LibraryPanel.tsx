@@ -5,7 +5,8 @@ import { loadItemPresets } from '../../app/presets'
 import { useStores, useUi } from '../../app/stores'
 import { CategoryChips } from './CategoryChips'
 import { dimsText } from '../panels/itemDims'
-import { filterByCategory, type CategoryFilter } from './libraryUtils'
+import { BrandSelect } from './BrandSelect'
+import { emptyLibraryText, filterByBrand, filterByCategory, type CategoryFilter } from './libraryUtils'
 import { ShapeSwatch } from './ShapeSwatch'
 import './library.css'
 
@@ -17,7 +18,9 @@ export function LibraryPanel() {
   const stores = useStores()
   const locked = useUi((s) => s.mode !== 'place' || s.measuring)
   const [filter, setFilter] = useState<CategoryFilter>('ALL')
-  const presets = useMemo(() => filterByCategory(loadItemPresets(), filter), [filter])
+  const [brand, setBrand] = useState<string | null>(null)
+  const all = loadItemPresets()
+  const presets = useMemo(() => filterByBrand(filterByCategory(all, filter), brand), [all, filter, brand])
 
   const add = (preset: ItemPreset) => {
     addPresetItem(stores, preset)
@@ -28,7 +31,9 @@ export function LibraryPanel() {
   return (
     <aside className="tf-lib" aria-label="라이브러리" data-locked={locked ? 'true' : 'false'}>
       <h2 className="tf-lib__title">라이브러리</h2>
-      <CategoryChips value={filter} onChange={setFilter} disabled={locked} />
+      <CategoryChips presets={all} value={filter} onChange={setFilter} disabled={locked} />
+      <BrandSelect presets={all} value={brand} onChange={setBrand} disabled={locked} />
+      {presets.length === 0 && <p className="tf-lib__empty">{emptyLibraryText(filter)}</p>}
       <ul className="tf-lib__list">
         {presets.map((p) => (
           <li key={p.id}>
@@ -38,7 +43,7 @@ export function LibraryPanel() {
               </span>
               <span className="tf-lib__text">
                 <span className="tf-lib__name">{p.name}</span>
-                <span className="tf-lib__dims">{dimsText(p.shape)}</span>
+                <span className="tf-lib__dims">{p.brand === undefined ? dimsText(p.shape) : `${p.brand} · ${dimsText(p.shape)}`}</span>
               </span>
               <span className="tf-lib__plus" aria-hidden="true">
                 +

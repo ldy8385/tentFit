@@ -1,8 +1,19 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLayout } from '../../core/model'
 import { defaultTentPreset } from '../../app/presets'
+
+// 실제 presets/items.json은 소유자가 실제 매트를 넣기 전까지 비어 있어, 화면 동작은 예전 예시 20개(테스트 고정 데이터)로 봅니다.
+vi.mock('../../app/presets', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../app/presets')>()
+  const legacy = (await import('../../test/fixtures/legacy-items.json')).default
+  // 제조사 필터 시험용으로 매트 두 개에 제조사를 붙입니다.
+  const items = actual.itemPresetsFrom(legacy).map((it) =>
+    it.id === 'items/mat-single-200x60' ? { ...it, brand: '써머레스트' } : it.id === 'items/mat-wide-200x76' ? { ...it, brand: '니모' } : it,
+  )
+  return { ...actual, loadItemPresets: () => items }
+})
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
 import { LibraryPanel } from './LibraryPanel'
 
@@ -88,5 +99,18 @@ describe('LibraryPanel', () => {
     expect(rows().every((r) => (r as HTMLButtonElement).disabled)).toBe(true)
     act(() => stores.ui.getState().patch({ measuring: false }))
     expect(rows().some((r) => (r as HTMLButtonElement).disabled)).toBe(false)
+  })
+})
+
+describe('LibraryPanel 제조사 필터', () => {
+  it('제조사 칸(전체 + 가나다순)으로 거르고 카테고리와 함께 걸린다, 목록에 제조사를 적는다', () => {
+    renderPanel()
+    const select = screen.getByRole('combobox', { name: '제조사' }) as HTMLSelectElement
+    expect(Array.from(select.options).map((o) => o.textContent)).toEqual(['제조사 전체', '니모', '써머레스트'])
+    fireEvent.change(select, { target: { value: '써머레스트' } })
+    expect(rows().map((r) => r.getAttribute('aria-label'))).toEqual(['캠핑 매트 1인 추가'])
+    expect(rows()[0]!.textContent).toContain('써머레스트')
+    fireEvent.click(screen.getByRole('button', { name: '의자' }))
+    expect(screen.getByText('아직 등록된 의자가 없어요 · [새 도형]으로 직접 만들 수 있어요')).toBeTruthy()
   })
 })

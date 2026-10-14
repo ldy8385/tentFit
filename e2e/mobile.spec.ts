@@ -41,7 +41,7 @@ async function addMatAndFrame(page: Page): Promise<{ item: Item; at: ClientPt }>
   return { item, at }
 }
 
-test('[+물건] → 라이브러리 시트 카드 → 선택 시트, 시트의 ×는 선택만 푼다', async ({ page }) => {
+test('[+물건] → 새 도형 만들기 → 선택 시트, 시트의 ×는 선택만 푼다', async ({ page }) => {
   const item = await addMatFromSheet(page)
   expect(item.name).toBe(MAT)
   await expect(selectionSheet(page)).toContainText(MAT)

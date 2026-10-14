@@ -1,8 +1,19 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLayout } from '../../core/model'
 import { defaultTentPreset } from '../../app/presets'
+
+// 실제 presets/items.json은 소유자가 실제 매트를 넣기 전까지 비어 있어, 화면 동작은 예전 예시 20개(테스트 고정 데이터)로 봅니다.
+vi.mock('../../app/presets', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../app/presets')>()
+  const legacy = (await import('../../test/fixtures/legacy-items.json')).default
+  // 제조사 필터 시험용으로 매트 두 개에 제조사를 붙입니다.
+  const items = actual.itemPresetsFrom(legacy).map((it) =>
+    it.id === 'items/mat-single-200x60' ? { ...it, brand: '써머레스트' } : it.id === 'items/mat-wide-200x76' ? { ...it, brand: '니모' } : it,
+  )
+  return { ...actual, loadItemPresets: () => items }
+})
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
 import { LibrarySheet } from './LibrarySheet'
 
@@ -60,5 +71,13 @@ describe('LibrarySheet', () => {
     act(() => stores.ui.getState().patch({ mobileSheet: 'library' }))
     fireEvent.click(screen.getByRole('button', { name: '벤치 추가' }))
     expect(stores.doc.getState().layout.items.map((it) => it.name)).toEqual(['벤치', '벤치 2'])
+  })
+})
+
+describe('LibrarySheet 제조사 필터', () => {
+  it('휴대폰 시트에도 제조사 칸이 있고 거른다', () => {
+    renderSheet()
+    fireEvent.change(screen.getByRole('combobox', { name: '제조사' }), { target: { value: '니모' } })
+    expect(cards().map((c) => c.getAttribute('aria-label'))).toEqual(['와이드 매트 추가'])
   })
 })

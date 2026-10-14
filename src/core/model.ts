@@ -119,6 +119,8 @@ export const TentPresetSchema = z.object({
 export const ItemPresetSchema = z.object({
   id: IdSchema,
   name: z.string().min(1),
+  /** 제조사(라이브러리 제조사 필터, 소유자가 입력). 없어도 됨 */
+  brand: z.string().min(1).optional(),
   category: ItemCategorySchema,
   shape: ShapeSchema,
   color: ColorKeySchema,

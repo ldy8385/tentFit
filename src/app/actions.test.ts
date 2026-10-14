@@ -13,7 +13,8 @@ import {
   setProps,
   setRotation,
 } from './actions'
-import { defaultTentPreset, loadItemPresets } from './presets'
+import legacyItems from '../test/fixtures/legacy-items.json'
+import { defaultTentPreset, itemPresetsFrom } from './presets'
 import { createStores, type Stores } from './stores'
 
 const MAT: ItemPreset = {
@@ -99,8 +100,8 @@ describe('addPresetItem', () => {
     expect(selection()).toEqual([])
   })
 
-  it('실제 기본 프리셋(원형 스툴)도 놓을 수 있다', () => {
-    const stool = loadItemPresets().find((p) => p.id === 'items/stool-round-d35')
+  it('파일 형식 프리셋(원형 스툴, 테스트 고정 데이터)도 놓을 수 있다', () => {
+    const stool = itemPresetsFrom(legacyItems).find((p) => p.id === 'items/stool-round-d35')
     if (!stool) throw new Error('원형 스툴 프리셋 없음')
     addPresetItem(stores, stool)
     expect(layout().items[0]?.shape).toEqual({ kind: 'circle', d: 35 })

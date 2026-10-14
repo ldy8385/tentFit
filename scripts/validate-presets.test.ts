@@ -27,11 +27,18 @@ type RawItemFile = { $schema?: string; items: RawItem[] }
 
 const temps: string[] = []
 
-/** 실제 presets/를 임시 폴더로 복사합니다. 테스트는 복사본만 고칩니다. */
+/** 예전 예시 물건 20개(테스트 전용). 실제 presets/items.json은 소유자가 실제 매트를 넣기 전까지 비어 있습니다. */
+const LEGACY_ITEMS = join(ROOT, 'src', 'test', 'fixtures', 'legacy-items.json')
+
+/**
+ * 실제 presets/를 임시 폴더로 복사합니다. 테스트는 복사본만 고칩니다.
+ * 물건 검사가 계속 돌도록 복사본의 items.json에는 예전 예시 물건을 넣습니다.
+ */
 function copyPresets(): string {
   const dir = mkdtempSync(join(tmpdir(), 'tentfit-presets-'))
   temps.push(dir)
   cpSync(PRESETS, dir, { recursive: true })
+  cpSync(LEGACY_ITEMS, join(dir, 'items.json'))
   return dir
 }
 
@@ -71,7 +78,8 @@ describe('checkPresets — 실제 데이터', () => {
         'generic/tipi-hex',
       ]),
     )
-    expect(r.items.length).toBeGreaterThanOrEqual(18)
+    // 물건 프리셋은 소유자가 실제 매트를 넣을 때까지 비어 있을 수 있습니다(예시 물건은 2026-10-14에 뺌).
+    expect(r.items).toHaveLength(readJson<RawItemFile>(join(PRESETS, 'items.json')).items.length)
   })
 
   it('일반 예시 텐트 5개의 넓이와 구역이 손계산과 같고, 이너 이탈이 없다', () => {
@@ -121,18 +129,6 @@ describe('checkPresets — 실제 데이터', () => {
     expect(tipi.pieces.map((p) => p.name)).toEqual(['바닥 1'])
 
     for (const t of tents) expect(buildZones(t.tent).innerEscapes, t.id).toEqual([])
-  })
-
-  it('물건 프리셋은 카테고리 6개를 모두 갖고, 깔개만 점유 면적에서 빠진다', () => {
-    const { items } = checkPresets(PRESETS)
-    expect(new Set(items.map((i) => i.category))).toEqual(new Set(['MAT', 'CHAIR', 'TABLE', 'FURNITURE', 'RUG', 'ETC']))
-    for (const i of items) expect(i.countsArea, i.id).toBe(i.category !== 'RUG')
-
-    const circle = (category: string, d: number) =>
-      items.find((i) => i.category === category && i.shape.kind === 'circle' && i.shape.d === d)
-    expect(circle('CHAIR', 35)?.name).toBe('원형 스툴')
-    expect(circle('ETC', 45)?.name).toBe('난로')
-    expect(circle('TABLE', 80)?.name).toBe('원형 테이블')
   })
 
   it('모든 텐트 프리셋의 썸네일을 NaN 없이 만든다', () => {

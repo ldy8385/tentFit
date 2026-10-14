@@ -6,7 +6,8 @@ import { useStores } from '../../app/stores'
 import { BottomSheet } from '../sheets/BottomSheet'
 import { CategoryChips } from './CategoryChips'
 import { dimsText } from '../panels/itemDims'
-import { filterByCategory, type CategoryFilter } from './libraryUtils'
+import { BrandSelect } from './BrandSelect'
+import { emptyLibraryText, filterByBrand, filterByCategory, type CategoryFilter } from './libraryUtils'
 import { ShapeSwatch } from './ShapeSwatch'
 import './library.css'
 
@@ -17,7 +18,9 @@ import './library.css'
 export function LibrarySheet() {
   const stores = useStores()
   const [filter, setFilter] = useState<CategoryFilter>('ALL')
-  const presets = useMemo(() => filterByCategory(loadItemPresets(), filter), [filter])
+  const [brand, setBrand] = useState<string | null>(null)
+  const all = loadItemPresets()
+  const presets = useMemo(() => filterByBrand(filterByCategory(all, filter), brand), [all, filter, brand])
 
   const pick = (preset: ItemPreset) => {
     addPresetItem(stores, preset)
@@ -27,7 +30,9 @@ export function LibrarySheet() {
   return (
     <BottomSheet title="물건 추가" expanded onClose={() => stores.ui.getState().patch({ mobileSheet: 'none' })} testId="library-sheet">
       <div className="tf-libsheet">
-        <CategoryChips value={filter} onChange={setFilter} />
+        <CategoryChips presets={all} value={filter} onChange={setFilter} />
+        <BrandSelect presets={all} value={brand} onChange={setBrand} />
+        {presets.length === 0 && <p className="tf-lib__empty">{emptyLibraryText(filter)}</p>}
         <ul className="tf-libsheet__grid">
           {presets.map((p) => (
             <li key={p.id}>
@@ -36,7 +41,7 @@ export function LibrarySheet() {
                   <ShapeSwatch shape={p.shape} color={p.color} countsArea={p.countsArea} size={64} />
                 </span>
                 <span className="tf-libsheet__name">{p.name}</span>
-                <span className="tf-libsheet__dims">{dimsText(p.shape)}</span>
+                <span className="tf-libsheet__dims">{p.brand === undefined ? dimsText(p.shape) : `${p.brand} · ${dimsText(p.shape)}`}</span>
               </button>
             </li>
           ))}

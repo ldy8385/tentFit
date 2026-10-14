@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ITEM_CATEGORIES } from '../core/model'
+import legacyItems from '../test/fixtures/legacy-items.json'
+import itemsJson from '../../presets/items.json'
 import {
   DEFAULT_TENT_PRESET_ID,
   defaultTentPreset,
@@ -10,15 +12,19 @@ import {
 } from './presets'
 
 describe('loadItemPresets', () => {
-  it('기본 물건 20개를 읽고 카테고리 6개가 모두 있다', () => {
-    const items = loadItemPresets()
+  it('저장소 presets/items.json을 그대로 읽는다(예시 물건은 2026-10-14에 뺐고, 실제 매트가 들어올 자리)', () => {
+    expect(loadItemPresets()).toHaveLength(itemsJson.items.length)
+  })
+
+  it('예전 예시 20개(테스트 고정 데이터)도 같은 파서로 읽고 카테고리 6개가 모두 있다', () => {
+    const items = itemPresetsFrom(legacyItems)
     expect(items).toHaveLength(20)
     expect(new Set(items.map((p) => p.category))).toEqual(new Set(ITEM_CATEGORIES))
     expect(new Set(items.map((p) => p.id)).size).toBe(20)
   })
 
   it('원·다각형 물건도 그대로 읽는다', () => {
-    const items = loadItemPresets()
+    const items = itemPresetsFrom(legacyItems)
     expect(items.find((p) => p.id === 'items/stool-round-d35')?.shape).toEqual({ kind: 'circle', d: 35 })
     expect(items.find((p) => p.id === 'items/table-hex-80')?.shape.kind).toBe('polygon')
   })

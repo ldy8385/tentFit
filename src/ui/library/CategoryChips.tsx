@@ -1,9 +1,15 @@
-import { CATEGORY_FILTERS, type CategoryFilter } from './libraryUtils'
+import type { ItemPreset } from '../../core/model'
+import { categoryFilters, type CategoryFilter } from './libraryUtils'
 
-export function CategoryChips(p: { value: CategoryFilter; onChange(v: CategoryFilter): void; disabled?: boolean }) {
+export function CategoryChips(p: {
+  presets: readonly ItemPreset[]
+  value: CategoryFilter
+  onChange(v: CategoryFilter): void
+  disabled?: boolean
+}) {
   return (
     <div className="tf-lib-chips" role="group" aria-label="카테고리">
-      {CATEGORY_FILTERS.map((c) => (
+      {categoryFilters(p.presets).map((c) => (
         <button
           key={c.value}
           type="button"

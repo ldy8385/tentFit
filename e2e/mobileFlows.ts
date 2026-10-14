@@ -1,10 +1,10 @@
 // 휴대폰 셸(모바일 프로젝트들)이 함께 쓰는 화면 조작. 버튼·시트는 locator.tap()으로 누릅니다.
 import { expect, type Page } from '@playwright/test'
 import type { Item } from '../src/core/model'
-import { getDoc, getUi } from './helpers'
+import { createItem, getDoc, getUi, MAT_ITEM } from './helpers'
 
-/** presets/items.json의 items/mat-single-200x60 */
-export const MAT = '캠핑 매트 1인'
+/** 시험용 매트 이름(새 도형으로 만듦, 200×60) */
+export const MAT = MAT_ITEM.name
 
 export const addButton = (page: Page) => page.getByTestId('toolbar').getByRole('button', { name: '+물건' })
 export const undoButton = (page: Page) => page.getByTestId('mobile-top-bar').getByRole('button', { name: '실행 취소' })
@@ -15,19 +15,11 @@ export async function itemById(page: Page, id: string): Promise<Item | undefined
   return (await getDoc(page)).layout.items.find((i) => i.id === id)
 }
 
-/** [+물건] → 라이브러리 시트의 매트 카드. 시트가 선택 시트로 바뀌고, 추가된 물건을 돌려줍니다. */
+/** [+물건] → [+ 새 도형 만들기]로 매트(200×60)를 만듭니다. 끝나면 선택 시트가 열리고, 추가된 물건을 돌려줍니다. */
 export async function addMatFromSheet(page: Page): Promise<Item> {
-  const before = (await getDoc(page)).layout.items.length
-  await addButton(page).tap()
-  await expect(librarySheet(page)).toBeVisible()
-  expect((await getUi(page)).mobileSheet).toBe('library')
-
-  await librarySheet(page).getByText(MAT, { exact: true }).tap()
+  const item = await createItem(page, MAT_ITEM)
   await expect(selectionSheet(page)).toBeVisible()
   await expect(librarySheet(page)).toBeHidden()
-  const { layout } = await getDoc(page)
-  expect(layout.items).toHaveLength(before + 1)
-  const item = layout.items.at(-1)
-  if (item === undefined) throw new Error('추가된 물건이 없습니다')
+  expect((await getUi(page)).mobileSheet).toBe('selection')
   return item
 }
