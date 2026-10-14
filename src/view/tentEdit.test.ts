@@ -14,8 +14,6 @@ import {
   tentDragDelta,
   tentHandles,
   tentHitAt,
-  edgeLabels,
-  EDGE_LABEL_OFFSET_PX,
   tentTargetBBox,
   worldToTable,
   type TentHandle,
@@ -294,37 +292,5 @@ describe('tentHitAt — 잠금(Plan 4.1)', () => {
     expect(tentHitAt(layout, [0, 0], 8, 'outer')).toEqual({ kind: 'none' })
     expect(tentHitAt(layout, [-200, 0], 8, 'outer')).toEqual({ kind: 'inner', innerId: 'a' })
     expect(tentHitAt(layout, [-200, 0], 8)).toEqual({ kind: 'inner', innerId: 'a' })
-  })
-})
-
-describe('edgeLabels(자유 다각형 변 번호 배지, 패널 「변 i」와 같은 번호)', () => {
-  const square: Pt[] = [[-100, -50], [100, -50], [100, 50], [-100, 50]]
-  const free = (points: Pt[], inners: Inner[] = []): Layout =>
-    layoutOf({ name: '자유', outer: { kind: 'polygon', points }, inners })
-
-  it('변 i(0부터) 가운데에서 바깥쪽으로 EDGE_LABEL_OFFSET_PX(화면 px)만큼, 글자는 i+1', () => {
-    const labels = edgeLabels(free(square), 'outer', { zoom: 2, panX: 0, panY: 0 })
-    const d = EDGE_LABEL_OFFSET_PX / 2
-    expect(labels).toEqual([
-      { index: 0, text: '1', at: [0, -50 - d] },
-      { index: 1, text: '2', at: [100 + d, 0] },
-      { index: 2, text: '3', at: [0, 50 + d] },
-      { index: 3, text: '4', at: [-100 - d, 0] },
-    ])
-  })
-
-  it('반대 방향으로 돈 다각형도 바깥쪽', () => {
-    const labels = edgeLabels(free([...square].reverse()), 'outer', VIEW1)
-    // 거꾸로 돈 사각형의 변 1 = 아래 변((−100,50)→(100,50)) → 아래(바깥)쪽
-    expect(labels[0]).toEqual({ index: 0, text: '1', at: [0, 50 + EDGE_LABEL_OFFSET_PX] })
-  })
-
-  it('이너는 월드(회전 반영) 좌표로, 템플릿이 있는 대상·원·없는 이너는 배지 없음', () => {
-    const poly: Inner = { id: 'p', name: 'p', shape: { kind: 'polygon', points: [[-10, -10], [10, -10], [0, 10]] }, x: 50, y: 0, rotation: 0 }
-    const l = free(square, [poly, rectInner('r', 20, 20, 0, 0)])
-    expect(edgeLabels(l, { innerId: 'p' }, VIEW1)[0]!.at[0]).toBeCloseTo(50, 9)
-    expect(edgeLabels(l, { innerId: 'r' }, VIEW1)).toEqual([])
-    expect(edgeLabels(layoutOf(rectTent(400, 300)), 'outer', VIEW1)).toEqual([])
-    expect(edgeLabels(l, { innerId: 'zz' }, VIEW1)).toEqual([])
   })
 })

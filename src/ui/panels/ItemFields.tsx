@@ -8,7 +8,10 @@ import { NumberField } from '../fields/NumberField'
 import { TextField } from '../fields/TextField'
 import { INPUT_FONT_PX } from '../fields/numberInput'
 import { ColorSwatches } from './ColorSwatches'
+import { applyDim } from '../../app/dimActions'
+import { KeepRatioToggle } from '../common/KeepRatioToggle'
 import { deleteAndDeselect, duplicateAndSelect, resize, rotateBy90, setProps, setRotation } from './commands'
+import { RadiusFields } from './RadiusFields'
 import { itemDims } from './itemDims'
 import './panels.css'
 
@@ -21,6 +24,11 @@ export function ItemFields(p: { item: Item; compact?: boolean }): JSX.Element {
   const { item } = p
   const compact = p.compact === true
   const dims = itemDims(item.shape)
+  /** 가로·세로: 「비율 유지」(기본 켬)면 전체를 같은 배율로, 끄면 그 축만(캔버스 치수 숫자와 같음, 소유자 요청 2026-10-14) */
+  const sizeTo = (id: string, axis: 'w' | 'h', value: number): string | void => {
+    const r = applyDim(stores, { kind: 'item', id }, { kind: axis }, value, stores.ui.getState().keepRatio)
+    return r.ok ? undefined : r.error
+  }
 
   return (
     <div className="tf-item-fields" data-compact={compact}>
@@ -37,26 +45,30 @@ export function ItemFields(p: { item: Item; compact?: boolean }): JSX.Element {
           onCommit={(id, d) => resize(stores, id, { d })}
         />
       ) : (
-        <div className="tf-row2">
-          <NumberField
-            label="가로"
-            unit="cm"
-            value={dims.w}
-            targetId={item.id}
-            min={LEN_MIN}
-            max={LEN_MAX}
-            onCommit={(id, w) => resize(stores, id, { w })}
-          />
-          <NumberField
-            label="세로"
-            unit="cm"
-            value={dims.h}
-            targetId={item.id}
-            min={LEN_MIN}
-            max={LEN_MAX}
-            onCommit={(id, h) => resize(stores, id, { h })}
-          />
-        </div>
+        <>
+          <div className="tf-row2">
+            <NumberField
+              label="가로"
+              unit="cm"
+              value={dims.w}
+              targetId={item.id}
+              min={LEN_MIN}
+              max={LEN_MAX}
+              onCommit={(id, w) => sizeTo(id, 'w', w)}
+            />
+            <NumberField
+              label="세로"
+              unit="cm"
+              value={dims.h}
+              targetId={item.id}
+              min={LEN_MIN}
+              max={LEN_MAX}
+              onCommit={(id, h) => sizeTo(id, 'h', h)}
+            />
+          </div>
+          <KeepRatioToggle />
+          <RadiusFields subject={{ kind: 'item', id: item.id }} shape={item.shape} />
+        </>
       )}
 
       <div className="tf-rotate-row" data-compact={compact}>

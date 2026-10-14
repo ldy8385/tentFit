@@ -1,0 +1,151 @@
+/* 도형 위 치수 층(소유자 요청 2026-10-14). 캔버스 위 DOM. 층 자체는 누름을 통과시키고 숫자·입력만 받습니다. */
+.tf-dims {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tf-dims__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  fill: none;
+}
+
+/* 숫자 단추: 가운데가 자리. 보이는 크기는 작게, 누르는 영역은 넓게(::before) */
+.tf-dim {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  min-width: 28px;
+  padding: 1px 6px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-full);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: 600 12px/18px var(--font-num, var(--font-sans));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: text;
+  touch-action: manipulation;
+}
+
+.tf-dim::before {
+  content: '';
+  position: absolute;
+  inset: -8px -4px;
+}
+
+.tf-dim:hover,
+.tf-dim[data-active='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tf-dim:focus-visible {
+  outline: 2px solid var(--select);
+  outline-offset: 1px;
+}
+
+.tf-dim[data-kind='radius'] {
+  border-style: dashed;
+  color: var(--text-secondary);
+}
+
+/* PC: 숫자 자리의 작은 입력 상자 */
+.tf-dimedit {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, -18px);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.16);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.tf-dimedit__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.tf-dimedit__input {
+  box-sizing: border-box;
+  width: 84px;
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tf-dimedit__input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.tf-dimedit__unit {
+  color: var(--text-secondary);
+}
+
+.tf-dimedit__ratio {
+  font-size: 13px;
+}
+
+.tf-dimedit__error {
+  color: var(--danger);
+  font-size: 12px;
+  max-width: 200px;
+}
+
+/* 휴대폰: 키보드 바로 위 입력 막대 */
+.tf-dimbar-host {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  pointer-events: none;
+}
+
+.tf-dimbar {
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3) calc(var(--sp-2) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+  box-shadow: 0 -4px 16px rgb(0 0 0 / 0.12);
+  color: var(--text-primary);
+}
+
+.tf-dimbar__name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tf-dimbar__actions {
+  display: flex;
+  gap: var(--sp-1);
+  margin-left: auto;
+}
+
+.tf-dimbar .tf-dimedit__error {
+  flex-basis: 100%;
+  max-width: none;
+}

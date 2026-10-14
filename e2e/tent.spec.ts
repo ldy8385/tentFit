@@ -146,12 +146,14 @@ test.describe('텐트 만들기 화면(그리기 두 단계, Plan 4.1)', () => {
     expect(await makerOuter(page)).toEqual({ kind: 'polygon', points: [[-300, -160], [300, -160], [300, 160], [-290, 160]] })
     await expect(makerNextButton(page)).toBeEnabled()
 
-    // cm로 정확히: 변 1 = 620, 변 3 = 620(변 2 = 320 그대로) → 닫는 변이 흡수해 정확한 620×320
+    // cm로 정확히(비율 유지 끔, 변 길이 표): 변 1 = 620, 변 3 = 620(변 2 = 320 그대로) → 닫는 변이 흡수해 정확한 620×320
+    await makerPanel(page).getByRole('switch', { name: '비율 유지' }).uncheck()
+    await makerPanel(page).getByRole('button', { name: '변 길이 표' }).click()
     await expect(makerPanel(page).getByLabel('변 3', { exact: true })).toHaveValue('590')
     await setPanelNumber(makerPanel(page), '변 1', 620)
     await setPanelNumber(makerPanel(page), '변 3', 620)
     await expect.poll(() => makerOuter(page)).toEqual({ kind: 'polygon', points: [[-300, -160], [320, -160], [320, 160], [-300, 160]] })
-    await expect(makerPanel(page).getByTestId('tent-edge-closing')).toContainText('320 cm')
+    await expect(makerPanel(page).getByLabel('변 4', { exact: true })).toHaveValue('320')
 
     // 벽에 붙이기는 외곽 템플릿이 사각형·사다리꼴일 때(설계 §2.4) → 모양 바꾸기로 사각형(bbox 620×320 이어받음)
     await makerPanel(page).getByRole('button', { name: '모양 바꾸기', exact: true }).click()
@@ -209,6 +211,8 @@ test.describe('텐트 만들기 화면(그리기 두 단계, Plan 4.1)', () => {
     await openPickScreen(page)
     await openTentMaker(page)
     await pickExample(page, '육각형')
+    // 도면 숫자를 하나씩 넣으므로 비율 유지를 끕니다(켜 두면 가로를 바꿀 때 세로·윗변도 같이 바뀜).
+    await makerPanel(page).getByRole('switch', { name: '비율 유지' }).uncheck()
     await setPanelNumber(makerPanel(page), '가로', 260)
     await setPanelNumber(makerPanel(page), '세로', 225)
     await setPanelNumber(makerPanel(page), '윗·아랫변', 130)

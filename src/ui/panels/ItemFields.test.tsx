@@ -61,8 +61,18 @@ describe('PropertiesPanel 빈 상태', () => {
 })
 
 describe('ItemFields 치수', () => {
-  it('사각형은 가로·세로, 가로 입력 → resizeItem 반영, 표시는 문서 값(0.1cm 반올림)', () => {
+  it('비율 유지(기본 켬): 가로를 바꾸면 세로도 같은 배율, 스위치로 끔', () => {
     const stores = setup([item('a')], ['a'])
+    expect((screen.getByRole('switch', { name: '비율 유지' }) as HTMLInputElement).checked).toBe(true)
+    typeAndEnter('가로', '180')
+    expect(docItem(stores, 'a')?.shape).toEqual({ kind: 'rect', w: 180, h: 120 })
+    fireEvent.click(screen.getByRole('switch', { name: '비율 유지' }))
+    expect(stores.ui.getState().keepRatio).toBe(false)
+  })
+
+  it('비율 유지 끔: 사각형은 가로·세로, 가로 입력 → 그 축만 반영, 표시는 문서 값(0.1cm 반올림)', () => {
+    const stores = setup([item('a')], ['a'])
+    act(() => stores.ui.getState().patch({ keepRatio: false }))
     expect(screen.getByRole('heading', { name: '선택한 물건' })).toBeTruthy()
     expect(input('가로').value).toBe('90')
     expect(input('세로').value).toBe('60')
@@ -81,7 +91,7 @@ describe('ItemFields 치수', () => {
     expect(docItem(stores, 'a')?.shape).toEqual({ kind: 'circle', d: 40 })
   })
 
-  it('다각형은 바운딩 박스 가로·세로를 보여 주고, 가로를 바꾸면 원점 기준으로 늘린다', () => {
+  it('비율 유지 끔: 다각형은 바운딩 박스 가로·세로를 보여 주고, 가로를 바꾸면 가운데 기준으로 그 축만 늘린다', () => {
     const tri = item('a', {
       shape: {
         kind: 'polygon',
@@ -93,6 +103,7 @@ describe('ItemFields 치수', () => {
       },
     })
     const stores = setup([tri], ['a'])
+    act(() => stores.ui.getState().patch({ keepRatio: false }))
     expect(input('가로').value).toBe('100')
     expect(input('세로').value).toBe('60')
     typeAndEnter('가로', '200')
@@ -205,9 +216,34 @@ describe('ItemFields 복제·삭제', () => {
   })
 })
 
+describe('모서리 둥글기(소유자 요청 2026-10-14)', () => {
+  it('모든 모서리 같은 값, 너무 크면 되는 값까지, 0이면 뾰족', () => {
+    const stores = setup([item('a', { shape: { kind: 'rect', w: 200, h: 60 } })], ['a'])
+    expect(input('모서리 둥글기').value).toBe('0')
+    typeAndEnter('모서리 둥글기', '10')
+    expect(docItem(stores, 'a')?.shape).toEqual({ kind: 'rect', w: 200, h: 60, radii: [10, 10, 10, 10] })
+    act(() => input('모서리 둥글기').blur())
+    typeAndEnter('모서리 둥글기', '100')
+    expect(docItem(stores, 'a')?.shape).toEqual({ kind: 'rect', w: 200, h: 60, radii: [30, 30, 30, 30] })
+    act(() => input('모서리 둥글기').blur())
+    typeAndEnter('모서리 둥글기', '0')
+    expect(docItem(stores, 'a')?.shape).toEqual({ kind: 'rect', w: 200, h: 60 })
+  })
+
+  it('꼭짓점마다 다르면 빈칸과 안내, 원은 칸이 없다', () => {
+    setup([item('a', { shape: { kind: 'rect', w: 200, h: 60, radii: [5, 0, 0, 0] } })], ['a'])
+    expect(input('모서리 둥글기').value).toBe('')
+    expect(screen.getByText(/꼭짓점마다 달라요/)).toBeTruthy()
+    cleanup()
+    setup([item('b', { shape: { kind: 'circle', d: 40 } })], ['b'])
+    expect(screen.queryByLabelText('모서리 둥글기')).toBeNull()
+  })
+})
+
 describe('Review Focus 2: 입력 중 다른 물건을 고름', () => {
   it('가로를 고치다 선택이 b로 바뀐 뒤 blur돼도 값은 a에 들어가고, 칸은 b의 값을 보여 준다', () => {
     const stores = setup([item('a'), item('b', { name: '자충매트', shape: { kind: 'rect', w: 200, h: 60 } })], ['a'])
+    act(() => stores.ui.getState().patch({ keepRatio: false }))
     const el = input('가로')
     act(() => el.focus())
     fireEvent.change(el, { target: { value: '120' } })

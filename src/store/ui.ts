@@ -55,6 +55,8 @@ export type UiState = {
   polygonFocus: PolygonFocus | null
   /** 휴대폰 [상하좌우] 토글: 끌기·그리기를 가로·세로로만(PC는 끄는 동안 Shift) */
   axisLock: boolean
+  /** 「비율 유지」(소유자 요청 2026-10-14, 기본 켬): 변·가로·세로 숫자를 바꾸면 전체를 같은 배율로. 끄면 그 변·축만 */
+  keepRatio: boolean
   setSelection(ids: string[]): void
   toggleSelected(id: string): void
   clearSelection(): void
@@ -103,6 +105,7 @@ export type UiState = {
         | 'areaExpanded'
         | 'editorDialog'
         | 'axisLock'
+        | 'keepRatio'
       >
     >,
   ): void
@@ -204,6 +207,7 @@ export function createUiStore(
       outerPending: false,
       polygonFocus: null,
       axisLock: false,
+      keepRatio: true,
 
       setSelection(ids) {
         const next = unique(ids)

@@ -69,6 +69,16 @@
   color: var(--danger);
 }
 
+.tf-btn--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.tf-btn--primary:hover {
+  background: var(--accent-hover);
+}
+
 .tf-hint {
   margin: 0;
   font-size: 12px;

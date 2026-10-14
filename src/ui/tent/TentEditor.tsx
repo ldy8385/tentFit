@@ -43,7 +43,10 @@ import { NumberField } from '../fields/NumberField'
 import { TextField } from '../fields/TextField'
 import { NAME_MAX_LENGTH } from '../fields/limits'
 import '../panels/panels.css'
+import { applyDim } from '../../app/dimActions'
 import { AxisLockToggle } from '../common/AxisLockToggle'
+import { KeepRatioToggle } from '../common/KeepRatioToggle'
+import { RadiusFields } from '../panels/RadiusFields'
 import { MenuButton } from '../shell/MenuButton'
 import { COORDS_LABEL, Disclosure, PolygonFields } from './PolygonFields'
 import { DRAWING_HINT, innerShapeMenu, KIND_LABELS, TEMPLATE_KINDS } from './shapeMenu'
@@ -312,6 +315,10 @@ function TargetFields(p: {
     const tpl = editableTemplate(cur.shape, cur.template)
     if (tpl === null) return
     if (tpl.kind === 'circle') return errorOf(setTargetDiameter(stores, t, value))
+    // 사각형·육각형의 가로·세로는 「비율 유지」를 따릅니다(캔버스 치수 숫자와 같음, 소유자 요청 2026-10-14).
+    if ((field === 'w' || field === 'h') && (tpl.kind === 'rect' || tpl.kind === 'hexagon')) {
+      return errorOf(applyDim(stores, { kind: 'tent', target: t }, { kind: field }, value, stores.ui.getState().keepRatio))
+    }
     if (field === 'n' && !Number.isInteger(value)) return `${N_MIN}~${N_MAX} 사이의 정수로 입력해 주세요`
     return errorOf(setTargetTemplate(stores, t, applyTemplateField(tpl, field, value)))
   }
@@ -340,7 +347,7 @@ function TargetFields(p: {
 
       {free && (
         <>
-          <PolygonFields key={tid} target={target} points={targetLocalRing(layout, target)} enabled={enabled} />
+          <PolygonFields key={tid} target={target} shape={shape} points={targetLocalRing(layout, target)} enabled={enabled} />
           <Disclosure
             label={COORDS_LABEL}
             open={showTable}
@@ -359,6 +366,8 @@ function TargetFields(p: {
           onTemplate={commitTemplate}
         />
       )}
+
+      {!isCircle && <RadiusFields subject={{ kind: 'tent', target }} shape={shape} vertexIndex={p.vertexIndex} enabled={enabled} />}
 
       {!isCircle && !free && !showTable && (
         <button type="button" className="tf-btn" disabled={!enabled} onClick={() => setTableFor(tid)}>
@@ -442,6 +451,7 @@ function TemplateFields(p: {
             {len('가로', 'w', t.w)}
             {len('세로', 'h', square ? t.w : t.h, square)}
           </div>
+          {!square && <KeepRatioToggle />}
           <label className="tf-toggle">
             <input
               type="checkbox"
@@ -487,6 +497,7 @@ function TemplateFields(p: {
             {len('가로', 'w', t.w)}
             {len('세로', 'h', t.h)}
           </div>
+          <KeepRatioToggle />
           {len('윗·아랫변', 'edge', t.edge)}
           <p className="tf-hint">가로는 좌우 꼭짓점 끝↔끝, 세로는 윗변↔아랫변</p>
         </div>

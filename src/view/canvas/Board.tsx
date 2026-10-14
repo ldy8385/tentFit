@@ -37,6 +37,7 @@ import { INVALID_EDIT_STYLE } from '../tentEdit'
 import { fitBBoxFor, screenToWorld, wheelAction, worldToScreen, type View } from '../viewport'
 import { axisBoundPosition } from '../axisLock'
 import { drawTapEffect, lengthLabel, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
+import { DimOverlay } from './DimOverlay'
 import { DrawLayer } from './DrawLayer'
 import { itemsInRect, rectFromCorners } from './marquee'
 import { GridShape, ItemShape, TentContent, WarningMarks } from './nodes'
@@ -87,6 +88,11 @@ type Overlay = {
 }
 
 type Session = { kind: 'drag'; leadId: string; ids: string[] } | { kind: 'transform'; ids: string[] }
+
+/** 캔버스 위 DOM 조작 층(치수 숫자·입력 등, [data-canvas-ui]) 안의 이벤트인지. 그 누름은 캔버스 제스처로 보내지 않습니다. */
+function inCanvasUi(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[data-canvas-ui]') !== null
+}
 
 function isEditable(el: Element | EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false
@@ -230,6 +236,7 @@ class BoardController {
 
   readonly onPointerDown = (e: PointerEvent): void => {
     this.shiftDown = e.shiftKey
+    if (inCanvasUi(e.target)) return
     // 오른쪽 버튼(겹친 물건 목록)은 이후 계획에서 붙입니다.
     if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return
     blurActiveInput()
@@ -928,6 +935,12 @@ function DrawLengthBadge(props: { overlay: StoreApi<Overlay> }): JSX.Element | n
   )
 }
 
+/** 도형 위 치수 층 연결: 텐트 끌기 미리보기 동안에는 숨깁니다(값이 손을 뗄 때 바뀜). */
+function DimLayer(props: { overlay: StoreApi<Overlay>; busy: boolean; dimmed: ReadonlySet<string> }): JSX.Element | null {
+  const dragging = useStore(props.overlay, (s) => s.tentPreview !== null)
+  return <DimOverlay busy={props.busy} hidden={dragging} dimmed={props.dimmed} />
+}
+
 function BoardOverlay(props: { store: StoreApi<Overlay> }): JSX.Element {
   const marquee = useStore(props.store, (s) => s.marquee)
   const badge = useStore(props.store, (s) => s.badge)
@@ -1012,6 +1025,7 @@ export function Board(): JSX.Element {
   )
   const zoom = view.zoom
   const selected = useMemo(() => new Set(selection), [selection])
+  const dimmedIds = useMemo(() => new Set(scene.items.filter((n) => n.dimmed).map((n) => n.id)), [scene.items])
 
   const itemsById = useMemo(() => new Map(layout.items.map((it) => [it.id, it] as const)), [layout.items])
   const attached = useMemo(
@@ -1079,7 +1093,8 @@ export function Board(): JSX.Element {
     // 터치를 뗄 때 브라우저가 이어 보내는 호환 마우스 이벤트·click(고스트 클릭)을 막습니다. 캔버스 입력은 포인터 이벤트만 씁니다.
     // 누르는 순간 연 텐트 시트가 손가락 아래로 오면 그 click이 시트의 펼치기·버튼을 누르기 때문입니다.
     const stopCompatClick = (e: TouchEvent) => {
-      if (e.cancelable) e.preventDefault()
+      // 캔버스 위 DOM 조작 층(치수 숫자)은 click을 받아야 합니다.
+      if (e.cancelable && !inCanvasUi(e.target)) e.preventDefault()
     }
     const enter = () => ctl.onHover(true)
     const leave = () => ctl.onHover(false)
@@ -1196,6 +1211,7 @@ export function Board(): JSX.Element {
         </Layer>
       </Stage>
       <BoardOverlay store={overlay} />
+      <DimLayer overlay={overlay} busy={activeIds.size > 0} dimmed={dimmedIds} />
     </div>
   )
 }

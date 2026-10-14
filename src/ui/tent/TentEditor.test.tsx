@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StoresProvider, createStores, type Stores } from '../../app/stores'
 import { createLayout, type Inner, type Tent } from '../../core/model'
+import { EDGES_LABEL } from './PolygonFields'
 import { ANGLES_LABEL, COORDS_LABEL, DRAWING_HINT, EDGE_HINT, EMPTY_TARGET_TEXT, FREE_EDIT_LABEL, TentEditor, type TentEditorVariant } from './TentEditor'
 
 afterEach(() => {
@@ -165,12 +166,19 @@ describe('TentEditor 템플릿 대상', () => {
     expect(within(editor()).getByRole('button', { name: FREE_EDIT_LABEL })).toBeTruthy()
   })
 
-  it('치수를 바꾸면 템플릿에 반영(실행 취소 1칸)', () => {
-    const stores = setup(TWO_INNERS, { target: 'outer' })
+  it('치수를 바꾸면 템플릿에 반영(실행 취소 1칸) — 비율 유지 끔이면 그 축만', () => {
+    const stores = setup(TWO_INNERS, { target: 'outer', before: (s) => s.ui.getState().patch({ keepRatio: false }) })
     typeEnter(field('가로'), '640')
     expect(stores.doc.getState().layout.tent.outerTemplate).toEqual({ kind: 'rect', w: 640, h: 300 })
     expect(stores.doc.getState().layout.tent.outer).toEqual({ kind: 'rect', w: 640, h: 300 })
     expect(stores.doc.getState().canUndo).toBe(true)
+  })
+
+  it('비율 유지(기본 켬)면 사각형 가로를 바꿀 때 세로도 같은 배율', () => {
+    const stores = setup(TWO_INNERS, { target: 'outer' })
+    expect((within(editor()).getByRole('switch', { name: '비율 유지' }) as HTMLInputElement).checked).toBe(true)
+    typeEnter(field('가로'), '660')
+    expect(stores.doc.getState().layout.tent.outerTemplate).toEqual({ kind: 'rect', w: 660, h: 330 })
   })
 
   it('Review Focus 3: 같은 값을 넣으면 기록이 남지 않는다', () => {
@@ -441,31 +449,41 @@ describe('TentEditor 예시 모양 메뉴(Plan 4.1 §3)', () => {
 })
 
 describe('TentEditor 자유 다각형 cm 맞추기(Plan 4.1 §2.3)', () => {
-  it('전체 크기·변 1…n−1 입력, 닫는 변은 읽기 전용 「자동」, 각도·좌표는 접힘', () => {
+  it('전체 크기·비율 유지, 변 길이 표·각도·좌표는 접힘(표를 열면 닫는 변까지 변 1…n 모두 입력)', () => {
     setup(ROUGH, { target: 'outer' })
     expect(field('가로').value).toBe('600')
     expect(field('세로').value).toBe('330')
-    expect(['변 1', '변 2', '변 3'].map((l) => field(l).value)).toEqual(['600', '330', '590'])
-    expect(within(editor()).queryByLabelText('변 4')).toBeNull()
-    const closing = screen.getByTestId('tent-edge-closing')
-    expect(closing.textContent).toContain('변 4')
-    expect(closing.textContent).toContain('330.2')
-    expect(closing.textContent).toContain('자동')
+    expect(within(editor()).getByRole('switch', { name: '비율 유지' })).toBeTruthy()
+    expect(within(editor()).queryByLabelText('변 1')).toBeNull()
+    expand(EDGES_LABEL)
+    expect(['변 1', '변 2', '변 3', '변 4'].map((l) => field(l).value)).toEqual(['600', '330', '590', '330.2'])
     expect(within(editor()).queryByLabelText('꼭짓점 2')).toBeNull()
     expect(screen.queryByTestId('tent-vertex-table')).toBeNull()
   })
 
-  it('변 1=620·변 2=320·변 3=620 → 정확한 620×320(각 1칸)', () => {
-    const stores = setup(ROUGH, { target: 'outer' })
+  it('비율 유지 끔: 변 1=620·변 2=320·변 3=620 → 정확한 620×320(각 1칸)', () => {
+    const stores = setup(ROUGH, { target: 'outer', before: (s) => s.ui.getState().patch({ keepRatio: false }) })
+    expand(EDGES_LABEL)
     typeEnter(field('변 1'), '620')
     typeEnter(field('변 2'), '320')
     typeEnter(field('변 3'), '620')
     expect(outerPoints(stores)).toEqual([[0, 0], [620, 0], [620, 320], [0, 320]])
-    expect(screen.getByTestId('tent-edge-closing').textContent).toContain('320')
+    expect(field('변 4').value).toBe('320')
+  })
+
+  it('비율 유지 켬: 변 하나를 바꾸면 모양 그대로 전체 배율', () => {
+    const stores = setup({ ...ROUGH, outer: { kind: 'polygon', points: [[0, 0], [600, 0], [600, 300], [0, 300]] } }, { target: 'outer' })
+    expand(EDGES_LABEL)
+    typeEnter(field('변 2'), '600')
+    expect(outerPoints(stores)).toEqual([[-300, -150], [900, -150], [900, 450], [-300, 450]])
   })
 
   it('닫는 변이 0이 되는 변 길이는 그 칸에 오류, 문서 그대로', () => {
-    const stores = setup({ ...ROUGH, outer: { kind: 'polygon', points: [[0, 0], [400, 0], [400, 300], [0, 300], [0, 100]] } }, { target: 'outer' })
+    const stores = setup(
+      { ...ROUGH, outer: { kind: 'polygon', points: [[0, 0], [400, 0], [400, 300], [0, 300], [0, 100]] } },
+      { target: 'outer', before: (s) => s.ui.getState().patch({ keepRatio: false }) },
+    )
+    expand(EDGES_LABEL)
     typeEnter(field('변 4'), '300')
     expect(within(editor()).getByRole('alert').textContent).toBe('변 길이가 0이 돼요')
     expect(stores.doc.getState().canUndo).toBe(false)
@@ -483,8 +501,11 @@ describe('TentEditor 자유 다각형 cm 맞추기(Plan 4.1 §2.3)', () => {
     expect(field('꼭짓점 2').value).toBe('100')
   })
 
-  it('전체 크기 가로를 바꾸면 그 축만 비율대로', () => {
-    const stores = setup({ ...ROUGH, outer: { kind: 'polygon', points: [[0, 0], [600, 0], [600, 300], [0, 300]] } }, { target: 'outer' })
+  it('비율 유지 끔: 전체 크기 가로를 바꾸면 그 축만 비율대로', () => {
+    const stores = setup(
+      { ...ROUGH, outer: { kind: 'polygon', points: [[0, 0], [600, 0], [600, 300], [0, 300]] } },
+      { target: 'outer', before: (s) => s.ui.getState().patch({ keepRatio: false }) },
+    )
     typeEnter(field('가로'), '300')
     expect(outerPoints(stores)).toEqual([[150, 0], [450, 0], [450, 300], [150, 300]])
   })
@@ -563,6 +584,7 @@ describe('최종 리뷰 수정(Plan 4.1)', () => {
 describe('변 번호 안내(소유자 피드백: 변 1·2·3이 어디인지)', () => {
   it('변 길이 칸에 포커스하면 그 변을 캔버스에서 강조하도록 알리고(polygonFocus), 떠나면 지운다', () => {
     const stores = setup(ROUGH, { target: 'outer' })
+    expand(EDGES_LABEL)
     expect(within(editor()).getByText(EDGE_HINT)).toBeTruthy()
     act(() => field('변 2').focus())
     expect(stores.ui.getState().polygonFocus).toEqual({ kind: 'edge', index: 1 })
@@ -575,6 +597,16 @@ describe('변 번호 안내(소유자 피드백: 변 1·2·3이 어디인지)', 
     expand(ANGLES_LABEL)
     act(() => field('꼭짓점 3').focus())
     expect(stores.ui.getState().polygonFocus).toEqual({ kind: 'vertex', index: 2 })
+  })
+})
+
+describe('모서리 둥글기(소유자 요청 2026-10-14)', () => {
+  it('꼭짓점을 고르면 그 꼭짓점 칸, 템플릿은 그대로', () => {
+    const stores = setup(TWO_INNERS, { target: 'outer', vertex: 1 })
+    typeEnter(field('2번 꼭짓점 둥글기'), '25')
+    expect(stores.doc.getState().layout.tent.outer).toEqual({ kind: 'rect', w: 600, h: 300, radii: [0, 25, 0, 0] })
+    expect(stores.doc.getState().layout.tent.outerTemplate).toEqual({ kind: 'rect', w: 600, h: 300 })
+    expect(field('모서리 둥글기').value).toBe('')
   })
 })
 

@@ -11,7 +11,7 @@ import type { Layout, Pt } from '../../core/model'
 import { targetWorldOutline, targetWorldRing, type TentTarget } from '../../core/ops/tent'
 import type { PolygonFocus } from '../../store/ui'
 import { THEME } from '../../ui/theme'
-import { edgeLabels, INVALID_EDIT_STYLE, tentHandles, type EdgeLabel } from '../tentEdit'
+import { INVALID_EDIT_STYLE, tentHandles } from '../tentEdit'
 import type { View } from '../viewport'
 import { FONT_FAMILY, HALO_PX } from './nodes'
 import type { TentPreview } from './tentGesture'
@@ -28,9 +28,6 @@ const INVALID_STROKE_PX = 2
 const INVALID_LABEL_FONT_PX = 12
 const INVALID_LABEL_H_PX = 20
 const INVALID_LABEL_GAP_PX = 8
-/** 변 번호 배지 반지름(화면 px)·글자 크기 */
-const EDGE_BADGE_R_PX = 9
-const EDGE_BADGE_FONT_PX = 11
 /** 패널에서 포커스한 변의 강조 굵기(화면 px) */
 const FOCUS_EDGE_STROKE_PX = 4
 
@@ -109,38 +106,6 @@ function InvalidLabel(props: { at: Pt; zoom: number; color: string }): JSX.Eleme
   )
 }
 
-/** 변 번호 배지(자유 다각형 대상, 패널 「변 i」와 같은 번호). 포커스한 변은 채운 배지 */
-function EdgeBadge(props: { label: EdgeLabel; zoom: number; color: string; focused: boolean }): JSX.Element {
-  const k = 1 / props.zoom
-  const r = EDGE_BADGE_R_PX
-  return (
-    <Group x={props.label.at[0]} y={props.label.at[1]} scaleX={k} scaleY={k} listening={false}>
-      <Circle
-        radius={r}
-        fill={props.focused ? props.color : THEME['bg-surface']}
-        stroke={props.color}
-        strokeWidth={1.5}
-        perfectDrawEnabled={false}
-      />
-      <Text
-        x={-r}
-        y={-r}
-        width={2 * r}
-        height={2 * r}
-        text={props.label.text}
-        fontSize={EDGE_BADGE_FONT_PX}
-        fontFamily={FONT_FAMILY}
-        fontStyle="bold"
-        fill={props.focused ? THEME['text-inverse'] : props.color}
-        align="center"
-        verticalAlign="middle"
-        listening={false}
-        perfectDrawEnabled={false}
-      />
-    </Group>
-  )
-}
-
 export type TentLayerProps = {
   layout: Layout
   /** ui.tentTarget */
@@ -174,8 +139,6 @@ export function TentLayer(props: TentLayerProps): JSX.Element | null {
   const danger = themeColor(INVALID_EDIT_STYLE.stroke)
   const box = ring.length > 0 ? ringBBox(ring) : null
   const focus = props.focus ?? null
-  // 자유 다각형이면 변 번호 배지(소유자 피드백 「변 1·2·3이 어디인지」)
-  const labels = edgeLabels(shown, target, view)
   const focusEdge =
     focus?.kind === 'edge' && ring.length >= 2 ? [ring[focus.index], ring[(focus.index + 1) % ring.length]] : null
   const focusVertex = focus?.kind === 'vertex' ? focus.index : null
@@ -224,9 +187,6 @@ export function TentLayer(props: TentLayerProps): JSX.Element | null {
           perfectDrawEnabled={false}
         />
       )}
-      {labels.map((l) => (
-        <EdgeBadge key={`e${l.index}`} label={l} zoom={zoom} color={color} focused={focus?.kind === 'edge' && focus.index === l.index} />
-      ))}
       {invalid && box !== null && (
         <InvalidLabel at={[(box.minX + box.maxX) / 2, box.minY]} zoom={zoom} color={danger} />
       )}

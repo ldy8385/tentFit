@@ -131,6 +131,7 @@ test.describe('고르기·만들기 화면(390×844)', () => {
     await expect.poll(async () => (await getDoc(page, MAKER_HOOK)).layout.tent.outer.kind).toBe('polygon')
     await expect(makerSheet(page)).toBeVisible()
 
+    await makerPanel(page).getByRole('button', { name: '변 길이 표' }).tap()
     const edge = makerPanel(page).getByLabel('변 1', { exact: true })
     await edge.tap()
     await expect(edge).toBeFocused()

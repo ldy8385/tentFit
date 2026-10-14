@@ -87,6 +87,7 @@ describe('SelectionSheet 1개', () => {
 
   it('펼치면 상세 속성(ItemFields compact)이 나오고 버튼은 겹치지 않는다', () => {
     const stores = setup([item('a')], ['a'])
+    act(() => stores.ui.getState().patch({ keepRatio: false }))
     fireEvent.click(screen.getByRole('button', { name: '펼치기' }))
     expect(sheet().getAttribute('data-expanded')).toBe('true')
     expect((screen.getByLabelText('가로') as HTMLInputElement).value).toBe('90')

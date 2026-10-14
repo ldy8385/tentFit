@@ -77,10 +77,11 @@ test('새 도형으로 만들면 물건이 추가·선택되고 속성 패널과
   expect(added.totalFloor.percent).toBeGreaterThan(0)
   await expectAreaSummaryMatchesDoc(page)
 
+  // 「비율 유지」(기본 켬): 가로를 바꾸면 세로도 같은 배율(소유자 요청 2026-10-14)
   const width = properties(page).getByLabel('가로', { exact: true })
   await width.fill('250')
   await width.press('Enter')
-  await expect.poll(async () => (await itemById(page, item.id))?.shape).toEqual({ kind: 'rect', w: 250, h: 60 })
+  await expect.poll(async () => (await itemById(page, item.id))?.shape).toEqual({ kind: 'rect', w: 250, h: 75 })
   await expect(width).toHaveValue('250')
   await expectAreaSummaryMatchesDoc(page)
 })
