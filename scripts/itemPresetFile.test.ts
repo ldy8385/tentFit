@@ -6,8 +6,10 @@ import { formatItemsFile, upsertItemPreset } from './itemPresetFile'
 const MAT: ItemPreset = { id: 'items/a', name: '매트', brand: '써머레스트', category: 'MAT', shape: { kind: 'rect', w: 183, h: 51, radii: [8, 8, 8, 8] }, color: 'green', countsArea: true }
 
 describe('presets/items.json 쓰기', () => {
-  it('비면 지금 파일과 같은 글자', () => {
-    expect(formatItemsFile([])).toBe(readFileSync('presets/items.json', 'utf8'))
+  it('지금 presets/items.json을 읽어 다시 쓰면 같은 글자(손으로 맞춘 모양과 같음)', () => {
+    const text = readFileSync('presets/items.json', 'utf8')
+    expect(formatItemsFile((JSON.parse(text) as { items: ItemPreset[] }).items)).toBe(text)
+    expect(formatItemsFile([])).toBe('{\n  "$schema": "./items.schema.json",\n  "items": []\n}\n')
   })
 
   it('짧으면 한 줄, 길면 키마다 한 줄, 다시 읽으면 같은 값', () => {

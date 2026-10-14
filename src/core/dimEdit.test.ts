@@ -91,7 +91,7 @@ describe('비율 유지 끔: 그 변·축만', () => {
     expect(ok(editDim(spec, E(2), 220, false)).template).toEqual({ ...t, front: 220 })
     const side = ok(editDim(spec, E(1), 200, false))
     expect(side.template).toBeUndefined()
-    expect(edgeLengths(cornerRing(side.shape))[1]).toBeCloseTo(200, 6)
+    expect(Math.round(edgeLengths(cornerRing(side.shape))[1]! * 10) / 10).toBe(200)
   })
 
   it('육각형 윗·아랫변 = edge(가로보다 길면 거부), 가로·세로 = w·h', () => {
@@ -172,5 +172,45 @@ describe('setAnyEdgeLength', () => {
     const lens = edgeLengths(out)
     expect(lens[2]).toBeCloseTo(80, 6)
     expect(lens[0]).toBeCloseTo(100, 6)
+  })
+})
+
+describe('반올림해도 입력한 값 그대로(소유자 피드백 2026-10-14 「183이 183.1로」)', () => {
+  // 비스듬한 변·소수 좌표의 오각형(그린 매트 같은)
+  const penta: Pt[] = [
+    [-91.3, -20.7],
+    [60.2, -27.4],
+    [93.1, 3.3],
+    [55.6, 26.1],
+    [-88.8, 24.9],
+  ]
+  const shown = (v: number) => Math.round(v * 10) / 10
+
+  for (const radii of [undefined, [6, 0, 9.5, 4, 3]]) {
+    it(`비율 유지 끔: 가로 183 → 세로 51 → 둘 다 표시값 그대로(반지름 ${radii ? '있음' : '없음'})`, () => {
+      const start: Shape = radii ? { kind: 'polygon', points: penta, radii } : { kind: 'polygon', points: penta }
+      const a = ok(editDim({ shape: start }, W, 183, false))
+      expect(shown(outlineSize(a.shape).w)).toBe(183)
+      const b = ok(editDim(a, H, 51, false))
+      expect(shown(outlineSize(b.shape).h)).toBe(51)
+      expect(shown(outlineSize(b.shape).w)).toBe(183)
+      // 결과는 이미 저장 단위(0.1cm)로 반올림된 점
+      for (const [x, y] of cornerRing(b.shape)) {
+        expect(Math.round(x * 10) / 10).toBe(x)
+        expect(Math.round(y * 10) / 10).toBe(y)
+      }
+    })
+  }
+
+  it('비율 유지 켬·끔 변 길이도 표시값 그대로', () => {
+    const on = ok(editDim({ shape: { kind: 'polygon', points: penta } }, E(1), 47.3, true))
+    expect(shown(edgeLengths(cornerRing(on.shape))[1]!)).toBe(47.3)
+    const off = ok(editDim({ shape: { kind: 'polygon', points: penta } }, E(2), 44.4, false))
+    expect(shown(edgeLengths(cornerRing(off.shape))[2]!)).toBe(44.4)
+  })
+
+  it('둥근 모서리 바깥 상자는 원의 식으로 정확히(현 근사 오차 없음)', () => {
+    const diamond: Shape = { kind: 'polygon', points: [[0, -50], [50, 0], [0, 50], [-50, 0]], radii: [0, 10, 0, 0] }
+    expect(outlineSize(diamond).w).toBeCloseTo(50 + 50 - 10 * Math.SQRT2 + 10, 9)
   })
 })

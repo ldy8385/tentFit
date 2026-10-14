@@ -178,22 +178,15 @@ export function hasRadii(radii: readonly number[] | undefined): boolean {
   return radii !== undefined && radii.some((r) => r > 0)
 }
 
-/** 꼭짓점 고리에 반지름대로 원호(0.1cm 오차 다각형)를 넣은 윤곽. 반지름이 없으면 복사본. */
-export function filletRing(points: readonly Pt[], radii: readonly number[] | undefined): Pt[] {
-  if (!hasRadii(radii) || points.length < 3) return points.map((p): Pt => [p[0], p[1]])
+/** 꼭짓점 하나의 윤곽 조각: 뾰족(그 점) 또는 원호(접점 a → b, 중심 c, 반지름 r, 시작각 a0에서 sweep만큼) */
+type FilletCorner = { kind: 'sharp'; p: Pt } | { kind: 'arc'; a: Pt; b: Pt; c: Pt; r: number; a0: number; sweep: number }
+
+function filletCorners(points: readonly Pt[], radii: readonly number[] | undefined): FilletCorner[] {
   const eff = effectiveRadii(points, radii)
-  const out: Pt[] = []
-  const push = (p: Pt) => {
-    const last = out[out.length - 1]
-    if (last === undefined || Math.abs(last[0] - p[0]) > 1e-9 || Math.abs(last[1] - p[1]) > 1e-9) out.push([nz(p[0]), nz(p[1])])
-  }
-  points.forEach((cur, i) => {
+  return points.map((cur, i): FilletCorner => {
     const r = eff[i] ?? 0
     const f = r > 0 ? cornerFrame(points, i) : null
-    if (f === null) {
-      push(cur)
-      return
-    }
+    if (f === null) return { kind: 'sharp', p: cur }
     const t = r / Math.tan(f.half)
     const a: Pt = [cur[0] + f.u1[0] * t, cur[1] + f.u1[1] * t]
     const b: Pt = [cur[0] + f.u2[0] * t, cur[1] + f.u2[1] * t]
@@ -206,18 +199,66 @@ export function filletRing(points: readonly Pt[], radii: readonly number[] | und
     let sweep = Math.atan2(b[1] - c[1], b[0] - c[0]) - a0
     if (sweep > Math.PI) sweep -= 2 * Math.PI
     if (sweep < -Math.PI) sweep += 2 * Math.PI
-    const steps = Math.max(2, Math.ceil((circleSegments(r) * Math.abs(sweep)) / (2 * Math.PI)))
-    push(a)
-    for (let k = 1; k < steps; k++) {
-      const th = a0 + (sweep * k) / steps
-      push([c[0] + r * Math.cos(th), c[1] + r * Math.sin(th)])
-    }
-    push(b)
+    return { kind: 'arc', a, b, c, r, a0, sweep }
   })
+}
+
+/** 꼭짓점 고리에 반지름대로 원호(0.1cm 오차 다각형)를 넣은 윤곽. 반지름이 없으면 복사본. */
+export function filletRing(points: readonly Pt[], radii: readonly number[] | undefined): Pt[] {
+  if (!hasRadii(radii) || points.length < 3) return points.map((p): Pt => [p[0], p[1]])
+  const out: Pt[] = []
+  const push = (p: Pt) => {
+    const last = out[out.length - 1]
+    if (last === undefined || Math.abs(last[0] - p[0]) > 1e-9 || Math.abs(last[1] - p[1]) > 1e-9) out.push([nz(p[0]), nz(p[1])])
+  }
+  for (const k of filletCorners(points, radii)) {
+    if (k.kind === 'sharp') {
+      push(k.p)
+      continue
+    }
+    const steps = Math.max(2, Math.ceil((circleSegments(k.r) * Math.abs(k.sweep)) / (2 * Math.PI)))
+    push(k.a)
+    for (let j = 1; j < steps; j++) {
+      const th = k.a0 + (k.sweep * j) / steps
+      push([k.c[0] + k.r * Math.cos(th), k.c[1] + k.r * Math.sin(th)])
+    }
+    push(k.b)
+  }
   const first = out[0]
   const last = out[out.length - 1]
   if (out.length > 1 && first && last && Math.abs(first[0] - last[0]) <= 1e-9 && Math.abs(first[1] - last[1]) <= 1e-9) out.pop()
   return out
+}
+
+/** 각 q가 a0에서 sweep(부호 있음)만큼 도는 원호 안에 드는지 */
+function angleOnArc(q: number, a0: number, sweep: number): boolean {
+  const tau = 2 * Math.PI
+  let d = (((q - a0) % tau) + tau) % tau // [0, 2π)
+  if (sweep >= 0) return d <= sweep + 1e-12
+  d -= tau // (−2π, 0]
+  return d >= sweep - 1e-12 || Math.abs(d + tau) < 1e-12
+}
+
+/**
+ * 보이는 윤곽의 정확한 바깥 상자(로컬). 원호는 근사 다각형이 아니라 원의 식으로 재므로(꼭짓점 사이 현이 깎는 0.1cm 오차 없음)
+ * 가로·세로 치수가 정확합니다(소유자 피드백 2026-10-14 「183이 183.1로」). 원은 지름.
+ */
+export function outlineBBox(shape: Shape): { minX: number; minY: number; maxX: number; maxY: number } {
+  if (shape.kind === 'circle') return { minX: -shape.d / 2, minY: -shape.d / 2, maxX: shape.d / 2, maxY: shape.d / 2 }
+  const corners = cornerRing(shape)
+  if (!hasRadii(shape.radii) || corners.length < 3) return ringBBox(corners)
+  const pts: Pt[] = []
+  for (const k of filletCorners(corners, shape.radii)) {
+    if (k.kind === 'sharp') {
+      pts.push(k.p)
+      continue
+    }
+    pts.push(k.a, k.b)
+    for (const q of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      if (angleOnArc(q, k.a0, k.sweep)) pts.push([k.c[0] + k.r * Math.cos(q), k.c[1] + k.r * Math.sin(q)])
+    }
+  }
+  return ringBBox(pts)
 }
 
 // ── 도형 → 고리 ───────────────────────────────────────────────
