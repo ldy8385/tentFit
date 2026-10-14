@@ -1,4 +1,185 @@
 {
   "$schema": "./items.schema.json",
-  "items": []
+  "items": [
+    {
+      "id": "items/mat-mv7u64ue",
+      "name": "Eclipse All-Season Regular",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 51, "h": 183, "radii": [4, 4, 4, 4] },
+      "color": "green",
+      "countsArea": true
+    },
+    {
+      "id": "items/etc-mv7u9j2r",
+      "name": "Eclipse All-Season Regular Wide",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 64, "h": 183, "radii": [4, 4, 4, 4] },
+      "color": "green",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7uavdt",
+      "name": "Eclipse All-Season Long Wide",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 64, "h": 193, "radii": [4, 4, 4, 4] },
+      "color": "green",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7uzt6o",
+      "name": "Tensor All-Season Regular Mummy",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "polygon", "points": [[-25.5, -91.5], [25.5, -91.5], [25.5, 0], [22.1, 48.8], [19.9, 71.2], [16.9, 91.5], [-18.9, 91.5], [-21.9, 70.2], [-23.4, 47.8], [-25.5, 0]], "radii": [25.5, 25.5, 0, 0, 0, 15, 15, 0, 0, 0] },
+      "color": "blue",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7v7adh",
+      "name": "Tensor Extreme Regular Mummy",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "polygon", "points": [[-25.5, -91.5], [25.5, -91.5], [25.5, 0], [22.1, 48.8], [19.9, 71.2], [16.9, 91.5], [-18.9, 91.5], [-21.9, 70.2], [-23.4, 47.8], [-25.5, 0]], "radii": [25.5, 25.5, 0, 0, 0, 15, 15, 0, 0, 0] },
+      "color": "gray",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7vg5lo",
+      "name": "Tensor Elite Short Mummy",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "polygon", "points": [[-25.9, -80.2], [25.9, -80.2], [24.8, 0], [21.3, 39.6], [15.8, 79.2], [-15.9, 80.2], [-20.3, 40.6], [-24.6, 0]], "radii": [25, 25, 0, 0, 15, 15, 0, 0] },
+      "color": "sky",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7vk58c",
+      "name": "Tensor Elite Regular Mummy",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "polygon", "points": [[-25.9, -91.8], [25.8, -91.8], [24.6, 0], [21.1, 45.4], [15.8, 90.5], [-15.8, 91.7], [-20.3, 46.5], [-24.5, 0]], "radii": [25, 25, 0, 0, 15, 15, 0, 0] },
+      "color": "sky",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7vvtj9",
+      "name": "Tensor Elite Regular Wide Mummy",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "polygon", "points": [[-32.5, -91.7], [32.5, -91.7], [31, 0.1], [26.6, 45.5], [20, 90.6], [-19.8, 91.8], [-25.4, 46.6], [-30.7, 0.1]], "radii": [28, 28, 0, 0, 18, 18, 0, 0] },
+      "color": "sky",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7w3skg",
+      "name": "Tensor Extreme Long Wide",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 64, "h": 193, "radii": [4, 4, 4, 4] },
+      "color": "gray",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7u64ux",
+      "name": "Tensor Extreme Regular",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 51, "h": 183, "radii": [4, 4, 4, 4] },
+      "color": "gray",
+      "countsArea": true
+    },
+    {
+      "id": "items/etc-mv7u9j2q",
+      "name": "Tensor Extreme Regular Wide",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 64, "h": 183, "radii": [4, 4, 4, 4] },
+      "color": "gray",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7w3sk2",
+      "name": "Tensor All-Season Long Wide",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 64, "h": 193, "radii": [4, 4, 4, 4] },
+      "color": "blue",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7u64u1",
+      "name": "Tensor All-Season Regular",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 51, "h": 183, "radii": [4, 4, 4, 4] },
+      "color": "blue",
+      "countsArea": true
+    },
+    {
+      "id": "items/etc-mv7u9j2x",
+      "name": "Tensor All-Season Regular Wide",
+      "brand": "NEMO",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 64, "h": 183, "radii": [4, 4, 4, 4] },
+      "color": "blue",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7weg83",
+      "name": "Exped Ultra 6.5R M",
+      "brand": "Exped",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 52, "h": 183, "radii": [6, 6, 6, 6] },
+      "color": "green",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7wf85s",
+      "name": "Exped Ultra 6.5R MW",
+      "brand": "Exped",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 65, "h": 183, "radii": [7.5, 7.5, 7.5, 7.5] },
+      "color": "green",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7wfy5b",
+      "name": "Exped Ultra 6.5R LW",
+      "brand": "Exped",
+      "category": "MAT",
+      "shape": { "kind": "rect", "w": 65, "h": 197, "radii": [7.5, 7.5, 7.5, 7.5] },
+      "color": "green",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7wmco3",
+      "name": "Exped Ultra 6.5R Mummy M",
+      "brand": "Exped",
+      "category": "MAT",
+      "shape": { "kind": "polygon", "points": [[-9.7, -91.7], [10.5, -91.5], [26.3, -62.1], [13.9, 91.7], [-14.7, 91], [-26.3, -61.2]], "radii": [14.4, 14.4, 15, 14.4, 14.4, 15] },
+      "color": "green",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7wxhad",
+      "name": "Exped Ultra 6.5R Mummy MW",
+      "brand": "Exped",
+      "category": "MAT",
+      "shape": { "kind": "polygon", "points": [[-12.1, -91.7], [13.2, -91.5], [33, -62.1], [17.5, 91.7], [-18.4, 91], [-32.9, -61.2]], "radii": [18, 18, 15, 19.8, 19.8, 15] },
+      "color": "green",
+      "countsArea": true
+    },
+    {
+      "id": "items/mat-mv7wyngj",
+      "name": "Exped Ultra 6.5R Mummy LW",
+      "brand": "Exped",
+      "category": "MAT",
+      "shape": { "kind": "polygon", "points": [[-12.1, -98.7], [13.1, -98.4], [32.9, -66.8], [17.4, 98.8], [-18.4, 98], [-32.9, -65.8]], "radii": [18, 18, 15, 19.6, 19.6, 15] },
+      "color": "green",
+      "countsArea": true
+    }
+  ]
 }
