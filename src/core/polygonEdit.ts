@@ -4,13 +4,9 @@
 // 좌표계는 y 아래, 회전은 시계 방향 양수(ops/util.rotateAround와 같은 방향)입니다.
 import { ringBBox } from './geom'
 import { round1, type Pt, type Tent } from './model'
-import { gridOriginOf } from './snap'
+import { gridOriginOf, validGridStep } from './snap'
 import { ringIssue } from './validate'
 
-/** 첫 점 격자(cm) */
-export const DRAW_GRID_CM = 10
-/** 다음 점 방향 단위(도) */
-export const DRAW_ANGLE_STEP_DEG = 15
 /** 이보다 짧은 변이 생기는 입력은 거부합니다(cm) */
 export const MIN_EDGE_CM = 0.05
 
@@ -134,24 +130,21 @@ export function drawGridOrigin(tent: Pick<Tent, 'outer'>, outerPending: boolean)
   return outerPending ? [0, 0] : gridOriginOf(tent)
 }
 
-/** 상하좌우로만 그릴 때(Shift·[상하좌우] 토글)의 방향 단위(도) */
-export const DRAW_RIGHT_ANGLE_DEG = 90
+/** origin 기준 step 간격 격자의 가장 가까운 교차점(0.1cm 반올림). step이 잘못되면 10cm. */
+export function snapToGrid(p: Pt, origin: Pt, step: number): Pt {
+  const k = validGridStep(step)
+  const g = (v: number, o: number) => round1(o + Math.round((v - o) / k) * k)
+  return [g(p[0], origin[0]), g(p[1], origin[1])]
+}
 
 /**
- * 그리는 점 맞춤(설계 §2.2). prev가 null이면 gridOrigin 기준 10cm 격자,
- * 아니면 prev에서 raw까지의 방향을 stepDeg(기본 15°) 단위로, 길이를 10cm 단위(최소 10cm)로. 0.1cm 반올림.
+ * 그리는 점 맞춤(소유자 요청 2026-10-15): 모든 점을 gridOrigin 기준 step 간격 격자 교차점에(대각선도 각도·길이가 아니라 교차점).
+ * right(상하좌우로만, Shift·[상하좌우] 토글)면 prev를 지나는 가로·세로줄 중 가까운 쪽 위에서 움직이는 축만 격자에 맞춥니다.
  */
-export function snapDrawPoint(prev: Pt | null, raw: Pt, gridOrigin: Pt, stepDeg: number = DRAW_ANGLE_STEP_DEG): Pt {
-  if (prev === null) {
-    const g = (v: number, o: number) => round1(o + Math.round((v - o) / DRAW_GRID_CM) * DRAW_GRID_CM)
-    return [g(raw[0], gridOrigin[0]), g(raw[1], gridOrigin[1])]
-  }
-  const vx = raw[0] - prev[0]
-  const vy = raw[1] - prev[1]
-  const step = (stepDeg * Math.PI) / 180
-  const angle = Math.round(Math.atan2(vy, vx) / step) * step
-  const len = Math.max(DRAW_GRID_CM, Math.round(Math.hypot(vx, vy) / DRAW_GRID_CM) * DRAW_GRID_CM)
-  return [round1(prev[0] + len * Math.cos(angle)), round1(prev[1] + len * Math.sin(angle))]
+export function snapDrawPoint(prev: Pt | null, raw: Pt, gridOrigin: Pt, step: number = validGridStep(undefined), right = false): Pt {
+  const g = snapToGrid(raw, gridOrigin, step)
+  if (!right || prev === null) return g
+  return Math.abs(raw[0] - prev[0]) >= Math.abs(raw[1] - prev[1]) ? [g[0], prev[1]] : [prev[0], g[1]]
 }
 
 // 0.01cm 정수 격자 판정(geom.ringSelfIntersects와 같은 방식)

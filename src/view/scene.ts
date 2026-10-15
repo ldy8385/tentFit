@@ -4,6 +4,7 @@
 import { outerRing, regionRings, ringBBox, worldRing } from '../core/geom'
 import { round1, type Item, type Layout, type Pt, type Shape } from '../core/model'
 import { drawGridOrigin } from '../core/polygonEdit'
+import { GRID_STEP, validGridStep } from '../core/snap'
 import type { Stats } from '../core/stats'
 import type { Zones } from '../core/zones'
 import type { Mode } from '../store/ui'
@@ -12,12 +13,11 @@ import { fitBBoxFor, type BBox, type Size, type View } from './viewport'
 
 /** 물건 라벨: 화면에서 도형의 짧은 쪽이 이 값(px)보다 작으면 숨깁니다(§4.6). */
 export const LABEL_MIN_SCREEN_PX = 40
-/** 격자 단계: 화면 선 간격이 이 값(px)보다 좁으면 그 단계를 숨깁니다(§4.6). */
+/** 격자 단계: 화면 선 간격이 이 값(px)보다 좁으면 10배 간격으로 그립니다(§4.6). */
 export const GRID_MIN_SPACING_PX = 6
 
-export type GridLevel = 10 | 50 | 100
-
-const GRID_STEPS: readonly GridLevel[] = [10, 50, 100]
+/** 격자 한 단계: step(cm) 간격, strong = 굵은 선 */
+export type GridLevel = { step: number; strong: boolean }
 /** 한 축의 격자선이 이보다 많으면(잘못된 입력) 그리지 않습니다. 보이는 영역 기준이면 화면 폭 / 6px을 넘지 않습니다. */
 const MAX_LINES_PER_AXIS = 4000
 /** 이너·전실 라벨 상자 추정(글자 11px 기준): 폭 = 글자 수 × 7px, 높이 16px */
@@ -32,17 +32,25 @@ function nz(v: number): number {
   return v === 0 ? 0 : v
 }
 
-/** 화면 간격(단계 × zoom)이 GRID_MIN_SPACING_PX 이상인 단계만, 촘촘한 것부터. zoom이 유효하지 않으면 []. */
-export function gridLevels(zoom: number): GridLevel[] {
+/**
+ * 격자 단계(소유자 요청 2026-10-15): 가는 선 = 격자 간격(step), 굵은 선 = 그 10배. 간격은 확대·축소와 무관합니다.
+ * 화면 간격이 GRID_MIN_SPACING_PX보다 좁으면 가는 선을 10배씩 올려 그립니다(점 맞춤은 늘 step). zoom이 유효하지 않으면 [].
+ */
+export function gridLevels(zoom: number, step: number = GRID_STEP): GridLevel[] {
   if (!(Number.isFinite(zoom) && zoom > 0)) return []
-  return GRID_STEPS.filter((step) => step * zoom >= GRID_MIN_SPACING_PX)
+  let fine = validGridStep(step)
+  while (fine * zoom < GRID_MIN_SPACING_PX) fine *= 10
+  return [
+    { step: fine, strong: false },
+    { step: fine * 10, strong: true },
+  ]
 }
 
 /**
- * bbox 안에 드는 level 간격 격자선. origin(외곽 bbox 왼쪽 위, snap.gridOriginOf)에서 level의 정수배인 자리에만 긋습니다.
+ * bbox 안에 드는 step 간격 격자선. origin(외곽 bbox 왼쪽 위, snap.gridOriginOf)에서 step의 정수배인 자리에만 긋습니다.
  * 결과: 세로선 [x, minY, x, maxY]들(x 오름차순) 다음에 가로선 [minX, y, maxX, y]들(y 오름차순), 월드 cm.
  */
-export function gridLines(bbox: BBox, origin: Pt, level: GridLevel): number[][] {
+export function gridLines(bbox: BBox, origin: Pt, level: number): number[][] {
   const { minX, minY, maxX, maxY } = bbox
   const finite = [minX, minY, maxX, maxY, origin[0], origin[1]].every(Number.isFinite)
   if (!finite || maxX < minX || maxY < minY) return []
@@ -131,7 +139,7 @@ export type InnerNode = {
 export type PieceNode = { key: string; rings: Pt[][]; label: { text: string; x: number; y: number; visible: boolean } }
 
 export type Scene = {
-  grid: { level: GridLevel; lines: number[][] }[]
+  grid: (GridLevel & { lines: number[][] })[]
   /** false면 텐트(외곽·이너·전실·라벨)를 그리지 않습니다(만들기 화면의 외곽 없음) */
   tentVisible: boolean
   outer: Shape
@@ -148,6 +156,8 @@ export type SceneInput = {
   mode: Mode
   scopeGroupId: string | null
   gridVisible: boolean
+  /** 격자 간격(cm, 없으면 10) */
+  gridStep?: number
   /** 캔버스 크기(px). 있으면 격자를 보이는 영역 전체에 깔고, 없거나 0이면 외곽 bbox 안에만 깝니다(계약에 더한 선택 필드). */
   size?: Size
   /** 만들기 화면에서 외곽이 아직 없음(Plan 4.1 판단 Q1): 텐트를 그리지 않고 격자 원점 = 월드 원점 */
@@ -223,7 +233,7 @@ export function buildScene(input: SceneInput): Scene {
           ? fitBBoxFor(layout, true)
           : ringBBox(outerRing(layout.tent))
     const origin = drawGridOrigin(layout.tent, pending)
-    grid = gridLevels(zoom).map((level) => ({ level, lines: gridLines(bbox, origin, level) }))
+    grid = gridLevels(zoom, input.gridStep).map((level) => ({ ...level, lines: gridLines(bbox, origin, level.step) }))
   }
 
   if (pending) {

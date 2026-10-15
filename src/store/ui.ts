@@ -4,6 +4,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { MeasureTarget } from '../core/measure'
 import type { Layout, Pt } from '../core/model'
 import { targetWorldRing, type TentTarget } from '../core/ops/tent'
+import { validGridStep } from '../core/snap'
 import { clampZoom, fitView, zoomAt as zoomViewAt, type BBox, type Insets, type Size, type View } from '../view/viewport'
 
 export type PointerKind = 'mouse' | 'pen' | 'touch'
@@ -47,6 +48,8 @@ export type UiState = {
   insets: Insets // 시트·배너 높이(맞춤 보기에서 뺌)
   snapEnabled: boolean
   gridVisible: boolean
+  /** 격자 간격(cm, 1~1000, 확대·축소와 무관). 그리기·꼭짓점·물건 맞춤과 격자 표시가 함께 씁니다(소유자 요청 2026-10-15). */
+  gridStep: number
   pointer: PointerKind // 마지막 pointerdown의 pointerType
   canvasPressed: boolean // 캔버스를 누르고 있는 동안 true(이때는 시트를 따라 화면을 옮기지 않음)
   revealRequest: number // 새로 만든 물건을 보이게 해 달라는 요청 번호(셸이 바뀔 때마다 선택을 시트 위로 옮김)
@@ -117,6 +120,7 @@ export type UiState = {
         | 'selectToggle'
         | 'snapEnabled'
         | 'gridVisible'
+        | 'gridStep'
         | 'mobileSheet'
         | 'desktopPanel'
         | 'areaExpanded'
@@ -192,7 +196,7 @@ function vertexCountOf(layout: Layout, target: TentTarget): number | null {
 }
 
 export function createUiStore(
-  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'view' | 'size' | 'pointer'>>,
+  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'gridStep' | 'view' | 'size' | 'pointer'>>,
 ): UiStore {
   // 토스트 번호. 지운 뒤에도 줄지 않아서, 같은 문구를 다시 띄워도 새 id가 됩니다.
   let toastSeq = 0
@@ -214,6 +218,7 @@ export function createUiStore(
       insets: { top: 0, bottom: 0 },
       snapEnabled: init?.snapEnabled ?? true,
       gridVisible: init?.gridVisible ?? true,
+      gridStep: validGridStep(init?.gridStep),
       pointer: init?.pointer ?? 'mouse',
       canvasPressed: false,
       revealRequest: 0,

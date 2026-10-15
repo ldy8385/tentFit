@@ -3,6 +3,7 @@
 // 끌기면 tentDragStep으로 미리보기와 커밋 값을 얻습니다. 문서는 Board가 손을 뗄 때 tentActions로 한 번만 바꿉니다.
 import type { Layout, Pt, Tent } from '../../core/model'
 import type { TentTarget } from '../../core/ops/tent'
+import { snapToGrid } from '../../core/polygonEdit'
 import { tentTargetBlocked, type PointerKind, type TentLock } from '../../store/ui'
 import { TAP_SLOP } from '../gestures'
 import {
@@ -171,7 +172,7 @@ export function tentDragStep(
   drag: TentDrag,
   screen: Pt,
   view: View,
-  opts?: { axisLock?: boolean },
+  opts?: { axisLock?: boolean; grid?: { origin: Pt; step: number } | null },
 ): { preview: TentPreview; commit: TentDragCommit | null } {
   const w = screenToWorld(view, screen)
   // 상하좌우로만(Shift·[상하좌우] 토글): 누른 점 기준 이동량이 큰 축만 남깁니다.
@@ -187,10 +188,16 @@ export function tentDragStep(
     return { preview: { target, tent: r.tent, invalid }, commit }
   }
   const d = tentDragDelta({ dx: rx, dy: ry, layout, target: drag.target })
-  const world: Pt = [drag.from[0] + d.dx, drag.from[1] + d.dy]
+  let world: Pt = [drag.from[0] + d.dx, drag.from[1] + d.dy]
+  // 격자 맞춤(소유자 요청 2026-10-15, 그리기와 같은 격자): 상하좌우로만이면 움직이는 축만 맞춥니다.
+  const grid = opts?.grid
+  if (grid != null) {
+    const g = snapToGrid(world, grid.origin, grid.step)
+    world = opts?.axisLock === true ? [rx === 0 ? world[0] : g[0], ry === 0 ? world[1] : g[1]] : g
+  }
   const r = previewVertexDrag(layout, drag.target, drag.index, world)
   const invalid = r.issues.length > 0
-  const moved = Math.abs(d.dx) >= TENT_MOVE_EPS_CM || Math.abs(d.dy) >= TENT_MOVE_EPS_CM
+  const moved = Math.abs(world[0] - drag.from[0]) >= TENT_MOVE_EPS_CM || Math.abs(world[1] - drag.from[1]) >= TENT_MOVE_EPS_CM
   const exists = drag.target === 'outer' || innerExists(layout, drag.target.innerId)
   const commit: TentDragCommit | null =
     !invalid && moved && exists ? { kind: 'vertex', target: drag.target, index: drag.index, world } : null

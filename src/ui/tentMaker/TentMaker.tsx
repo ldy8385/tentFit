@@ -22,7 +22,7 @@ import { useFocusTrap } from '../common/useFocusTrap'
 import { NAME_MAX_LENGTH } from '../fields/limits'
 import { TextField } from '../fields/TextField'
 import { ScaleBarView, ToastHost, ZoomControls } from '../shell/CanvasOverlay'
-import { BackdropControl } from '../shell/BackdropControl'
+import { CornerControls } from '../shell/GridStepControl'
 import { BackIcon, RedoIcon, UndoIcon } from '../shell/icons'
 import { useRevealOnSheet, useSheetInsets } from '../shell/sheetHooks'
 import { useIsDesktop } from '../shell/useIsDesktop'
@@ -329,7 +329,7 @@ function MakerCanvas(p: { desktop: boolean; step: 1 | 2; nameField: JSX.Element 
       </div>
       <div className="shell-overlay" style={style}>
         <ScaleBarView zoom={zoom} />
-        <BackdropControl />
+        <CornerControls />
         {p.desktop && <ZoomControls zoom={zoom} />}
         {p.desktop && drawing && <DrawTools variant="bar" />}
         <div className="shell-toast">

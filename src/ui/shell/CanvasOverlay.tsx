@@ -14,7 +14,7 @@ import { ToastView } from '../common/Toast'
 import { DrawTools } from '../tent/DrawTools'
 import { openSwapTent, SwapTentDialog } from '../tent/SwapTentDialog'
 import { MeasurePanel } from '../area/MeasurePanel'
-import { BackdropControl } from './BackdropControl'
+import { CornerControls } from './GridStepControl'
 import { ItemMakerHost } from './ItemMakerHost'
 import { PngDialog } from './PngDialog'
 import { emptyCardPlacement, tentScreenBox } from './emptyCardPlacement'
@@ -209,7 +209,7 @@ export function CanvasOverlay(p: { variant: Variant }) {
         />
       )}
       <ScaleBarView zoom={zoom} />
-      <BackdropControl />
+      <CornerControls />
       {p.variant === 'desktop' && <ZoomControls zoom={zoom} />}
       {/* 그리는 중 PC 그리기 막대(휴대폰은 툴바가 같은 버튼, Plan 4.1) */}
       {p.variant === 'desktop' && drawing && <DrawTools variant="bar" />}

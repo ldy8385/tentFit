@@ -40,7 +40,6 @@ import {
   setEdgeLength,
   setVertexAngle,
   snapDrawPoint,
-  DRAW_RIGHT_ANGLE_DEG,
 } from '../core/polygonEdit'
 import {
   attachBBoxToWall,
@@ -543,9 +542,12 @@ export function appendDrawPoint(stores: Stores, rawWorld: Pt, opts?: { right?: b
   if (drawing === null) return false
   const pts = drawing.points
   const origin = drawGridOrigin(stores.doc.getState().layout.tent, ui.outerPending)
-  // 상하좌우로만(Shift·[상하좌우] 토글)이면 방향 단위 90°
-  const p = snapDrawPoint(pts[pts.length - 1] ?? null, rawWorld, origin, opts?.right === true ? DRAW_RIGHT_ANGLE_DEG : undefined)
+  // 격자 교차점에(상하좌우로만 = Shift·[상하좌우] 토글이면 앞 점의 가로·세로줄 위)
+  const last = pts[pts.length - 1] ?? null
+  const p = snapDrawPoint(last, rawWorld, origin, ui.gridStep, opts?.right === true)
   if (!inRange(p[0], LIMITS.coord) || !inRange(p[1], LIMITS.coord)) return false
+  // 같은 격자점을 다시 누름: 조용히 무시(겹침 안내 없음)
+  if (last !== null && samePoint(last, p)) return false
   if (pts.length >= 3 && samePoint(pts[0], p)) return finishDrawing(stores).ok
   if (segmentCrosses(pts, p)) {
     ui.showToast(CROSS_MESSAGE)

@@ -61,26 +61,27 @@ function input(layout: Layout, over: Partial<SceneInput> = {}): SceneInput {
   }
 }
 
-describe('gridLevels', () => {
-  it('화면 간격이 6px 이상인 단계만 촘촘한 것부터 돌려준다', () => {
+describe('gridLevels(격자 간격 = 가는 선, 10배 = 굵은 선, 소유자 요청 2026-10-15)', () => {
+  const lv = (step: number, strong: boolean) => ({ step, strong })
+  it('기본 10cm: 10cm 가는 선 + 100cm 굵은 선, 확대·축소와 무관한 간격', () => {
     expect(GRID_MIN_SPACING_PX).toBe(6)
-    expect(gridLevels(1)).toEqual([10, 50, 100])
-    expect(gridLevels(0.2)).toEqual([50, 100])
-    expect(gridLevels(0.1)).toEqual([100])
+    expect(gridLevels(1)).toEqual([lv(10, false), lv(100, true)])
+    expect(gridLevels(0.6)).toEqual([lv(10, false), lv(100, true)])
   })
 
-  it('10cm 단계는 0.6px/cm(간격 정확히 6px)까지 보이고 그보다 작으면 숨긴다', () => {
-    expect(gridLevels(0.6)).toEqual([10, 50, 100])
-    expect(gridLevels(0.59)).toEqual([50, 100])
-    expect(gridLevels(0.12)).toEqual([50, 100])
-    expect(gridLevels(0.119)).toEqual([100])
+  it('화면 간격이 6px보다 좁으면 10배씩 올려 그림(맞춤 간격은 그대로)', () => {
+    expect(gridLevels(0.59)).toEqual([lv(100, false), lv(1000, true)])
+    expect(gridLevels(1, 1)).toEqual([lv(10, false), lv(100, true)])
+    expect(gridLevels(10, 1)).toEqual([lv(1, false), lv(10, true)])
+    expect(gridLevels(1, 1000)).toEqual([lv(1000, false), lv(10000, true)])
   })
 
-  it('zoom이 0·음수·NaN·Infinity면 빈 배열', () => {
+  it('zoom이 0·음수·NaN·Infinity면 빈 배열, 간격이 잘못되면 10cm', () => {
     expect(gridLevels(0)).toEqual([])
     expect(gridLevels(-1)).toEqual([])
     expect(gridLevels(Number.NaN)).toEqual([])
     expect(gridLevels(Number.POSITIVE_INFINITY)).toEqual([])
+    expect(gridLevels(1, 0)).toEqual([lv(10, false), lv(100, true)])
   })
 })
 
@@ -268,8 +269,11 @@ describe('buildScene — 격자', () => {
 
   it('보이는 영역 전체에 깔고, 선은 외곽 bbox 왼쪽 위(−300,−150)에 맞춘다', () => {
     const scene = buildScene(input(layoutWith(goldenTent(), []), { view, size }))
-    expect(scene.grid.map((g) => g.level)).toEqual([10, 50, 100])
-    const meter = scene.grid.find((g) => g.level === 100)?.lines ?? []
+    expect(scene.grid.map((g) => [g.step, g.strong])).toEqual([
+      [10, false],
+      [100, true],
+    ])
+    const meter = scene.grid.find((g) => g.step === 100)?.lines ?? []
     const xs = meter.filter((l) => l[0] === l[2]).map((l) => l[0])
     const ys = meter.filter((l) => l[1] === l[3]).map((l) => l[1])
     expect(xs).toEqual([-400, -300, -200, -100, 0, 100, 200, 300, 400])
@@ -278,16 +282,18 @@ describe('buildScene — 격자', () => {
     expect(meter[0]).toEqual([-400, -300, -400, 300])
   })
 
-  it('확대 배율에 따라 단계를 고른다(0.3px/cm면 10cm 숨김)', () => {
-    const scene = buildScene(input(layoutWith(goldenTent(), []), { view: { zoom: 0.3, panX: 0, panY: 0 }, size }))
-    expect(scene.grid.map((g) => g.level)).toEqual([50, 100])
+  it('격자 간격(gridStep)을 따르고, 화면에서 너무 촘촘하면 10배로 그린다', () => {
+    const fine = buildScene(input(layoutWith(goldenTent(), []), { view, size, gridStep: 50 }))
+    expect(fine.grid.map((g) => g.step)).toEqual([50, 500])
+    const far = buildScene(input(layoutWith(goldenTent(), []), { view: { zoom: 0.3, panX: 0, panY: 0 }, size }))
+    expect(far.grid.map((g) => g.step)).toEqual([100, 1000])
   })
 
   it('크기가 없거나 0이면 외곽 bbox 안에만 깐다', () => {
     const noSize = buildScene(input(layoutWith(goldenTent(), []), { view }))
     const zero = buildScene(input(layoutWith(goldenTent(), []), { view, size: { width: 0, height: 0 } }))
     for (const scene of [noSize, zero]) {
-      const meter = scene.grid.find((g) => g.level === 100)?.lines ?? []
+      const meter = scene.grid.find((g) => g.step === 100)?.lines ?? []
       expect(meter.filter((l) => l[0] === l[2]).map((l) => l[0])).toEqual([-300, -200, -100, 0, 100, 200, 300])
     }
   })
@@ -312,7 +318,7 @@ describe('buildScene — 외곽 없음(만들기 화면 단계 ① 처음, Plan 
     expect(scene.tentVisible).toBe(false)
     expect(scene.inners).toEqual([])
     expect(scene.pieces).toEqual([])
-    const coarse = scene.grid.find((g) => g.level === 100)
+    const coarse = scene.grid.find((g) => g.step === 100)
     expect(coarse?.lines.some((l) => l[0] === 0 && l[2] === 0)).toBe(true)
     expect(coarse?.lines[0]).toEqual([-300, -300, -300, 300])
   })

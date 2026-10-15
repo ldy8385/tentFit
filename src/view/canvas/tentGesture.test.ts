@@ -188,6 +188,15 @@ describe('tentDragStep — 미리보기와 커밋할 값', () => {
     expect(r.preview.tent.outer.kind).toBe('polygon')
   })
 
+  it('꼭짓점 끌기 격자 맞춤: 놓을 자리를 격자 교차점에, 상하좌우로만이면 움직이는 축만', () => {
+    const drag = tentDragFor({ kind: 'vertex', target: 'outer', index: 1, world: [500, -200] }, 3, 'mouse', [500, -200], VIEW1) as TentDrag
+    const grid = { origin: [-500, -200] as [number, number], step: 50 }
+    expect(tentDragStep(LAYOUT, drag, [562, -238], VIEW1, { grid }).commit).toMatchObject({ world: [550, -250] })
+    expect(tentDragStep(LAYOUT, drag, [562, -212], VIEW1, { grid, axisLock: true }).commit).toMatchObject({ world: [550, -200] })
+    // 격자 자리가 원래 자리면 커밋 없음
+    expect(tentDragStep(LAYOUT, drag, [512, -188], VIEW1, { grid }).commit).toBeNull()
+  })
+
   it('꼭짓점을 자기교차로 끌면 invalid·커밋 없음', () => {
     const drag = tentDragFor({ kind: 'vertex', target: 'outer', index: 0, world: [-500, -200] }, 3, 'mouse', [-500, -200], VIEW1) as TentDrag
     const r = tentDragStep(LAYOUT, drag, [0, 400], VIEW1)

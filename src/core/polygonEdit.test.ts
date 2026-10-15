@@ -12,7 +12,7 @@ import {
   segmentCrosses,
   setEdgeLength,
   setVertexAngle,
-  snapDrawPoint, centerVertex } from './polygonEdit'
+  snapDrawPoint, snapToGrid, centerVertex } from './polygonEdit'
 
 function close(a: Pt[], b: Pt[], tol = 1e-9): void {
   expect(a.length).toBe(b.length)
@@ -172,23 +172,23 @@ describe('drawGridOrigin', () => {
   })
 })
 
-describe('snapDrawPoint(설계 §2.2 맞춤)', () => {
-  it('첫 점: 격자 원점 기준 10cm 격자', () => {
+describe('snapDrawPoint(격자 교차점 맞춤, 소유자 요청 2026-10-15)', () => {
+  it('모든 점을 원점 기준 격자 교차점에(기본 10cm)', () => {
     expect(snapDrawPoint(null, [123.4, -56.7], [0, 0])).toEqual([120, -60])
     expect(snapDrawPoint(null, [123.4, -56.7], [-203, -103])).toEqual([127, -53])
+    // 대각선도 각도·길이가 아니라 교차점에
+    expect(snapDrawPoint([0, 0], [96.4, 103.4], [0, 0])).toEqual([100, 100])
+    expect(snapDrawPoint([0, 0], [296, 8], [0, 0])).toEqual([300, 10])
   })
 
-  it('다음 점: 방향 15° 단위, 길이 10cm 단위, 0.1cm 반올림', () => {
-    expect(snapDrawPoint([0, 0], [296, 8], [0, 0])).toEqual([300, 0])
-    expect(snapDrawPoint([100, 100], [103, 397], [0, 0])).toEqual([100, 400])
-    // 47° → 45°, 길이 141.4 → 140
-    const p = snapDrawPoint([0, 0], [96.4, 103.4], [0, 0])
-    expect(p[0]).toBeCloseTo(99, 0)
-    expect(p).toEqual([Math.round(140 * Math.SQRT1_2 * 10) / 10, Math.round(140 * Math.SQRT1_2 * 10) / 10])
+  it('격자 간격을 따름(1cm·50cm), 0.1cm 반올림', () => {
+    expect(snapDrawPoint([0, 0], [12.4, 7.6], [0, 0], 1)).toEqual([12, 8])
+    expect(snapDrawPoint(null, [80, -20], [-129.9, 0], 50)).toEqual([70.1, 0])
   })
 
-  it('길이는 최소 10cm', () => {
-    expect(snapDrawPoint([0, 0], [3, 0.3], [0, 0])).toEqual([10, 0])
+  it('잘못된 간격이면 10cm', () => {
+    expect(snapDrawPoint(null, [14, 16], [0, 0], 0)).toEqual([10, 20])
+    expect(snapDrawPoint(null, [14, 16], [0, 0], Number.NaN)).toEqual([10, 20])
   })
 })
 
@@ -254,11 +254,12 @@ describe('centerPolygon·minEdgeLength', () => {
   })
 })
 
-describe('snapDrawPoint — 상하좌우로만(각도 단위 90°)', () => {
-  it('각도 단위를 90°로 주면 0·90·180·270°로만 맞춘다', () => {
-    expect(snapDrawPoint([0, 0], [100, 30], [0, 0], 90)).toEqual([100, 0])
-    expect(snapDrawPoint([0, 0], [20, -150], [0, 0], 90)).toEqual([0, -150])
-    expect(snapDrawPoint([0, 0], [100, 30], [0, 0])).toEqual([Math.round(100 * Math.cos(Math.PI / 12) * 10) / 10, Math.round(100 * Math.sin(Math.PI / 12) * 10) / 10])
+describe('snapDrawPoint — 상하좌우로만', () => {
+  it('앞 점을 지나는 가로·세로줄 위에서 움직이는 축만 격자에(남는 축은 앞 점 그대로)', () => {
+    expect(snapDrawPoint([0, 0], [104, 30], [0, 0], 10, true)).toEqual([100, 0])
+    expect(snapDrawPoint([0, 0], [20, -147], [0, 0], 10, true)).toEqual([0, -150])
+    expect(snapDrawPoint([3.3, 0], [20, -147], [0, 0], 10, true)).toEqual([3.3, -150])
+    expect(snapDrawPoint(null, [104, 30], [0, 0], 10, true)).toEqual([100, 30])
   })
 })
 
@@ -298,5 +299,13 @@ describe('centerVertex(뾰족한 끝 가운데 맞추기, 2026-10-15)', () => {
     ]
     expect(centerVertex(notch, 3)[3]).toEqual([50, 60])
     expect(centerVertex(notch, 9)).toEqual(notch)
+  })
+})
+
+describe('snapToGrid', () => {
+  it('원점 기준 간격 격자의 가장 가까운 교차점(0.1cm)', () => {
+    expect(snapToGrid([14.9, -5.1], [0, 0], 10)).toEqual([10, -10])
+    expect(snapToGrid([0.4, 0.6], [0.5, 0.5], 1)).toEqual([0.5, 0.5])
+    expect(snapToGrid([620, 0], [0, 0], 1000)).toEqual([1000, 0])
   })
 })

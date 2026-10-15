@@ -27,7 +27,7 @@ import {
   tentControlsEnabled,
 } from '../../app/tentActions'
 import { LIMITS, normAngle, round1, type Item, type Layout, type Pt, type Shape } from '../../core/model'
-import { DRAW_ANGLE_STEP_DEG, DRAW_RIGHT_ANGLE_DEG, drawGridOrigin } from '../../core/polygonEdit'
+import { drawGridOrigin } from '../../core/polygonEdit'
 import { expandSelection } from '../../core/ops/groups'
 import { applyTransform, moveItems } from '../../core/ops/items'
 import { worldRing } from '../../core/geom'
@@ -38,9 +38,9 @@ import { THEME } from '../../ui/theme'
 import { GestureArbiter, TAP_SLOP, type GestureOutput, type PointerSample } from '../gestures'
 import { buildScene } from '../scene'
 import { INVALID_EDIT_STYLE } from '../tentEdit'
-import { fitBBoxFor, screenToWorld, wheelAction, worldToScreen, type View } from '../viewport'
+import { fitBBoxFor, screenToWorld, wheelAction, type View } from '../viewport'
 import { axisBoundPosition } from '../axisLock'
-import { drawTapEffect, lengthLabel, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
+import { drawTapEffect, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
 import { DimOverlay } from './DimOverlay'
 import { DrawLayer } from './DrawLayer'
 import { itemsInRect, rectFromCorners } from './marquee'
@@ -105,7 +105,7 @@ export function snapOn(enabled: boolean, alt: boolean): boolean {
 }
 
 /** 끌기 시작 때 자석 맞춤 준비: 붙을 대상(끄는 물건 빼고), 끄는 물건 고리(원은 격자용 상자만), 모두 0·90·180·270°인지 */
-function snapPrepFor(layout: Layout, ids: string[]): { ctx: SnapContext; rings: Pt[][]; gridRings: Pt[][]; axisAligned: boolean; lock: SnapLock } {
+function snapPrepFor(layout: Layout, ids: string[], gridStep: number): { ctx: SnapContext; rings: Pt[][]; gridRings: Pt[][]; axisAligned: boolean; lock: SnapLock } {
   const set = new Set(ids)
   const moving = layout.items.filter((it) => set.has(it.id))
   const rings: Pt[][] = []
@@ -126,7 +126,7 @@ function snapPrepFor(layout: Layout, ids: string[]): { ctx: SnapContext; rings: 
     }
   }
   const axisAligned = moving.every((it) => it.shape.kind === 'circle' || it.rotation % 90 === 0)
-  return { ctx: buildSnapContext(layout, { exclude: set, mode: 'items' }), rings, gridRings, axisAligned, lock: {} }
+  return { ctx: buildSnapContext(layout, { exclude: set, mode: 'items', gridStep }), rings, gridRings, axisAligned, lock: {} }
 }
 
 /** 캔버스 위 DOM 조작 층(치수 숫자·입력 등, [data-canvas-ui]) 안의 이벤트인지. 그 누름은 캔버스 제스처로 보내지 않습니다. */
@@ -687,6 +687,13 @@ class BoardController {
   }
 
   /** 끄는 중: 경계를 넘으면 제스처를 열고, 매 이동마다 미리보기를 그립니다(문서는 그대로). */
+  /** 꼭짓점 끌기 격자 맞춤(그리기와 같은 격자): 자석 맞춤이 켜졌을 때만(Alt로 반대) */
+  private vertexGrid(): { origin: Pt; step: number } | null {
+    const ui = this.stores.ui.getState()
+    if (!snapOn(ui.snapEnabled, this.altDown)) return null
+    return { origin: drawGridOrigin(this.stores.doc.getState().layout.tent, ui.outerPending), step: ui.gridStep }
+  }
+
   private dragTent(pointerId: number, p: Pt): void {
     const drag = this.tentDrag
     if (drag === null || drag.pointerId !== pointerId || this.arbiter.pointerCount !== 1) return
@@ -697,7 +704,7 @@ class BoardController {
       this.openGesture()
     }
     const ui = this.stores.ui.getState()
-    const { preview } = tentDragStep(this.stores.doc.getState().layout, drag, p, ui.view, { axisLock: this.axisLocked() })
+    const { preview } = tentDragStep(this.stores.doc.getState().layout, drag, p, ui.view, { axisLock: this.axisLocked(), grid: this.vertexGrid() })
     this.overlay.setState({ tentPreview: preview })
   }
 
@@ -714,6 +721,7 @@ class BoardController {
     if (!live) return
     const { commit } = tentDragStep(this.stores.doc.getState().layout, drag, p, this.stores.ui.getState().view, {
       axisLock: this.axisLocked(),
+      grid: this.vertexGrid(),
     })
     this.overlay.setState({ tentPreview: null })
     this.closeGesture()
@@ -863,7 +871,7 @@ class BoardController {
     const ui = this.stores.ui.getState()
     const layout = this.stores.doc.getState().layout
     const ids = ui.selection.includes(id) ? [...ui.selection] : expandSelection(layout, [id], ui.scopeGroupId ?? undefined)
-    this.snap = snapPrepFor(layout, ids)
+    this.snap = snapPrepFor(layout, ids, this.stores.ui.getState().gridStep)
     this.beginSession({ kind: 'drag', leadId: id, ids })
   }
 
@@ -990,49 +998,11 @@ function DrawEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | nul
   const view = useUi((s) => s.view)
   const outerPending = useUi((s) => s.outerPending)
   const tent = useDoc((s) => s.layout.tent)
+  const gridStep = useUi((s) => s.gridStep)
   const ptr = useStore(props.overlay, (s) => s.drawPointer)
   if (drawing === null) return null
-  const rubber =
-    ptr === null
-      ? null
-      : rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending), ptr.right ? DRAW_RIGHT_ANGLE_DEG : DRAW_ANGLE_STEP_DEG)
+  const rubber = ptr === null ? null : rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending), gridStep, ptr.right)
   return <DrawLayer drawing={drawing} rubber={rubber} zoom={view.zoom} />
-}
-
-/** 고무줄 길이 배지(DOM — 화면 테스트·낭독이 바로 읽음). 고무줄 가운데 조금 위 */
-function DrawLengthBadge(props: { overlay: StoreApi<Overlay> }): JSX.Element | null {
-  const drawing = useUi((s) => s.drawing)
-  const view = useUi((s) => s.view)
-  const outerPending = useUi((s) => s.outerPending)
-  const tent = useDoc((s) => s.layout.tent)
-  const ptr = useStore(props.overlay, (s) => s.drawPointer)
-  if (drawing === null || ptr === null) return null
-  const r = rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending), ptr.right ? DRAW_RIGHT_ANGLE_DEG : DRAW_ANGLE_STEP_DEG)
-  if (r.from === null || r.lengthCm === null) return null
-  const a = worldToScreen(view, r.from)
-  const b = worldToScreen(view, r.to)
-  return (
-    <div
-      data-testid="draw-length-badge"
-      style={{
-        position: 'absolute',
-        left: (a[0] + b[0]) / 2,
-        top: (a[1] + b[1]) / 2 - BADGE_GAP_PX,
-        transform: 'translate(-50%, -100%)',
-        padding: '2px 6px',
-        borderRadius: 4,
-        background: THEME['text-primary'],
-        color: THEME['text-inverse'],
-        fontSize: 12,
-        lineHeight: '16px',
-        fontVariantNumeric: 'tabular-nums',
-        whiteSpace: 'nowrap',
-        pointerEvents: 'none',
-      }}
-    >
-      {lengthLabel(r.lengthCm)}
-    </div>
-  )
 }
 
 /** 자석 맞춤 안내선: 붙은 대상 변을 점선으로(§4.6) */
@@ -1199,7 +1169,6 @@ function BoardOverlay(props: { store: StoreApi<Overlay> }): JSX.Element {
           {badge.text}
         </div>
       )}
-      <DrawLengthBadge overlay={props.store} />
     </>
   )
 }
@@ -1214,6 +1183,7 @@ export function Board(): JSX.Element {
   const mode = useUi((s) => s.mode)
   const scopeGroupId = useUi((s) => s.scopeGroupId)
   const gridVisible = useUi((s) => s.gridVisible)
+  const gridStep = useUi((s) => s.gridStep)
   const selection = useUi((s) => s.selection)
   const pointer = useUi((s) => s.pointer)
   const drawing = useUi((s) => s.drawing)
@@ -1232,8 +1202,8 @@ export function Board(): JSX.Element {
   const ctl = useMemo(() => new BoardController(stores, overlay, setActiveIds), [stores, overlay])
 
   const scene = useMemo(
-    () => buildScene({ layout, zones, stats, view, mode, scopeGroupId, gridVisible, size, outerPending }),
-    [layout, zones, stats, view, mode, scopeGroupId, gridVisible, size, outerPending],
+    () => buildScene({ layout, zones, stats, view, mode, scopeGroupId, gridVisible, gridStep, size, outerPending }),
+    [layout, zones, stats, view, mode, scopeGroupId, gridVisible, gridStep, size, outerPending],
   )
   const dim = useMemo(
     () => tentDim(tentLock, drawing, layout.tent.inners.map((it) => it.id)),
@@ -1368,7 +1338,7 @@ export function Board(): JSX.Element {
         <Layer listening={false}>
           <BackdropImage />
           {scene.grid.map((g) => (
-            <GridShape key={g.level} level={g.level} lines={g.lines} />
+            <GridShape key={g.step} strong={g.strong} lines={g.lines} />
           ))}
         </Layer>
         {/* 텐트 입력은 Konva 히트가 아니라 컨트롤러의 순수 판정으로 받습니다(외곽은 채움이 없음, R19). */}

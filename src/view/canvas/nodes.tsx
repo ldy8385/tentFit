@@ -6,7 +6,7 @@ import { Circle, Group, Line, Rect, Shape as KShape, Text } from 'react-konva'
 import { hasRadii, shapeRing } from '../../core/geom'
 import type { Pt, Shape } from '../../core/model'
 import { THEME } from '../../ui/theme'
-import type { GridLevel, InnerNode, ItemNode, PieceNode, Scene } from '../scene'
+import type { InnerNode, ItemNode, PieceNode, Scene } from '../scene'
 import type { TentDim } from './drawGesture'
 import { itemWorldBBox } from './marquee'
 
@@ -26,11 +26,11 @@ const HATCH_SPACING_PX = 6
 const HATCH_MAX_LINES = 3000
 const BADGE_R_PX = 8
 
-const GRID_STYLE: Record<GridLevel, { stroke: string; width: number }> = {
-  10: { stroke: THEME['grid-fine'], width: 1 },
-  50: { stroke: THEME['grid-mid'], width: 1 },
-  100: { stroke: THEME['grid-strong'], width: 1.5 },
-}
+/** 가는 선 = 격자 간격, 굵은 선 = 그 10배(소유자 요청 2026-10-15) */
+const GRID_STYLE = {
+  fine: { stroke: THEME['grid-fine'], width: 1 },
+  strong: { stroke: THEME['grid-strong'], width: 1.5 },
+} as const
 
 type GeomStyle = Omit<Konva.ShapeConfig, 'x' | 'y' | 'rotation' | 'sceneFunc'>
 
@@ -92,8 +92,8 @@ function tracePath(ctx: Konva.Context, shape: Shape): void {
 }
 
 /** 한 격자 단계를 경로 하나로 그립니다(선마다 노드를 만들지 않음). */
-export function GridShape(props: { level: GridLevel; lines: number[][] }): JSX.Element {
-  const style = GRID_STYLE[props.level]
+export function GridShape(props: { strong: boolean; lines: number[][] }): JSX.Element {
+  const style = props.strong ? GRID_STYLE.strong : GRID_STYLE.fine
   const { lines } = props
   return (
     <KShape

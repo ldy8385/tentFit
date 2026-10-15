@@ -1,9 +1,56 @@
-/* 배경 이미지 컨트롤(소유자 요청 2026-10-14). 캔버스 오른쪽 위. */
-.tf-backdrop {
+/* 캔버스 오른쪽 위 묶음: [격자 ○cm] [배경 이미지](소유자 요청 2026-10-14·10-15) */
+.tf-corner {
   position: absolute;
   top: calc(var(--overlay-top, 0px) + 16px);
   right: 16px;
   z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  pointer-events: none;
+}
+
+.tf-corner > * {
+  pointer-events: auto;
+}
+
+.tf-gridstep {
+  position: relative;
+}
+
+.tf-gridstep .tf-gridstep__panel {
+  position: absolute;
+  top: calc(100% + var(--sp-2));
+  right: 0;
+  width: 248px;
+}
+
+.tf-gridstep__presets {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.tf-gridstep__presets .tf-btn {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  font-size: 12px;
+}
+
+.tf-gridstep__presets .tf-btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tf-gridstep__hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* 배경 이미지 컨트롤(소유자 요청 2026-10-14) */
+.tf-backdrop {
   display: flex;
   flex-direction: column;
   align-items: flex-end;

@@ -124,7 +124,7 @@ test.describe('텐트 만들기 화면(그리기 두 단계, Plan 4.1)', () => {
     await expect(makerTools(page)).toBeInViewport({ ratio: 1 })
     await expect(makerField(page, '텐트 이름')).toBeInViewport({ ratio: 1 })
 
-    // 자유 그리기: 탭 = 점(첫 점 10cm 격자, 다음 점 15°·10cm), 마우스 hover 고무줄 + 길이 배지
+    // 자유 그리기: 탭 = 점(모든 점 10cm 격자 교차점), 그리는 동안 길이 배지 없음(모양을 닫은 뒤 치수 입력)
     await startMakerDrawing(page)
     await expect(page.getByRole('toolbar', { name: '그리기' })).toBeVisible()
     const pts: Pt[] = [
@@ -136,7 +136,7 @@ test.describe('텐트 만들기 화면(그리기 두 단계, Plan 4.1)', () => {
     await drawPoints(page, pts.slice(0, 3), MAKER_HOOK)
     const hover = await worldToClient(page, -290, 170, MAKER_HOOK)
     await page.mouse.move(hover.x, hover.y)
-    await expect(page.getByTestId('draw-length-badge')).toHaveText('590 cm')
+    await expect(page.getByTestId('draw-length-badge')).toHaveCount(0)
     await tapWorld(page, pts[3]!, MAKER_HOOK)
     expect((await getUi(page, MAKER_HOOK)).drawing?.points).toEqual(pts)
     expect((await getDoc(page, MAKER_HOOK)).canUndo).toBe(false) // 그리는 점은 기록 밖
@@ -325,7 +325,8 @@ test.describe('텐트 편집 모드', () => {
     expect(doc.inGesture).toBe(false)
     expect(doc.layout.tent.outer.kind).toBe('polygon') // 꼭짓점을 끌면 자유 다각형(§4.4-6)
     expect(doc.layout.tent.outerTemplate).toBeUndefined()
-    expect(near(await vertexWorld(page, 'outer', 1), [310 + 40 / zoom, -160 - 30 / zoom])).toBe(true)
+    // 놓은 자리는 10cm 격자 교차점(원점 = 외곽 왼쪽 위 (−310, −160), 소유자 요청 2026-10-15)
+    expect(await vertexWorld(page, 'outer', 1)).toEqual([310 + Math.round(40 / zoom / 10) * 10, -160 - Math.round(30 / zoom / 10) * 10])
     expect((await getUi(page)).vertexIndex).toBe(1)
 
     await page.keyboard.press('ControlOrMeta+z')

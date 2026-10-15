@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Drawing } from '../../store/ui'
 import type { View } from '../viewport'
-import { drawTapEffect, lengthLabel, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
+import { drawTapEffect, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
 
 /** 화면 = 월드 × 2 + (100, 50) */
 const V: View = { zoom: 2, panX: 100, panY: 50 }
@@ -24,18 +24,14 @@ describe('drawTapEffect(설계 §2.2 탭 = 점, 첫 점 다시 누르기 = 닫�
 })
 
 describe('rubberBand(고무줄 = 탭으로 찍힐 점과 같은 맞춤)', () => {
-  it('점이 없으면 첫 점 격자 맞춤 자리만, 길이 없음', () => {
-    expect(rubberBand({ goal: 'outer', points: [] }, [123, 77], 'mouse', V, [0, 0])).toEqual({
-      from: null,
-      to: [10, 10],
-      lengthCm: null,
-      closes: false,
-    })
+  it('점이 없으면 첫 점 격자 맞춤 자리만', () => {
+    expect(rubberBand({ goal: 'outer', points: [] }, [123, 77], 'mouse', V, [0, 0])).toEqual({ from: null, to: [10, 10], closes: false })
   })
 
-  it('마지막 점에서 15°·10cm 맞춘 끝점과 길이', () => {
-    const r = rubberBand({ goal: 'outer', points: [[0, 0]] }, [492, 74], 'mouse', V, [0, 0])
-    expect(r).toEqual({ from: [0, 0], to: [200, 0], lengthCm: 200, closes: false })
+  it('끝점 = 격자 교차점(간격·상하좌우로만을 탭과 같이)', () => {
+    expect(rubberBand({ goal: 'outer', points: [[0, 0]] }, [492, 74], 'mouse', V, [0, 0])).toEqual({ from: [0, 0], to: [200, 10], closes: false })
+    expect(rubberBand({ goal: 'outer', points: [[0, 0]] }, [492, 74], 'mouse', V, [0, 0], 50).to).toEqual([200, 0])
+    expect(rubberBand({ goal: 'outer', points: [[0, 0]] }, [492, 74], 'mouse', V, [0, 0], 1, true).to).toEqual([196, 0])
   })
 
   it('점이 3개 이상이고 첫 점 근처면 끝점 = 첫 점, closes', () => {
@@ -43,7 +39,6 @@ describe('rubberBand(고무줄 = 탭으로 찍힐 점과 같은 맞춤)', () => 
     expect(r.closes).toBe(true)
     expect(r.to).toEqual([0, 0])
     expect(r.from).toEqual([100, 100])
-    expect(r.lengthCm).toBeCloseTo(Math.SQRT2 * 100, 9)
   })
 })
 
@@ -62,13 +57,6 @@ describe('pressMoved·rubberVisible', () => {
     expect(rubberVisible({ pointer: 'touch', hovering: true, pressing: false, moved: false })).toBe(false)
     expect(rubberVisible({ pointer: 'touch', hovering: false, pressing: true, moved: false })).toBe(true)
     expect(rubberVisible({ pointer: 'touch', hovering: false, pressing: true, moved: true })).toBe(false)
-  })
-})
-
-describe('lengthLabel', () => {
-  it("0.1cm, '.0' 없음", () => {
-    expect(lengthLabel(200)).toBe('200 cm')
-    expect(lengthLabel(141.42)).toBe('141.4 cm')
   })
 })
 
@@ -95,8 +83,8 @@ describe('tentDim(잠긴 쪽·다시 그리는 원본 흐리게)', () => {
 })
 
 describe('rubberBand — 상하좌우로만', () => {
-  it('각도 단위 90°면 고무줄 끝도 가로·세로로만', () => {
-    const r = rubberBand({ goal: 'outer', points: [[0, 0]] }, [300, 110], 'mouse', V, [0, 0], 90)
+  it('right면 고무줄 끝도 가로·세로로만', () => {
+    const r = rubberBand({ goal: 'outer', points: [[0, 0]] }, [300, 110], 'mouse', V, [0, 0], 10, true)
     expect(r.to).toEqual([100, 0])
   })
 })

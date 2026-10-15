@@ -28,7 +28,15 @@ export type RotateInput = { center: Pt; localEdgeAngles: number[]; proposed: num
 // ── 상수(§6.6) ─────────────────────────────────────────────────────────
 /** 화면에서 붙는 거리(px). T(cm) = SNAP_PX / zoom */
 export const SNAP_PX = 8
+/** 기본 격자 간격(cm) */
 export const GRID_STEP = 10
+/** 고를 수 있는 격자 간격(cm, 소유자 요청 2026-10-15: 1~1000, 확대·축소와 무관) */
+export const GRID_STEP_RANGE = [1, 1000] as const
+
+/** 유효한 격자 간격이면 그대로, 아니면 기본 10cm */
+export function validGridStep(step: number | undefined): number {
+  return step !== undefined && Number.isFinite(step) && step > 0 ? step : GRID_STEP
+}
 /** 고정(lock)한 대상은 T의 이 배수까지 유지합니다(손 떨림 대비). */
 export const LOCK_FACTOR = 1.5
 const PARALLEL_DEG = 0.5
@@ -121,7 +129,7 @@ export function gridOriginOf(tent: Pick<Tent, 'outer'>): Pt {
  */
 export function buildSnapContext(
   layout: Layout,
-  opts: { exclude: Set<string>; mode: 'items' | 'inner' },
+  opts: { exclude: Set<string>; mode: 'items' | 'inner'; gridStep?: number },
 ): SnapContext {
   const tent = layout.tent
   const walls: TargetEdge[] = []
@@ -137,7 +145,7 @@ export function buildSnapContext(
       edges.push(...edgesOfRing(worldRing(item), 'item', `item:${item.id}`))
     }
   }
-  return { edges, walls, gridOrigin: gridOriginOf(tent), gridStep: GRID_STEP }
+  return { edges, walls, gridOrigin: gridOriginOf(tent), gridStep: validGridStep(opts.gridStep) }
 }
 
 // ── 이동 스냅 ──────────────────────────────────────────────────────────

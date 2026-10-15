@@ -2,8 +2,9 @@
 // 점 찍기 여부는 판정기(gestures.ts)의 tap 출력으로만 정하고, 여기서는 그 탭을 닫기·점으로 해석합니다.
 // 점 추가 검증(맞춤·교차·길이 0)과 문구는 app/tentActions(appendDrawPoint·finishDrawing)가 합니다(같은 동작 두 벌 금지).
 // 고무줄은 탭과 같은 core.snapDrawPoint를 써서 "보인 곳 = 찍힌 곳"이 됩니다.
-import { round1, type Pt } from '../../core/model'
-import { DRAW_ANGLE_STEP_DEG, snapDrawPoint } from '../../core/polygonEdit'
+import type { Pt } from '../../core/model'
+import { snapDrawPoint } from '../../core/polygonEdit'
+import { GRID_STEP } from '../../core/snap'
 import type { Drawing, PointerKind, TentLock } from '../../store/ui'
 import { TAP_SLOP } from '../gestures'
 import { VERTEX_GRAB_PX } from '../tentEdit'
@@ -23,11 +24,12 @@ export function drawTapEffect(drawing: Drawing, tap: Pt, pointer: PointerKind, v
   return { kind: 'point', raw: screenToWorld(view, tap) }
 }
 
-export type RubberBand = { from: Pt | null; to: Pt; lengthCm: number | null; closes: boolean }
+export type RubberBand = { from: Pt | null; to: Pt; closes: boolean }
 
 /**
- * 고무줄: 마지막 점(없으면 null) → 포인터에서 찍힐 점(첫 점 근처면 첫 점)과 길이(cm). origin = 첫 점 격자 원점.
- * stepDeg = 방향 단위(기본 15°, 상하좌우로만이면 90°) — 탭과 같은 값을 넘겨야 "보인 곳 = 찍힌 곳".
+ * 고무줄: 마지막 점(없으면 null) → 포인터에서 찍힐 점(첫 점 근처면 첫 점). origin = 격자 원점.
+ * step = 격자 간격, right = 상하좌우로만 — 탭과 같은 값을 넘겨야 "보인 곳 = 찍힌 곳".
+ * 그리는 동안에는 길이를 보이지 않습니다(소유자 요청 2026-10-15: 모양을 닫은 뒤 치수 입력).
  */
 export function rubberBand(
   drawing: Drawing,
@@ -35,14 +37,15 @@ export function rubberBand(
   pointer: PointerKind,
   view: View,
   origin: Pt,
-  stepDeg: number = DRAW_ANGLE_STEP_DEG,
+  step: number = GRID_STEP,
+  right = false,
 ): RubberBand {
   const pts = drawing.points
   const last = pts[pts.length - 1] ?? null
   const closes = nearFirst(drawing, pointerScreen, pointer, view)
   const first = pts[0]
-  const to: Pt = closes && first !== undefined ? [first[0], first[1]] : snapDrawPoint(last, screenToWorld(view, pointerScreen), origin, stepDeg)
-  return { from: last, to, lengthCm: last === null ? null : Math.hypot(to[0] - last[0], to[1] - last[1]), closes }
+  const to: Pt = closes && first !== undefined ? [first[0], first[1]] : snapDrawPoint(last, screenToWorld(view, pointerScreen), origin, step, right)
+  return { from: last, to, closes }
 }
 
 /** 누름이 탭/끌기 경계를 넘었는지(TAP_SLOP, max(|dx|,|dy|) — 판정기와 같은 식). 고무줄 표시에만 씁니다. */
@@ -54,11 +57,6 @@ export function pressMoved(pressStart: Pt, at: Pt, pointer: PointerKind): boolea
 export function rubberVisible(s: { pointer: PointerKind; hovering: boolean; pressing: boolean; moved: boolean }): boolean {
   if (s.pressing) return !s.moved
   return s.pointer !== 'touch' && s.hovering
-}
-
-/** 길이 배지 문구 '123 cm'(0.1cm, '.0' 없음) */
-export function lengthLabel(cm: number): string {
-  return `${String(round1(cm))} cm`
 }
 
 export type TentDim = { outer: boolean; innerIds: ReadonlySet<string> }
