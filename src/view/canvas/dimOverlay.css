@@ -35,6 +35,16 @@
   touch-action: manipulation;
 }
 
+/* 배치 모드 읽기 전용 치수: 누름은 캔버스로(물건 끌기·고르기를 막지 않음) */
+.tf-dim--readonly {
+  pointer-events: none;
+  cursor: default;
+}
+
+.tf-dims--readonly .tf-dims__svg {
+  opacity: 0.7;
+}
+
 .tf-dim::before {
   content: '';
   position: absolute;

@@ -16,7 +16,8 @@ import { KeepRatioToggle } from '../../ui/common/KeepRatioToggle'
 import { checkNumber, INPUT_FONT_PX } from '../../ui/fields/numberInput'
 import { useVisualViewport } from '../../ui/fields/useVisualViewport'
 import { useIsDesktop } from '../../ui/shell/useIsDesktop'
-import { dimModel, type DimLabel, type DimLine, type DimPlacement } from '../dimLabels'
+import { dimModel, type DimBounds, type DimLabel, type DimLine, type DimPlacement } from '../dimLabels'
+import type { View } from '../viewport'
 import '../../ui/panels/panels.css'
 import './dimOverlay.css'
 
@@ -37,6 +38,47 @@ export function activeDimSubject(
   const inner = layout.tent.inners.find((it) => it.id === target.innerId)
   if (inner === undefined) return null
   return { subject: { kind: 'tent', target }, shape: inner.shape, place: { x: inner.x, y: inner.y, rotation: inner.rotation } }
+}
+
+export type ReadonlyDim = { key: string; who: string; shape: Shape; place: DimPlacement }
+
+/**
+ * 배치 모드의 읽기 전용 치수(소유자 요청 2026-10-15: "배치 모드에서도 텐트와 오브젝트 모두 가로세로 길이 정도는"):
+ * 텐트 외곽 + 고른 물건 하나. 가로·세로(원은 지름)만, 누를 수 없습니다. 측정·그리는 중이면 없음.
+ */
+export function placeDims(ui: Pick<UiState, 'mode' | 'measuring' | 'drawing' | 'selection'>, layout: Layout): ReadonlyDim[] {
+  if (ui.mode !== 'place' || ui.measuring || ui.drawing !== null) return []
+  const out: ReadonlyDim[] = [{ key: 'tent', who: '텐트', shape: layout.tent.outer, place: { x: 0, y: 0, rotation: 0 } }]
+  const it = ui.selection.length === 1 ? layout.items.find((x) => x.id === ui.selection[0]) : undefined
+  if (it !== undefined) out.push({ key: `item:${it.id}`, who: '물건', shape: it.shape, place: { x: it.x, y: it.y, rotation: it.rotation } })
+  return out
+}
+
+/** 읽기 전용 치수 층: 가로·세로 치수선과 숫자(누름은 캔버스로 그대로) */
+function ReadonlyDims(p: { dims: ReadonlyDim[]; view: View; area: DimBounds }): JSX.Element | null {
+  const models = p.dims.map((d) => {
+    const m = dimModel(d.shape, d.place, p.view, p.area)
+    return { d, lines: m.lines, labels: m.labels.filter((l) => l.id === 'w' || l.id === 'h') }
+  })
+  if (models.every((m) => m.labels.length === 0 && m.lines.length === 0)) return null
+  return (
+    <div className="tf-dims tf-dims--readonly" data-testid="dim-overlay-readonly">
+      <DimLines lines={models.flatMap((m) => m.lines.map((l) => ({ ...l, key: `${m.d.key}:${l.id}` })))} />
+      {models.flatMap((m) =>
+        m.labels.map((l) => (
+          <span
+            key={`${m.d.key}:${l.id}`}
+            className="tf-dim tf-dim--readonly"
+            data-dim={`${m.d.key}:${l.id}`}
+            aria-label={`${m.d.who} ${l.name} ${String(l.value)}cm`}
+            style={{ left: l.at[0], top: l.at[1] }}
+          >
+            {l.text}
+          </span>
+        )),
+      )}
+    </div>
+  )
 }
 
 function subjectKey(s: DimSubject): string {
@@ -70,7 +112,7 @@ const TICK_PX = 5
 const TOP_CHIPS_DESKTOP_PX = 56
 const TOP_CHIPS_MOBILE_PX = 104
 
-function DimLines(p: { lines: DimLine[] }): JSX.Element {
+function DimLines(p: { lines: (DimLine & { key?: string })[] }): JSX.Element {
   return (
     <svg className="tf-dims__svg" aria-hidden="true">
       {p.lines.map((l) => {
@@ -81,7 +123,7 @@ function DimLines(p: { lines: DimLine[] }): JSX.Element {
         const tx = ((ux - uy) * TICK_PX) / Math.SQRT2
         const ty = ((uy + ux) * TICK_PX) / Math.SQRT2
         return (
-          <g key={l.id} data-dim-line={l.id}>
+          <g key={l.key ?? l.id} data-dim-line={l.key ?? l.id}>
             <line x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} />
             {l.ext.map(([s, e], i) => (
               <line key={i} x1={s[0]} y1={s[1]} x2={e[0]} y2={e[1]} />
@@ -108,6 +150,7 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element |
   const measuring = useUi((s) => s.measuring)
   const drawing = useUi((s) => s.drawing)
   const tentTarget = useUi((s) => s.tentTarget)
+  const selection = useUi((s) => s.selection)
   const tentLock = useUi((s) => s.tentLock)
   const outerPending = useUi((s) => s.outerPending)
   const keepRatio = useUi((s) => s.keepRatio)
@@ -136,10 +179,13 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element |
     return () => stores.ui.getState().setPolygonFocus(null)
   }, [focusKey, edit?.subject.kind, stores])
 
-  if (active === null) return null
   // 위쪽 칩(PC 모드 칩, 휴대폰 요약·모드 칩) 자리는 피합니다.
   const top = insets.top + (desktop ? TOP_CHIPS_DESKTOP_PX : TOP_CHIPS_MOBILE_PX)
   const area = { left: 0, top, right: size.width, bottom: size.height - insets.bottom }
+  if (active === null) {
+    const ro = p.busy || p.hidden ? [] : placeDims({ mode, measuring, drawing, selection }, layout)
+    return ro.length === 0 ? null : <ReadonlyDims dims={ro} view={view} area={area} />
+  }
   const model = dimModel(active.shape, active.place, view, area)
   const radiusEdit = edit?.key.kind === 'radius'
   const circle = active.shape.kind === 'circle'

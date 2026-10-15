@@ -48,9 +48,28 @@ function editTo(name: string, text: string): void {
 }
 
 describe('DimOverlay', () => {
-  it('배치 모드에서는 치수를 띄우지 않음(이동·회전만)', () => {
-    setup({ mode: 'place' })
+  it('배치 모드: 외곽과 고른 물건 하나의 가로·세로만 읽기 전용으로(누를 수 없음, 소유자 요청 2026-10-15)', () => {
+    const s = setup({ mode: 'place' })
     expect(screen.queryByTestId('dim-overlay')).toBeNull()
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    const dims = () => [...screen.getByTestId('dim-overlay-readonly').querySelectorAll('[data-dim]')].map((e) => [e.getAttribute('data-dim'), e.textContent])
+    expect(dims()).toEqual([
+      ['tent:w', '600'],
+      ['tent:h', '300'],
+      ['item:m:w', '200'],
+      ['item:m:h', '60'],
+    ])
+    expect(screen.getByLabelText('물건 가로 200cm')).toBeTruthy()
+    act(() => s.ui.getState().setSelection([]))
+    expect(dims()).toEqual([
+      ['tent:w', '600'],
+      ['tent:h', '300'],
+    ])
+  })
+
+  it('배치 모드: 끄는 중이면 숨김', () => {
+    setup({ mode: 'place', busy: true })
+    expect(screen.queryByTestId('dim-overlay-readonly')).toBeNull()
   })
 
   it('외곽을 고르면 가로·세로 숫자', () => {
