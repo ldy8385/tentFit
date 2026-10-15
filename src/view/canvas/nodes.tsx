@@ -8,6 +8,7 @@ import type { Pt, Shape } from '../../core/model'
 import { THEME } from '../../ui/theme'
 import type { InnerNode, ItemNode, PieceNode, Scene } from '../scene'
 import type { TentDim } from './drawGesture'
+import { itemLabelTooltip, setCanvasTitle } from './itemTooltip'
 import { itemWorldBBox } from './marquee'
 
 export const FONT_FAMILY = THEME['font-sans'] || 'sans-serif'
@@ -293,10 +294,18 @@ export const ItemShape = memo(function ItemShape(props: ItemShapeProps): JSX.Ele
   const w = box.maxX - box.minX
   const h = box.maxY - box.minY
   const flip = node.rotation > 90 && node.rotation <= 270
+  // 이름이 다 보이지 않으면(말줄임·숨김) 마우스를 올렸을 때 전체 이름을 툴팁으로(2026-10-15)
+  const onMouseEnter = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    const text = (e.currentTarget as Konva.Group).findOne<Konva.Text>('Text')
+    setCanvasTitle(e.currentTarget, itemLabelTooltip(node.label, text === undefined ? null : text.textArr.map((l) => l.text)))
+  }
+  const onMouseLeave = (e: Konva.KonvaEventObject<MouseEvent>) => setCanvasTitle(e.currentTarget, null)
   return (
     <Group
       ref={ref}
       id={id}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       name="item"
       x={node.x}
       y={node.y}
