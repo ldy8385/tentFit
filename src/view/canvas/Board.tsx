@@ -722,6 +722,7 @@ class BoardController {
       grid: this.vertexGrid(),
       alignTol: this.alignTol(),
       symmetry: this.symmetryAxis(),
+      symmetryMirror: this.stores.ui.getState().symmetryMode === 'mirror',
     })
     this.overlay.setState({ tentPreview: preview })
   }
@@ -742,6 +743,7 @@ class BoardController {
       grid: this.vertexGrid(),
       alignTol: this.alignTol(),
       symmetry: this.symmetryAxis(),
+      symmetryMirror: this.stores.ui.getState().symmetryMode === 'mirror',
     })
     this.overlay.setState({ tentPreview: null })
     this.closeGesture()

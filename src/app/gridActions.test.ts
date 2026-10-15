@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
 import { createLayout } from '../core/model'
-import { loadGridStep, loadGuidesVisible, loadSymmetryAxis, setGridStep, setGuidesVisible, setSymmetryAxis } from './gridActions'
+import { loadGridStep, loadGuidesVisible, loadSymmetryAxis, loadSymmetryMode, setGridStep, setGuidesVisible, setSymmetryAxis, setSymmetryMode } from './gridActions'
 import { createStores } from './stores'
 
 const KEY = 'tentfit.gridStep'
@@ -51,16 +51,29 @@ describe('정렬 안내선 켜기·끄기(소유자 요청 2026-10-15)', () => {
 })
 
 describe('대칭 맞춤 축(소유자 요청 2026-10-15: 좌우·상하 고르기)', () => {
-  afterEach(() => localStorage.removeItem('tentfit.symmetryAxis'))
+  afterEach(() => {
+    localStorage.removeItem('tentfit.symmetryAxis')
+    localStorage.removeItem('tentfit.symmetryMode')
+  })
 
-  it('기본 좌우, 끄기·상하로 바꾸면 기억', () => {
+  it('기본 끄기, 좌우·상하로 바꾸면 기억(잘못된 값은 끄기)', () => {
     const s = setup()
-    expect(s.ui.getState().symmetryAxis).toBe('x')
+    expect(s.ui.getState().symmetryAxis).toBe('off')
     setSymmetryAxis(s, 'y')
     expect(setup().ui.getState().symmetryAxis).toBe('y')
-    setSymmetryAxis(s, 'off')
-    expect(loadSymmetryAxis()).toBe('off')
-    localStorage.setItem('tentfit.symmetryAxis', 'zz')
+    setSymmetryAxis(s, 'x')
     expect(loadSymmetryAxis()).toBe('x')
+    localStorage.setItem('tentfit.symmetryAxis', 'zz')
+    expect(loadSymmetryAxis()).toBe('off')
+  })
+
+  it('방식: 기본 자동 맞춤, 안내 표기로 바꾸면 기억(잘못된 값은 자동 맞춤)', () => {
+    const s = setup()
+    expect(s.ui.getState().symmetryMode).toBe('mirror')
+    setSymmetryMode(s, 'guide')
+    expect(s.ui.getState().symmetryMode).toBe('guide')
+    expect(setup().ui.getState().symmetryMode).toBe('guide')
+    localStorage.setItem('tentfit.symmetryMode', 'zz')
+    expect(loadSymmetryMode()).toBe('mirror')
   })
 })

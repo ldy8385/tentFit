@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSymmetric, symmetrize, symmetrySnap } from './symmetry'
+import { isSymmetric, symmetrize, symmetryPartners, symmetrySnap } from './symmetry'
 import type { Pt } from './model'
 
 // 기준선 = 도형 로컬 원점(좌우 'x' = 세로선 x=0, 상하 'y' = 가로선 y=0)
@@ -14,6 +14,15 @@ describe('isSymmetric(소유자 요청 2026-10-15: 좌우·상하 고르기)', (
     expect(isSymmetric(PENT_RIGHT, 'y')).toBe(true)
     expect(isSymmetric([[-100, -50], [100.1, -50], [100, 50], [-100, 50]], 'x')).toBe(true)
     expect(isSymmetric([[-100, -50], [103, -50], [100, 50], [-100, 50]], 'x')).toBe(false)
+  })
+})
+
+describe('symmetryPartners(같이 움직일 짝)', () => {
+  it('짝 번호: 사각형 좌우는 0↔1·2↔3, 상하는 0↔3·1↔2, 기준선 위 점은 자기 자신', () => {
+    expect(symmetryPartners(RECT, 'x')).toEqual([1, 0, 3, 2])
+    expect(symmetryPartners(RECT, 'y')).toEqual([3, 2, 1, 0])
+    expect(symmetryPartners(PENT_RIGHT, 'y')).toEqual([4, 3, 2, 1, 0])
+    expect(symmetryPartners(PENT_RIGHT, 'x')).toBeNull()
   })
 })
 

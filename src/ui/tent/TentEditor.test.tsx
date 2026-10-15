@@ -693,21 +693,32 @@ describe('TentEditor — 텐트 색(소유자 요청 2026-10-15)', () => {
 
 describe('TentEditor — 대칭 맞춤(소유자 요청 2026-10-15: 좌우·상하 고르기)', () => {
   const SKEW: Tent = { name: '비뚠', outer: { kind: 'polygon', points: [[-300, -150], [340, -150], [300, 150], [-300, 150]] }, inners: [] }
-  afterEach(() => localStorage.removeItem('tentfit.symmetryAxis'))
+  afterEach(() => {
+    localStorage.removeItem('tentfit.symmetryAxis')
+    localStorage.removeItem('tentfit.symmetryMode')
+  })
 
-  it('기본 좌우, 대칭이면 그렇다고 알리고 맞추기 버튼은 꺼짐', () => {
-    setup(TWO_INNERS, { target: 'outer' })
+  it('기본 끄기. 좌우를 고르면 방식(기본 자동 맞춤)이 보이고, 대칭이면 같이 움직인다고 알리며 맞추기 버튼은 꺼짐', () => {
+    const s = setup(TWO_INNERS, { target: 'outer' })
     const group = screen.getByRole('radiogroup', { name: '대칭 맞춤' })
-    expect(within(group).getByRole('radio', { name: '좌우' }).getAttribute('aria-checked')).toBe('true')
-    expect(screen.getByText('좌우 대칭이에요')).toBeTruthy()
+    expect(within(group).getByRole('radio', { name: '끄기' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.queryByRole('radiogroup', { name: '대칭 맞춤 방식' })).toBeNull()
+    fireEvent.click(within(group).getByRole('radio', { name: '좌우' }))
+    const mode = screen.getByRole('radiogroup', { name: '대칭 맞춤 방식' })
+    expect(within(mode).getByRole('radio', { name: '자동 맞춤' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByText('좌우 대칭이에요 · 반대편 꼭짓점이 같이 움직여요')).toBeTruthy()
     expect((screen.getByRole('button', { name: '왼쪽 기준으로 맞추기' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(within(mode).getByRole('radio', { name: '안내 표기' }))
+    expect(s.ui.getState().symmetryMode).toBe('guide')
+    expect(screen.getByText('좌우 대칭이에요 · 끌 때 반대편 자리를 보여 줘요')).toBeTruthy()
   })
 
   it('비대칭이면 「왼쪽 기준으로 맞추기」로 대칭, 상하로 바꾸면 위쪽·아래쪽, 끄면 버튼 없음', () => {
     const s = setup(SKEW, { target: 'outer' })
-    expect(screen.getByText('좌우 대칭이 아니에요')).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: '좌우' }))
+    expect(screen.getByText(/^좌우 대칭이 아니라 반대편 자리만 보여요/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '왼쪽 기준으로 맞추기' }))
-    expect(screen.getByText('좌우 대칭이에요')).toBeTruthy()
+    expect(screen.getByText(/^좌우 대칭이에요/)).toBeTruthy()
     const outer = s.doc.getState().layout.tent.outer
     const xs = outer.kind === 'polygon' ? outer.points.map((q) => q[0]) : []
     expect(Math.max(...xs)).toBe(300)

@@ -18,20 +18,28 @@ function across(p: Pt, axis: SymAxis): number {
   return axis === 'x' ? p[0] : p[1]
 }
 
-/** 원점 기준 대칭인지: 반사는 고리 순서를 뒤집으므로 짝 = (k − i) mod n 꼴만 봅니다(위치만 우연히 겹치는 경우를 거름). */
-export function isSymmetric(points: readonly Pt[], axis: SymAxis): boolean {
+/**
+ * 원점 기준 대칭이면 꼭짓점마다 짝 번호(partners[i] = i의 반대편 꼭짓점, 기준선 위 점은 자기 자신), 아니면 null.
+ * 반사는 고리 순서를 뒤집으므로 짝 = (k − i) mod n 꼴만 봅니다(위치만 우연히 겹치는 경우를 거름).
+ */
+export function symmetryPartners(points: readonly Pt[], axis: SymAxis): number[] | null {
   const n = points.length
-  if (n < 3) return false
+  if (n < 3) return null
   for (let k = 0; k < n; k++) {
-    let ok = true
-    for (let i = 0; i < n && ok; i++) {
-      const r = reflect(points[i] as Pt, axis)
-      const q = points[(((k - i) % n) + n) % n] as Pt
-      ok = Math.abs(r[0] - q[0]) <= SAME_CM && Math.abs(r[1] - q[1]) <= SAME_CM
-    }
-    if (ok) return true
+    const partners = points.map((_, i) => (((k - i) % n) + n) % n)
+    const ok = points.every((p, i) => {
+      const r = reflect(p, axis)
+      const q = points[partners[i] as number] as Pt
+      return Math.abs(r[0] - q[0]) <= SAME_CM && Math.abs(r[1] - q[1]) <= SAME_CM
+    })
+    if (ok) return partners
   }
-  return false
+  return null
+}
+
+/** 원점 기준 대칭인지 */
+export function isSymmetric(points: readonly Pt[], axis: SymAxis): boolean {
+  return symmetryPartners(points, axis) !== null
 }
 
 /**

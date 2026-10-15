@@ -212,7 +212,8 @@ describe('tentDragStep — 미리보기와 커밋할 값', () => {
     const skew = layoutOf({ name: '비뚠 텐트', outer: { kind: 'polygon', points: [[-500, -200], [520, -200], [500, 200], [-500, 200]] }, inners: [] })
     const drag = tentDragFor({ kind: 'vertex', target: 'outer', index: 1, world: [520, -200] }, 3, 'mouse', [520, -200], VIEW1) as TentDrag
     const r = tentDragStep(skew, drag, [503, -198], VIEW1, { alignTol: 5, symmetry: 'x' })
-    expect(r.commit).toMatchObject({ world: [500, -200] })
+    // 대칭이 아니면 같이 움직이지 않고 붙기만
+    expect(r.commit).toEqual({ kind: 'vertex', target: 'outer', index: 1, world: [500, -200] })
     expect(r.preview.symmetry?.pair).toEqual({ a: [-500, -200], b: [500, -200] })
     expect(r.preview.symmetry?.ghost).toEqual([-500, -200])
     const axis = r.preview.symmetry!.axis
@@ -222,6 +223,33 @@ describe('tentDragStep — 미리보기와 커밋할 값', () => {
     expect(axis.b[1]).toBeGreaterThan(200)
     // 대칭 맞춤을 끄면 정보 없음
     expect(tentDragStep(skew, drag, [503, -198], VIEW1, { alignTol: 5 }).preview.symmetry).toBeNull()
+  })
+
+  it('대칭 맞춤 같이 움직이기(2026-10-15): 대칭인 도형이면 반대편 짝이 거울처럼 같이 움직임', () => {
+    const drag = tentDragFor({ kind: 'vertex', target: 'outer', index: 1, world: [500, -200] }, 3, 'mouse', [500, -200], VIEW1) as TentDrag
+    const r = tentDragStep(LAYOUT, drag, [560, -240], VIEW1, { symmetry: 'x', symmetryMirror: true })
+    expect(r.commit).toEqual({ kind: 'vertex', target: 'outer', index: 1, world: [560, -240], mirror: { index: 0, world: [-560, -240] } })
+    expect(r.preview.tent.outer).toMatchObject({ points: [[-560, -240], [560, -240], [500, 200], [-500, 200]] })
+    expect(r.preview.symmetry?.ghost).toEqual([-560, -240])
+    expect(r.preview.symmetry?.pair).toEqual({ a: [-560, -240], b: [560, -240] })
+    // 상하면 아래 짝(2번)이
+    expect(tentDragStep(LAYOUT, drag, [560, -240], VIEW1, { symmetry: 'y', symmetryMirror: true }).commit).toMatchObject({ mirror: { index: 2, world: [560, 240] } })
+    // 「안내 표기」거나 대칭 맞춤을 끄면 혼자(안내 표기는 반대편 자리만 보임)
+    const guide = tentDragStep(LAYOUT, drag, [560, -240], VIEW1, { symmetry: 'x' })
+    expect(guide.commit).toEqual({ kind: 'vertex', target: 'outer', index: 1, world: [560, -240] })
+    expect(guide.preview.symmetry?.ghost).toEqual([-560, -240])
+    expect(tentDragStep(LAYOUT, drag, [560, -240], VIEW1).commit).toEqual({ kind: 'vertex', target: 'outer', index: 1, world: [560, -240] })
+  })
+
+  it('같이 움직이기: 기준선 위 꼭짓점은 기준선을 따라서만, 이너는 이너 자신의 가운데 기준', () => {
+    const pent = layoutOf({ name: '오각', outer: { kind: 'polygon', points: [[-500, -200], [0, -250], [500, -200], [500, 200], [-500, 200]] }, inners: [rectInner('a', 200, 200, -300, 0)] })
+    const tip = tentDragFor({ kind: 'vertex', target: 'outer', index: 1, world: [0, -250] }, 3, 'mouse', [0, -250], VIEW1) as TentDrag
+    const r = tentDragStep(pent, tip, [37, -300], VIEW1, { symmetry: 'x', symmetryMirror: true })
+    expect(r.commit).toEqual({ kind: 'vertex', target: 'outer', index: 1, world: [0, -300] })
+    expect(r.preview.symmetry?.ghost).toBeNull()
+    // 이너 a(가운데 −300,0): 오른쪽 위(−200,−100) → (−180,−130)이면 왼쪽 위가 (−420,−130)
+    const corner = tentDragFor({ kind: 'vertex', target: { innerId: 'a' }, index: 1, world: [-200, -100] }, 3, 'mouse', [-200, -100], VIEW1) as TentDrag
+    expect(tentDragStep(pent, corner, [-180, -130], VIEW1, { symmetry: 'x', symmetryMirror: true }).commit).toMatchObject({ world: [-180, -130], mirror: { index: 0, world: [-420, -130] } })
   })
 
   it('꼭짓점을 자기교차로 끌면 invalid·커밋 없음', () => {

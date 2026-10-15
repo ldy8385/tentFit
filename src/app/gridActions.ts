@@ -2,6 +2,7 @@
 // 화면 상태(ui)만 바꾸고 문서·기록은 그대로입니다. 이 브라우저에 기억합니다(localStorage, 막혀 있거나 값이 잘못되면 기본값).
 import { GRID_STEP, GRID_STEP_RANGE } from '../core/snap'
 import type { SymAxis } from '../core/symmetry'
+import type { SymmetryMode } from '../store/ui'
 import type { Stores } from './stores'
 
 const KEY = 'tentfit.gridStep'
@@ -55,13 +56,13 @@ export function setGuidesVisible(stores: Stores, on: boolean): void {
 
 const SYMMETRY_KEY = 'tentfit.symmetryAxis'
 
-/** 기억해 둔 대칭 맞춤 축(없거나 잘못되면 좌우) */
+/** 기억해 둔 대칭 맞춤 축(없거나 잘못되면 끄기 — 「자동 맞춤」이 기본이라 켜기 전에는 꼭짓점이 혼자 움직이게) */
 export function loadSymmetryAxis(): 'off' | SymAxis {
   try {
     const v = localStorage.getItem(SYMMETRY_KEY)
-    return v === 'off' || v === 'y' || v === 'x' ? v : 'x'
+    return v === 'off' || v === 'y' || v === 'x' ? v : 'off'
   } catch {
-    return 'x'
+    return 'off'
   }
 }
 
@@ -70,6 +71,27 @@ export function setSymmetryAxis(stores: Stores, axis: 'off' | SymAxis): void {
   stores.ui.getState().patch({ symmetryAxis: axis })
   try {
     localStorage.setItem(SYMMETRY_KEY, axis)
+  } catch {
+    // 저장이 막힌 브라우저: 이번 화면에서만 씁니다.
+  }
+}
+
+const SYMMETRY_MODE_KEY = 'tentfit.symmetryMode'
+
+/** 기억해 둔 대칭 맞춤 방식(없거나 잘못되면 자동 맞춤) */
+export function loadSymmetryMode(): SymmetryMode {
+  try {
+    return localStorage.getItem(SYMMETRY_MODE_KEY) === 'guide' ? 'guide' : 'mirror'
+  } catch {
+    return 'mirror'
+  }
+}
+
+/** 대칭 맞춤 방식 바꾸기(기억함) */
+export function setSymmetryMode(stores: Stores, mode: SymmetryMode): void {
+  stores.ui.getState().patch({ symmetryMode: mode })
+  try {
+    localStorage.setItem(SYMMETRY_MODE_KEY, mode)
   } catch {
     // 저장이 막힌 브라우저: 이번 화면에서만 씁니다.
   }

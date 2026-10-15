@@ -10,6 +10,8 @@ import {
   deleteInner,
   deleteVertex,
   insertVertex,
+  mirrorPartners,
+  mirrorVertexMove,
   moveInner,
   moveInnerTo,
   renameInner,
@@ -66,6 +68,8 @@ export type EditResult = { ok: true } | { ok: false; error: string }
 export const NO_SPACE_MESSAGE = '빈 공간이 부족해요'
 /** 꼭짓점이 3개 남았을 때 삭제를 막는 문구(§6.9) */
 export const MIN_VERTEX_MESSAGE = '꼭짓점이 3개면 지울 수 없어요'
+/** 「자동 맞춤」으로 짝과 함께 지우면 3개보다 적어질 때 */
+export const MIRROR_DELETE_MESSAGE = '자동 맞춤 중이라 반대편 짝도 함께 지워져 꼭짓점이 3개보다 적어져요'
 /** 그린 이너가 다른 이너와 겹칠 때(설계 2026-10-12 §2.2) */
 export const OVERLAP_DRAW_MESSAGE = '다른 이너와 겹쳐요'
 /** 그리는 선이 꼬이거나 점이 모자랄 때(설계 §2.2) */
@@ -306,37 +310,70 @@ export function setTargetDiameter(stores: Stores, target: TentTarget, d: number)
   )
 }
 
-/** 꼭짓점 하나를 월드 좌표로(좌표 표 입력·꼭짓점 끌기 커밋). 템플릿 도형은 자유 다각형이 됩니다(§4.4-6). */
+/**
+ * 꼭짓점 하나를 월드 좌표로(좌표 표 입력·꼭짓점 끌기 커밋). 템플릿 도형은 자유 다각형이 됩니다(§4.4-6).
+ * 대칭 맞춤 「자동 맞춤」이고 대상이 대칭이면 반대편 짝도 거울처럼(기준선 위 점은 기준선 위로, 기록 한 칸).
+ */
 export function setTargetVertex(stores: Stores, target: TentTarget, index: number, world: Pt): EditResult {
   if (!inRange(world[0], LIMITS.coord) || !inRange(world[1], LIMITS.coord)) return rangeError(...LIMITS.coord)
+  const axis = mirrorAxis(stores)
+  const linked = axis === null ? null : mirrorVertexMove(stores.doc.getState().layout, target, index, world, axis)
   return toResult(
     attempt(stores, (d) => {
-      setVertex(d, target, index, world)
+      setVertex(d, target, index, linked?.world ?? world)
+      if (linked?.mirror != null) setVertex(d, target, linked.mirror.index, linked.mirror.world)
     }),
   )
 }
 
+/** 대칭 맞춤이 「자동 맞춤」이면 그 축, 아니면 null(대상이 대칭인지는 부르는 쪽이 짝으로 판단) */
+function mirrorAxis(stores: Stores): SymAxis | null {
+  const ui = stores.ui.getState()
+  return ui.symmetryAxis !== 'off' && ui.symmetryMode === 'mirror' ? ui.symmetryAxis : null
+}
+
+/** 「자동 맞춤」이고 대상이 대칭이면 꼭짓점 짝 번호, 아니면 null */
+function activePartners(stores: Stores, target: TentTarget): number[] | null {
+  const axis = mirrorAxis(stores)
+  return axis === null ? null : mirrorPartners(stores.doc.getState().layout, target, axis)
+}
+
 /**
  * edgeIndex번 변의 중점에 꼭짓점을 넣고(`+` 핸들·`+ 꼭짓점 추가`) 그 꼭짓점을 고릅니다.
- * 새 점 번호(= edgeIndex+1)를 돌려주고, 넣지 못하면(원·범위 밖·거부) null.
+ * 「자동 맞춤」이고 대칭이면 반대편 짝 변에도 넣습니다(기준선을 지나는 변이면 하나만, 기록 한 칸).
+ * 새 점 번호를 돌려주고, 넣지 못하면(원·범위 밖·거부) null.
  */
 export function insertTargetVertex(stores: Stores, target: TentTarget, edgeIndex: number): number | null {
+  const partners = activePartners(stores, target)
+  // 변 e(e → e+1)의 짝 변 = 짝(e+1) → 짝(e), 곧 번호 짝(e+1)
+  const mate = partners?.[(edgeIndex + 1) % partners.length]
+  const twin = mate !== undefined && mate !== edgeIndex ? mate : null
   const a = attempt(stores, (d) => {
+    // 뒤 번호부터 넣어 앞 번호가 밀리지 않게
+    if (twin !== null && twin > edgeIndex) insertVertex(d, target, twin)
     insertVertex(d, target, edgeIndex)
+    if (twin !== null && twin < edgeIndex) insertVertex(d, target, twin)
   })
   if (a.kind !== 'committed') return null
-  const index = edgeIndex + 1
+  const index = twin !== null && twin < edgeIndex ? edgeIndex + 2 : edgeIndex + 1
   stores.ui.getState().selectTentTarget(target, index)
   return index
 }
 
-/** 꼭짓점 삭제([꼭짓점 삭제]·표의 ×·Delete). 3개면 거부(§6.9), 새 이슈면 거부, 지우면 꼭짓점 선택을 풉니다. */
+/**
+ * 꼭짓점 삭제([꼭짓점 삭제]·표의 ×·Delete). 3개면 거부(§6.9), 새 이슈면 거부, 지우면 꼭짓점 선택을 풉니다.
+ * 「자동 맞춤」이고 대칭이면 반대편 짝도 함께 지웁니다(기준선 위 점은 하나만).
+ */
 export function deleteTargetVertex(stores: Stores, target: TentTarget, index: number): EditResult {
   const count = vertexCount(stores.doc.getState().layout, target)
   if (count === null) return OK
   if (count <= 3) return { ok: false, error: MIN_VERTEX_MESSAGE }
+  const mate = activePartners(stores, target)?.[index]
+  const twin = mate !== undefined && mate !== index ? mate : null
+  if (twin !== null && count - 2 < 3) return { ok: false, error: MIRROR_DELETE_MESSAGE }
   const a = attempt(stores, (d) => {
-    deleteVertex(d, target, index)
+    // 뒤 번호부터 지워 앞 번호가 밀리지 않게
+    for (const i of twin === null ? [index] : [Math.max(index, twin), Math.min(index, twin)]) deleteVertex(d, target, i)
   })
   if (a.kind === 'committed') {
     const ui = stores.ui.getState()

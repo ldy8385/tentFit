@@ -34,6 +34,7 @@ import {
   exitTentMode,
   insertTargetVertex,
   MIN_VERTEX_MESSAGE,
+  MIRROR_DELETE_MESSAGE,
   NO_SPACE_MESSAGE,
   renameInnerAction,
   selectTentTargetFromCanvas,
@@ -857,6 +858,52 @@ describe('symmetrizeTargetAction(한쪽 기준으로 대칭 맞추기, 2026-10-1
     const r = symmetrizeTargetAction(stores, 'outer', 'x', 'neg')
     expect(r).toEqual({ ok: false, error: SYMMETRIZE_FAIL_MESSAGE })
     expect(layout()).toBe(before)
+  })
+})
+
+describe('대칭 맞춤 「자동 맞춤」(2026-10-15): 꼭짓점 옮기기·넣기·지우기가 반대편 짝과 함께', () => {
+  const pts = () => {
+    const o = tent().outer
+    return o.kind === 'polygon' ? o.points : []
+  }
+
+  it('옮기기: 짝이 거울처럼(기록 한 칸), 「안내 표기」·끄기면 혼자', () => {
+    ui().patch({ mode: 'tent', symmetryAxis: 'x', symmetryMode: 'mirror' })
+    expect(setTargetVertex(stores, 'outer', 1, [350, -200])).toEqual({ ok: true })
+    expect(pts()).toEqual([[-350, -200], [350, -200], [310, 160], [-310, 160]])
+    stores.doc.getState().undo()
+    expect(tent().outer.kind).toBe('rect')
+    ui().patch({ symmetryMode: 'guide' })
+    setTargetVertex(stores, 'outer', 1, [350, -200])
+    expect(pts()).toEqual([[-310, -160], [350, -200], [310, 160], [-310, 160]])
+    stores.doc.getState().undo()
+    ui().patch({ symmetryMode: 'mirror', symmetryAxis: 'off' })
+    setTargetVertex(stores, 'outer', 1, [350, -200])
+    expect(pts()).toEqual([[-310, -160], [350, -200], [310, 160], [-310, 160]])
+  })
+
+  it('넣기: 짝 변에도 넣고(기준선을 지나는 변이면 하나만) 새 점을 고름', () => {
+    ui().patch({ mode: 'tent', symmetryAxis: 'x', symmetryMode: 'mirror' })
+    expect(insertTargetVertex(stores, 'outer', 1)).toBe(2) // 오른쪽 변 → 짝 = 왼쪽 변
+    expect(pts()).toEqual([[-310, -160], [310, -160], [310, 0], [310, 160], [-310, 160], [-310, 0]])
+    expect(ui().vertexIndex).toBe(2)
+    expect(insertTargetVertex(stores, 'outer', 0)).toBe(1) // 위 변은 기준선을 지나므로 하나만
+    expect(pts()).toHaveLength(7)
+    expect(pts()[1]).toEqual([0, -160])
+    expect(insertTargetVertex(stores, 'outer', 5)).toBe(7) // 왼쪽 아래 변 → 짝(오른쪽 아래 변)이 앞 번호라 새 점 번호가 하나 밀림
+    expect(targetSymmetric(layout(), 'outer', 'x')).toBe(true)
+  })
+
+  it('지우기: 짝도 함께(기준선 위 점은 하나만), 3개보다 적어지면 거부', () => {
+    ui().patch({ mode: 'tent', symmetryAxis: 'x', symmetryMode: 'mirror' })
+    insertTargetVertex(stores, 'outer', 1)
+    insertTargetVertex(stores, 'outer', 0)
+    expect(deleteTargetVertex(stores, 'outer', 1)).toEqual({ ok: true }) // 기준선 위 (0,−160)
+    expect(pts()).toHaveLength(6)
+    expect(deleteTargetVertex(stores, 'outer', 2)).toEqual({ ok: true }) // (310,0)과 짝 (−310,0)
+    expect(pts()).toEqual([[-310, -160], [310, -160], [310, 160], [-310, 160]])
+    expect(deleteTargetVertex(stores, 'outer', 1)).toEqual({ ok: false, error: MIRROR_DELETE_MESSAGE })
+    expect(pts()).toHaveLength(4)
   })
 })
 

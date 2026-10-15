@@ -17,6 +17,7 @@ import {
 import { cornerRing, outlineBBox, ringBBox, shapeRing, transformRing } from '../geom'
 import { cornerCount, radiiOf, withRadii } from '../radii'
 import { centerPolygon } from '../polygonEdit'
+import { reflect, symmetryPartners, type SymAxis } from '../symmetry'
 import { newInnerSide, shapeFromTemplate, shapesEqual } from '../templates'
 import { innersOverlap, validateTent, type Issue } from '../validate'
 import type { Zones } from '../zones'
@@ -180,6 +181,47 @@ export function targetLocalRing(layout: Layout, target: TentTarget): Pt[] {
   const shape = target === 'outer' ? layout.tent.outer : findInner(layout.tent, target.innerId)?.shape
   if (shape === undefined || shape.kind === 'circle') return []
   return localRing(shape)
+}
+
+/** 대상의 로컬 ↔ 월드(외곽은 그대로, 이너는 위치·회전). 원이거나 없는 이너면 null */
+export function targetFrame(layout: Layout, target: TentTarget): { toLocal(p: Pt): Pt; toWorld(p: Pt): Pt } | null {
+  if (target === 'outer') {
+    if (layout.tent.outer.kind === 'circle') return null
+    return { toLocal: (p) => [p[0], p[1]], toWorld: (p) => [p[0], p[1]] }
+  }
+  const inner = findInner(layout.tent, target.innerId)
+  if (!inner || inner.shape.kind === 'circle') return null
+  return {
+    toLocal: (p) => rotateAround([p[0] - inner.x, p[1] - inner.y], [0, 0], -inner.rotation),
+    toWorld: (p) => {
+      const q = rotateAround(p, [0, 0], inner.rotation)
+      return [q[0] + inner.x, q[1] + inner.y]
+    },
+  }
+}
+
+/**
+ * 대칭 맞춤 「자동 맞춤」(소유자 요청 2026-10-15): 대상이 axis 기준(로컬 원점) 대칭이면, 꼭짓점 index를 world로 옮길 때
+ * 같이 옮길 반대편 짝. 기준선 위 점(짝 = 자기)은 world를 기준선 위로 고치고 짝은 null. 대칭이 아니거나 원이면 null.
+ */
+export function mirrorVertexMove(
+  layout: Layout,
+  target: TentTarget,
+  index: number,
+  world: Pt,
+  axis: SymAxis,
+): { world: Pt; mirror: { index: number; world: Pt } | null } | null {
+  const frame = targetFrame(layout, target)
+  const mate = frame === null ? undefined : symmetryPartners(targetLocalRing(layout, target), axis)?.[index]
+  if (frame === null || mate === undefined) return null
+  const local = frame.toLocal(world)
+  if (mate === index) return { world: frame.toWorld(axis === 'x' ? [0, local[1]] : [local[0], 0]), mirror: null }
+  return { world, mirror: { index: mate, world: frame.toWorld(reflect(local, axis)) } }
+}
+
+/** 대칭 맞춤 「자동 맞춤」: 대칭이면 꼭짓점 짝 번호(기준선 위 점은 자기), 아니거나 원이면 null */
+export function mirrorPartners(layout: Layout, target: TentTarget, axis: SymAxis): number[] | null {
+  return symmetryPartners(targetLocalRing(layout, target), axis)
 }
 
 /** 월드 좌표를 대상의 로컬 좌표로: 이동을 빼고 반대로 돌립니다(transformRing의 역변환). */

@@ -2,8 +2,7 @@
 // Board(BoardController)가 pointerdown에서 classifyTentPress로 대상을 정하고, 탭이면 tentTapEffect,
 // 끌기면 tentDragStep으로 미리보기와 커밋 값을 얻습니다. 문서는 Board가 손을 뗄 때 tentActions로 한 번만 바꿉니다.
 import type { Layout, Pt, Tent } from '../../core/model'
-import { targetLocalRing, targetWorldRing, type TentTarget } from '../../core/ops/tent'
-import { rotateAround } from '../../core/ops/util'
+import { mirrorPartners, mirrorVertexMove, targetFrame, targetLocalRing, targetWorldRing, type TentTarget } from '../../core/ops/tent'
 import { reflect, symmetrySnap, type SymAxis } from '../../core/symmetry'
 import { alignAxes, alignGuides, type AlignGuide } from '../../core/align'
 import { snapToGrid } from '../../core/polygonEdit'
@@ -59,10 +58,10 @@ export type TentDrag =
 export type TentPreview = { target: TentTarget; tent: Tent; invalid: boolean; guides: AlignGuide[]; symmetry: SymmetryPreview | null }
 
 /** 대칭 맞춤 미리보기(월드 cm): 기준선, 끄는 점의 반대편 자리, 대칭 자리에 붙었으면 짝 꼭짓점과 잇는 선 */
-export type SymmetryPreview = { axis: AlignGuide; ghost: Pt; pair: AlignGuide | null }
+export type SymmetryPreview = { axis: AlignGuide; ghost: Pt | null; pair: AlignGuide | null }
 
 export type TentDragCommit =
-  | { kind: 'vertex'; target: TentTarget; index: number; world: Pt }
+  | { kind: 'vertex'; target: TentTarget; index: number; world: Pt; mirror?: { index: number; world: Pt } }
   | { kind: 'inner'; innerId: string; dx: number; dy: number }
 
 export function sameTentTarget(a: TentTarget | null, b: TentTarget | null): boolean {
@@ -179,7 +178,14 @@ export function tentDragStep(
   drag: TentDrag,
   screen: Pt,
   view: View,
-  opts?: { axisLock?: boolean; grid?: { origin: Pt; step: number } | null; alignTol?: number; symmetry?: SymAxis | null },
+  opts?: {
+    axisLock?: boolean
+    grid?: { origin: Pt; step: number } | null
+    alignTol?: number
+    symmetry?: SymAxis | null
+    /** 대칭 맞춤 「자동 맞춤」: 대칭인 도형이면 반대편 짝이 같이 움직임(아니면 「안내 표기」처럼) */
+    symmetryMirror?: boolean
+  },
 ): { preview: TentPreview; commit: TentDragCommit | null } {
   const w = screenToWorld(view, screen)
   // 상하좌우로만(Shift·[상하좌우] 토글): 누른 점 기준 이동량이 큰 축만 남깁니다.
@@ -198,12 +204,15 @@ export function tentDragStep(
   const raw: Pt = [drag.from[0] + d.dx, drag.from[1] + d.dy]
   // 상하좌우로만이면 움직이는 축만 맞춥니다.
   const moving = { x: opts?.axisLock !== true || rx !== 0, y: opts?.axisLock !== true || ry !== 0 }
-  const others = alignCandidates(layout, drag.target, drag.index)
-  // 대칭 맞춤(2026-10-15): 반대편 꼭짓점의 대칭 자리·기준선 위가 가까우면 거기에(정렬·격자보다 먼저, 상하좌우로만이면 쓰지 않음).
+  // 대칭 맞춤(2026-10-15): 「자동 맞춤」이고 도형이 지금 대칭이면 반대편 짝이 거울처럼 같이 움직이고(기준선 위 점은 기준선을 따라서만),
+  // 그 밖(「안내 표기」·대칭 아님)에는 반대편 꼭짓점의 대칭 자리·기준선 위가 가까울 때 거기에 붙습니다(정렬·격자보다 먼저, 상하좌우로만이면 쓰지 않음).
   const sym = opts?.symmetry ?? null
-  const frame = sym !== null ? frameOf(layout, drag.target) : null
-  const localOthers = frame !== null ? targetLocalRing(layout, drag.target).filter((_, i) => i !== drag.index) : []
-  const hit = sym !== null && frame !== null && opts?.axisLock !== true ? symmetrySnap(frame.toLocal(raw), localOthers, sym, opts?.alignTol ?? 0) : null
+  const frame = sym !== null ? targetFrame(layout, drag.target) : null
+  const ring = frame !== null ? targetLocalRing(layout, drag.target) : []
+  const mate = sym !== null && frame !== null && opts?.symmetryMirror === true ? (mirrorPartners(layout, drag.target, sym)?.[drag.index] ?? null) : null
+  const others = alignCandidates(layout, drag.target, drag.index, mate)
+  const localOthers = ring.filter((_, i) => i !== drag.index)
+  const hit = sym !== null && frame !== null && mate === null && opts?.axisLock !== true ? symmetrySnap(frame.toLocal(raw), localOthers, sym, opts?.alignTol ?? 0) : null
   let world: Pt
   if (hit !== null && frame !== null) {
     world = frame.toWorld(hit.point)
@@ -213,40 +222,34 @@ export function tentDragStep(
     const g = opts?.grid != null ? snapToGrid(raw, opts.grid.origin, opts.grid.step) : raw
     world = [al.x ?? (moving.x ? g[0] : raw[0]), al.y ?? (moving.y ? g[1] : raw[1])]
   }
+  let mirror: { index: number; world: Pt } | undefined
+  const linked = mate !== null && sym !== null ? mirrorVertexMove(layout, drag.target, drag.index, world, sym) : null
+  if (linked !== null) {
+    world = linked.world
+    mirror = linked.mirror ?? undefined
+  }
   let symmetry: SymmetryPreview | null = null
   if (sym !== null && frame !== null) {
     const local = frame.toLocal(world)
     const axis = axisLineLocal([...localOthers, local], sym)
+    const pairWith = mirror?.world ?? (hit?.partner != null ? frame.toWorld(hit.partner) : null)
     symmetry = {
       axis: { a: frame.toWorld(axis.a), b: frame.toWorld(axis.b) },
-      ghost: frame.toWorld(reflect(local, sym)),
-      pair: hit?.partner != null ? { a: frame.toWorld(hit.partner), b: world } : null,
+      ghost: mate === drag.index ? null : frame.toWorld(reflect(local, sym)),
+      pair: pairWith !== null ? { a: pairWith, b: world } : null,
     }
   }
-  const r = previewVertexDrag(layout, drag.target, drag.index, world)
+  const r = previewVertexDrag(layout, drag.target, drag.index, world, mirror)
   const invalid = r.issues.length > 0
   const moved = Math.abs(world[0] - drag.from[0]) >= TENT_MOVE_EPS_CM || Math.abs(world[1] - drag.from[1]) >= TENT_MOVE_EPS_CM
   const exists = drag.target === 'outer' || innerExists(layout, drag.target.innerId)
   const commit: TentDragCommit | null =
-    !invalid && moved && exists ? { kind: 'vertex', target: drag.target, index: drag.index, world } : null
+    !invalid && moved && exists
+      ? mirror !== undefined
+        ? { kind: 'vertex', target: drag.target, index: drag.index, world, mirror }
+        : { kind: 'vertex', target: drag.target, index: drag.index, world }
+      : null
   return { preview: { target: drag.target, tent: r.tent, invalid, guides: alignGuides(world, others), symmetry }, commit }
-}
-
-/** 대상의 로컬 ↔ 월드(외곽은 그대로, 이너는 위치·회전). 원이거나 없는 이너면 null */
-function frameOf(layout: Layout, target: TentTarget): { toLocal(p: Pt): Pt; toWorld(p: Pt): Pt } | null {
-  if (target === 'outer') {
-    if (layout.tent.outer.kind === 'circle') return null
-    return { toLocal: (p) => [p[0], p[1]], toWorld: (p) => [p[0], p[1]] }
-  }
-  const inner = layout.tent.inners.find((i) => i.id === target.innerId)
-  if (inner === undefined || inner.shape.kind === 'circle') return null
-  return {
-    toLocal: (p) => rotateAround([p[0] - inner.x, p[1] - inner.y], [0, 0], -inner.rotation),
-    toWorld: (p) => {
-      const q = rotateAround(p, [0, 0], inner.rotation)
-      return [q[0] + inner.x, q[1] + inner.y]
-    },
-  }
 }
 
 /** 로컬 기준선(좌우 = x=0 세로선, 상하 = y=0 가로선): 점들의 범위보다 조금(10%, 최소 20cm) 길게 */
@@ -261,15 +264,15 @@ function axisLineLocal(points: readonly Pt[], axis: SymAxis): AlignGuide {
 
 /** 고른 대상의 대칭 기준선(월드). 끄지 않을 때도 보입니다. 원이면 null */
 export function symmetryAxisLine(layout: Layout, target: TentTarget, axis: SymAxis): AlignGuide | null {
-  const frame = frameOf(layout, target)
+  const frame = targetFrame(layout, target)
   const ring = targetLocalRing(layout, target)
   if (frame === null || ring.length < 3) return null
   const l = axisLineLocal(ring, axis)
   return { a: frame.toWorld(l.a), b: frame.toWorld(l.b) }
 }
 
-/** 정렬 대상 꼭짓점(월드): 외곽·모든 이너의 꼭짓점에서 끄는 꼭짓점만 뺌. 원은 꼭짓점이 없으므로 뺍니다. */
-function alignCandidates(layout: Layout, target: TentTarget, index: number): Pt[] {
+/** 정렬 대상 꼭짓점(월드): 외곽·모든 이너의 꼭짓점에서 끄는 꼭짓점(과 같이 움직이는 짝)만 뺌. 원은 꼭짓점이 없으므로 뺍니다. */
+function alignCandidates(layout: Layout, target: TentTarget, index: number, mate: number | null = null): Pt[] {
   const targets: TentTarget[] = [
     ...(layout.tent.outer.kind === 'circle' ? [] : ['outer' as const]),
     ...layout.tent.inners.filter((i) => i.shape.kind !== 'circle').map((i): TentTarget => ({ innerId: i.id })),
@@ -278,7 +281,7 @@ function alignCandidates(layout: Layout, target: TentTarget, index: number): Pt[
   for (const t of targets) {
     const same = sameTentTarget(t, target)
     targetWorldRing(layout, t).forEach((p, i) => {
-      if (!(same && i === index)) out.push(p)
+      if (!(same && (i === index || i === mate))) out.push(p)
     })
   }
   return out

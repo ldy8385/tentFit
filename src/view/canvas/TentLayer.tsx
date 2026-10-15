@@ -130,10 +130,15 @@ const GUIDE_COLOR = '#D6409F'
 const GUIDE_STROKE_PX = 1.5
 const GUIDE_DASH = [6, 4]
 const GUIDE_OPACITY = 0.7
-/** 대칭 기준선(긴 점선·더 옅게)·반대편 자리 동그라미(화면 px) */
-const AXIS_DASH = [10, 6]
-const AXIS_OPACITY = 0.4
-const GHOST_RADIUS_PX = 7
+/** 대칭 기준선(굵은 긴 점선)·짝 선·반대편 자리 동그라미(화면 px). 잘 보이게 정렬 안내선보다 굵고 진하게(소유자 요청 2026-10-15) */
+const AXIS_STROKE_PX = 2
+const AXIS_DASH = [12, 6]
+const AXIS_OPACITY = 0.85
+const PAIR_STROKE_PX = 2
+const PAIR_OPACITY = 0.9
+const GHOST_RADIUS_PX = 10
+const GHOST_STROKE_PX = 2.5
+const GHOST_FILL = 'rgba(214, 64, 159, 0.18)'
 
 export function TentLayer(props: TentLayerProps): JSX.Element | null {
   const { layout, vertexIndex, view, preview } = props
@@ -171,7 +176,7 @@ export function TentLayer(props: TentLayerProps): JSX.Element | null {
           name="symmetry-axis"
           points={[symAxis.a[0], symAxis.a[1], symAxis.b[0], symAxis.b[1]]}
           stroke={GUIDE_COLOR}
-          strokeWidth={1}
+          strokeWidth={AXIS_STROKE_PX}
           dash={AXIS_DASH}
           opacity={AXIS_OPACITY}
           strokeScaleEnabled={false}
@@ -183,23 +188,23 @@ export function TentLayer(props: TentLayerProps): JSX.Element | null {
           name="symmetry-pair"
           points={[sym.pair.a[0], sym.pair.a[1], sym.pair.b[0], sym.pair.b[1]]}
           stroke={GUIDE_COLOR}
-          strokeWidth={GUIDE_STROKE_PX}
+          strokeWidth={PAIR_STROKE_PX}
           dash={GUIDE_DASH}
-          opacity={GUIDE_OPACITY}
+          opacity={PAIR_OPACITY}
           strokeScaleEnabled={false}
           perfectDrawEnabled={false}
         />
       )}
-      {sym !== null && (
+      {sym?.ghost != null && (
         <Circle
           name="symmetry-ghost"
           x={sym.ghost[0]}
           y={sym.ghost[1]}
           radius={GHOST_RADIUS_PX / zoom}
+          fill={GHOST_FILL}
           stroke={GUIDE_COLOR}
-          strokeWidth={GUIDE_STROKE_PX}
-          dash={[3, 3]}
-          opacity={GUIDE_OPACITY}
+          strokeWidth={GHOST_STROKE_PX}
+          dash={[4, 3]}
           strokeScaleEnabled={false}
           perfectDrawEnabled={false}
         />

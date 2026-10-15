@@ -52,7 +52,8 @@ import { applyDim } from '../../app/dimActions'
 import { saveMyTent } from '../../app/persist/storage'
 import { AxisLockToggle } from '../common/AxisLockToggle'
 import { KeepRatioToggle } from '../common/KeepRatioToggle'
-import { setSymmetryAxis } from '../../app/gridActions'
+import { setSymmetryAxis, setSymmetryMode } from '../../app/gridActions'
+import type { SymmetryMode } from '../../store/ui'
 import type { SymAxis } from '../../core/symmetry'
 import { ColorSwatches } from '../panels/ColorSwatches'
 import { RadiusFields } from '../panels/RadiusFields'
@@ -327,6 +328,11 @@ const SYMMETRY_OPTIONS = [
   { value: 'y', label: '상하' },
 ] as const satisfies readonly { value: 'off' | SymAxis; label: string }[]
 
+const SYMMETRY_MODE_OPTIONS = [
+  { value: 'mirror', label: '자동 맞춤' },
+  { value: 'guide', label: '안내 표기' },
+] as const satisfies readonly { value: SymmetryMode; label: string }[]
+
 const SYMMETRY_SIDES: Record<SymAxis, { neg: string; pos: string; name: string }> = {
   x: { neg: '왼쪽', pos: '오른쪽', name: '좌우' },
   y: { neg: '위쪽', pos: '아래쪽', name: '상하' },
@@ -339,6 +345,7 @@ const SYMMETRY_SIDES: Record<SymAxis, { neg: string; pos: string; name: string }
 function SymmetryRow(p: { target: TentTarget; layout: Layout; enabled: boolean }): JSX.Element {
   const stores = useStores()
   const axis = useUi((s) => s.symmetryAxis)
+  const mode = useUi((s) => s.symmetryMode)
   const sides = axis === 'off' ? null : SYMMETRY_SIDES[axis]
   const symmetric = axis === 'off' ? false : targetSymmetric(p.layout, p.target, axis)
   const run = (keep: 'neg' | 'pos') => {
@@ -354,7 +361,14 @@ function SymmetryRow(p: { target: TentTarget; layout: Layout; enabled: boolean }
       <SegmentedControl label="대칭 맞춤" options={SYMMETRY_OPTIONS} value={axis} disabled={!p.enabled} onChange={(v) => setSymmetryAxis(stores, v)} />
       {sides !== null && (
         <>
-          <p className="tf-hint">{symmetric ? `${sides.name} 대칭이에요` : `${sides.name} 대칭이 아니에요`}</p>
+          <SegmentedControl
+            label="대칭 맞춤 방식"
+            options={SYMMETRY_MODE_OPTIONS}
+            value={mode}
+            disabled={!p.enabled}
+            onChange={(v) => setSymmetryMode(stores, v)}
+          />
+          <p className="tf-hint">{symmetryHint(sides.name, symmetric, mode)}</p>
           <div className="tf-row2">
             <button
               type="button"
@@ -381,6 +395,12 @@ function SymmetryRow(p: { target: TentTarget; layout: Layout; enabled: boolean }
       )}
     </div>
   )
+}
+
+/** 대칭 맞춤 상태 안내: 지금 대칭인지 + 꼭짓점을 끌면 어떻게 되는지 */
+function symmetryHint(name: string, symmetric: boolean, mode: SymmetryMode): string {
+  if (mode === 'guide') return `${name} 대칭${symmetric ? '이에요' : '이 아니에요'} · 끌 때 반대편 자리를 보여 줘요`
+  return symmetric ? `${name} 대칭이에요 · 반대편 꼭짓점이 같이 움직여요` : `${name} 대칭이 아니라 반대편 자리만 보여요 · 한쪽 기준으로 맞추면 같이 움직여요`
 }
 
 /** 텐트 색 줄: 외곽 = 「전실 색」(바닥), 이너 = 「이너 색」. 「기본」 = 고르지 않음 */

@@ -144,15 +144,17 @@ export function tentDragDelta(input: { dx: number; dy: number; layout: Layout; t
   return { dx: input.dx, dy: input.dy }
 }
 
-/** 꼭짓점 하나를 world로 옮긴 미리보기 텐트와, 그 때문에 새로 생긴 이슈(R11). 문서는 바꾸지 않습니다. */
+/** 꼭짓점 하나(대칭 맞춤이면 짝 mirror도)를 world로 옮긴 미리보기 텐트와, 그 때문에 새로 생긴 이슈(R11). 문서는 바꾸지 않습니다. */
 export function previewVertexDrag(
   layout: Layout,
   target: TentTarget,
   index: number,
   world: Pt,
+  mirror?: { index: number; world: Pt },
 ): { tent: Tent; issues: Issue[] } {
   const next = produce(layout, (d) => {
     setVertex(d, target, index, world)
+    if (mirror !== undefined) setVertex(d, target, mirror.index, mirror.world)
   })
   return { tent: next.tent, issues: newTentIssues(layout.tent, next.tent) }
 }

@@ -358,20 +358,34 @@ test.describe('텐트 편집 모드', () => {
     expect(Math.abs(y + 152)).toBeLessThan(1.5)
   })
 
-  test('대칭 맞춤(좌우, 2026-10-15): 반대편 꼭짓점의 대칭 자리 가까이 끌면 붙고 짝 선이 보임', async ({ page }) => {
-    // 먼저 자석 맞춤을 끄고 오른쪽 위 꼭짓점을 (340, −160)으로 밀어 비대칭으로
+  test('대칭 맞춤 안내(좌우, 2026-10-15): 대칭이 아니면 반대편 꼭짓점의 대칭 자리 가까이 끌 때 붙고 짝 선이 보임', async ({ page }) => {
+    // 먼저 자석 맞춤을 끄고 오른쪽 위 꼭짓점을 (340, −160)으로 밀어 비대칭으로(대칭 맞춤은 기본 끄기)
     await selectOuter(page)
     await setSnap(page, false)
     await mouseDragHolding(page, await vertexClient(page, 'outer', 1), await worldToClient(page, 340, -160), async () => undefined)
     await expect.poll(async () => (await vertexWorld(page, 'outer', 1))[0]).toBeGreaterThan(335)
     await setSnap(page, true)
+    await page.getByRole('radiogroup', { name: '대칭 맞춤', exact: true }).getByRole('radio', { name: '좌우' }).click()
+    await expect(page.getByText(/좌우 대칭이 아니라 반대편 자리만 보여요/)).toBeVisible()
     // 왼쪽 위(−310, −160)의 대칭 자리 (310, −160) 가까이
     await mouseDragHolding(page, await vertexClient(page, 'outer', 1), await worldToClient(page, 313, -158), async () => {
       const pair = await page.evaluate(() => (window as unknown as { Konva: { stages: { find(s: string): unknown[] }[] } }).Konva.stages[0]!.find('.symmetry-pair').length)
       expect(pair).toBe(1)
     })
     await expect.poll(async () => await vertexWorld(page, 'outer', 1)).toEqual([310, -160])
-    await expect(page.getByText('좌우 대칭이에요')).toBeVisible()
+    await expect(page.getByText(/좌우 대칭이에요/)).toBeVisible()
+  })
+
+  test('대칭 맞춤 자동 맞춤(좌우, 2026-10-15): 대칭인 도형은 꼭짓점을 끌면 반대편 짝이 같이 움직임', async ({ page }) => {
+    await selectOuter(page)
+    await setSnap(page, false)
+    await page.getByRole('radiogroup', { name: '대칭 맞춤', exact: true }).getByRole('radio', { name: '좌우' }).click()
+    await expect(page.getByText('좌우 대칭이에요 · 반대편 꼭짓점이 같이 움직여요')).toBeVisible()
+    await mouseDragHolding(page, await vertexClient(page, 'outer', 1), await worldToClient(page, 340, -180), async () => undefined)
+    await expect.poll(async () => (await vertexWorld(page, 'outer', 1))[0]).toBeGreaterThan(335)
+    const right = await vertexWorld(page, 'outer', 1)
+    expect(await vertexWorld(page, 'outer', 0)).toEqual([-right[0], right[1]])
+    await expect(page.getByText(/^좌우 대칭이에요/)).toBeVisible()
   })
 
   test('「+」을 누르면 그 변 가운데에 꼭짓점이 생기고 새 꼭짓점이 선택된다', async ({ page }) => {
