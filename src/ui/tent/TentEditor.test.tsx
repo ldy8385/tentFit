@@ -610,6 +610,17 @@ describe('모서리 둥글기(소유자 요청 2026-10-14)', () => {
   })
 })
 
+describe('가운데로 맞추기(2026-10-15)', () => {
+  it('고른 꼭짓점 옆 [가운데로 맞추기]: 뾰족한 끝을 나머지의 가운데 줄로(1칸)', () => {
+    const tent: Tent = { name: '전실', outer: { kind: 'polygon', points: [[0, 0], [400, 0], [500, 170], [400, 300], [0, 300]] }, inners: [] }
+    const stores = setup(tent, { target: 'outer', vertex: 2 })
+    fireEvent.click(within(screen.getByTestId('tent-selected-vertex')).getByRole('button', { name: '가운데로 맞추기' }))
+    const outer = stores.doc.getState().layout.tent.outer
+    expect(outer.kind === 'polygon' && outer.points[2]).toEqual([500, 150])
+    expect(stores.doc.getState().canUndo).toBe(true)
+  })
+})
+
 describe('텐트 회전(소유자 요청 2026-10-14)', () => {
   it('외곽을 고르면 [90도]·돌리기 칸: 외곽과 이너가 함께 돌고 실행 취소 1칸, 칸은 0으로 돌아옴', () => {
     const stores = setup(TWO_INNERS, { target: 'outer' })

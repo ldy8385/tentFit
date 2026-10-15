@@ -12,8 +12,7 @@ import {
   segmentCrosses,
   setEdgeLength,
   setVertexAngle,
-  snapDrawPoint,
-} from './polygonEdit'
+  snapDrawPoint, centerVertex } from './polygonEdit'
 
 function close(a: Pt[], b: Pt[], tol = 1e-9): void {
   expect(a.length).toBe(b.length)
@@ -260,5 +259,44 @@ describe('snapDrawPoint — 상하좌우로만(각도 단위 90°)', () => {
     expect(snapDrawPoint([0, 0], [100, 30], [0, 0], 90)).toEqual([100, 0])
     expect(snapDrawPoint([0, 0], [20, -150], [0, 0], 90)).toEqual([0, -150])
     expect(snapDrawPoint([0, 0], [100, 30], [0, 0])).toEqual([Math.round(100 * Math.cos(Math.PI / 12) * 10) / 10, Math.round(100 * Math.sin(Math.PI / 12) * 10) / 10])
+  })
+})
+
+describe('centerVertex(뾰족한 끝 가운데 맞추기, 2026-10-15)', () => {
+  // 오른쪽이 뾰족한 오각형인데 끝이 아래로 치우침
+  const penta: Pt[] = [
+    [0, 0],
+    [400, 0],
+    [500, 170],
+    [400, 300],
+    [0, 300],
+  ]
+  it('오른쪽으로 튀어나온 꼭짓점 → 나머지의 세로 가운데(y)로, 다른 점은 그대로', () => {
+    const out = centerVertex(penta, 2)
+    expect(out[2]).toEqual([500, 150])
+    expect(out.filter((_, i) => i !== 2)).toEqual(penta.filter((_, i) => i !== 2))
+  })
+
+  it('아래로 튀어나온 꼭짓점 → 가로 가운데(x)로', () => {
+    const house: Pt[] = [
+      [0, 0],
+      [300, 0],
+      [300, 200],
+      [120, 260],
+      [0, 200],
+    ]
+    expect(centerVertex(house, 3)[3]).toEqual([150, 260])
+  })
+
+  it('안쪽 꼭짓점은 더 가까운 가운데 줄로, 범위 밖 번호는 그대로', () => {
+    const notch: Pt[] = [
+      [0, 0],
+      [100, 0],
+      [100, 100],
+      [55, 60],
+      [0, 100],
+    ]
+    expect(centerVertex(notch, 3)[3]).toEqual([50, 60])
+    expect(centerVertex(notch, 9)).toEqual(notch)
   })
 })

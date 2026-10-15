@@ -224,3 +224,22 @@ export function minEdgeLength(points: readonly Pt[]): number {
   if (points.length < 2) return 0
   return Math.min(...edgeLengths(points))
 }
+
+/**
+ * 꼭짓점 하나를 나머지 꼭짓점 바깥 상자의 가운데 줄 위로 옮깁니다(전실·출입문 뾰족한 끝 가운데 맞추기, 소유자 요청 2026-10-15).
+ * 나머지보다 왼쪽·오른쪽으로 더 튀어나왔으면 세로 가운데(y)로, 위·아래로 더 튀어나왔으면 가로 가운데(x)로,
+ * 안쪽이면 더 가까운 가운데 줄로. 다른 꼭짓점은 그대로, 반올림하지 않습니다. 번호가 범위 밖이면 복사본.
+ */
+export function centerVertex(points: readonly Pt[], index: number): Pt[] {
+  const out = copy(points)
+  const v = out[index]
+  if (v === undefined || out.length < 3) return out
+  const b = ringBBox(out.filter((_, i) => i !== index))
+  const cx = (b.minX + b.maxX) / 2
+  const cy = (b.minY + b.maxY) / 2
+  const outX = Math.max(b.minX - v[0], v[0] - b.maxX, 0)
+  const outY = Math.max(b.minY - v[1], v[1] - b.maxY, 0)
+  const alignY = outX > outY || (outX === outY && Math.abs(v[1] - cy) < Math.abs(v[0] - cx))
+  out[index] = alignY ? [v[0], cy] : [cx, v[1]]
+  return out
+}

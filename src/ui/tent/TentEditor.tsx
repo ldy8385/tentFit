@@ -19,6 +19,7 @@ import { useState, type JSX } from 'react'
 import { useDoc, useStores, useUi } from '../../app/stores'
 import {
   attachInnerToWall,
+  centerTargetVertex,
   changeTargetShape,
   currentShapeKind,
   deleteInnerAction,
@@ -701,14 +702,25 @@ function VertexSection(p: {
               />
             </div>
           )}
-          <button
-            type="button"
-            className="tf-btn tf-btn--danger"
-            disabled={!enabled || ring.length <= 3}
-            onClick={() => deleteVertex(selected)}
-          >
-            꼭짓점 삭제
-          </button>
+          <div className="tf-row2">
+            <button
+              type="button"
+              className="tf-btn"
+              title="나머지 꼭짓점의 가운데 줄 위로 옮겨요(뾰족한 전실·출입문 끝 맞추기)"
+              disabled={!enabled}
+              onClick={() => toastIfRejected(centerTargetVertex(stores, target, selected))}
+            >
+              가운데로 맞추기
+            </button>
+            <button
+              type="button"
+              className="tf-btn tf-btn--danger"
+              disabled={!enabled || ring.length <= 3}
+              onClick={() => deleteVertex(selected)}
+            >
+              꼭짓점 삭제
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -29,6 +29,7 @@ import {
 import {
   canClosePolygon,
   centerPolygon,
+  centerVertex,
   drawGridOrigin,
   edgeLengths,
   interiorAngles,
@@ -445,6 +446,20 @@ export function setTargetEdgeLength(stores: Stores, target: TentTarget, edgeInde
   const current = edgeLengths(ring)[edgeIndex] ?? 0
   if (Math.abs(length - current) < 0.05) return OK
   return applyLocalPolygon(stores, target, setEdgeLength(ring, edgeIndex, length))
+}
+
+/**
+ * 고른 꼭짓점을 나머지 꼭짓점의 가운데 줄 위로(뾰족한 전실·출입문 끝 가운데 맞추기, 소유자 요청 2026-10-15).
+ * 템플릿 도형은 자유 다각형이 됩니다(꼭짓점 끌기와 같음). 이미 가운데면 기록 없음, 새 이슈면 거부.
+ */
+export function centerTargetVertex(stores: Stores, target: TentTarget, index: number): EditResult {
+  const ring = editableRing(stores, target)
+  if (ring === null || !Number.isInteger(index) || index < 0 || index >= ring.length) return OK
+  const next = centerVertex(ring, index)
+  const a = ring[index] as Pt
+  const b = next[index] as Pt
+  if (Math.abs(a[0] - b[0]) < 0.05 && Math.abs(a[1] - b[1]) < 0.05) return OK
+  return applyLocalPolygon(stores, target, next)
 }
 
 /** 꼭짓점 각도 범위(설계 §2.3-3) */
