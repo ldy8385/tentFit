@@ -18,6 +18,11 @@
   position: relative;
 }
 
+/* 칩 없이 창만(휴대폰 편집 화면): 묶음 오른쪽 끝에 맞춰 아래로 */
+.tf-gridstep--nochip {
+  position: static;
+}
+
 .tf-gridstep .tf-gridstep__panel {
   position: absolute;
   top: calc(100% + var(--sp-2));

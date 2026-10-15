@@ -50,6 +50,8 @@ export type UiState = {
   gridVisible: boolean
   /** 격자 간격(cm, 1~1000, 확대·축소와 무관). 그리기·꼭짓점·물건 맞춤과 격자 표시가 함께 씁니다(소유자 요청 2026-10-15). */
   gridStep: number
+  /** 격자 간격 설정 창이 열렸는지(캔버스 칩 또는 휴대폰 ☰ 메뉴「격자 간격」) */
+  gridPanelOpen: boolean
   pointer: PointerKind // 마지막 pointerdown의 pointerType
   canvasPressed: boolean // 캔버스를 누르고 있는 동안 true(이때는 시트를 따라 화면을 옮기지 않음)
   revealRequest: number // 새로 만든 물건을 보이게 해 달라는 요청 번호(셸이 바뀔 때마다 선택을 시트 위로 옮김)
@@ -121,6 +123,7 @@ export type UiState = {
         | 'snapEnabled'
         | 'gridVisible'
         | 'gridStep'
+        | 'gridPanelOpen'
         | 'mobileSheet'
         | 'desktopPanel'
         | 'areaExpanded'
@@ -219,6 +222,7 @@ export function createUiStore(
       snapEnabled: init?.snapEnabled ?? true,
       gridVisible: init?.gridVisible ?? true,
       gridStep: validGridStep(init?.gridStep),
+      gridPanelOpen: false,
       pointer: init?.pointer ?? 'mouse',
       canvasPressed: false,
       revealRequest: 0,

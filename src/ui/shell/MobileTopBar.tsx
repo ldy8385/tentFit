@@ -16,6 +16,7 @@ export function MobileTopBar() {
   const canUndo = useDoc((s) => s.canUndo) && !drawing
   const canRedo = useDoc((s) => s.canRedo) && !drawing
   const gridVisible = useUi((s) => s.gridVisible)
+  const gridStep = useUi((s) => s.gridStep)
   const snapEnabled = useUi((s) => s.snapEnabled)
   const measuring = useUi((s) => s.measuring)
 
@@ -32,6 +33,7 @@ export function MobileTopBar() {
             checked: gridVisible,
             onSelect: () => stores.ui.getState().patch({ gridVisible: !stores.ui.getState().gridVisible }),
           },
+          { label: `격자 간격 (${String(gridStep)}cm)`, onSelect: () => stores.ui.getState().patch({ gridPanelOpen: true }) },
           {
             label: '자석 맞춤',
             checked: snapEnabled,

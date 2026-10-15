@@ -206,10 +206,14 @@ describe('MobileTopBar', () => {
 
     fireEvent.click(within(bar).getByRole('button', { name: '메뉴' }))
     const items = Array.from(screen.getByRole('menu').querySelectorAll('button'), (el) => el.textContent)
-    expect(items).toEqual(['다시 실행', '격자 보이기', '자석 맞춤', '맞춤 보기', '거리 재기', '전체 백업(파일로 내려받기)', '파일 불러오기', 'PNG로 저장'])
+    expect(items).toEqual(['다시 실행', '격자 보이기', '격자 간격 (10cm)', '자석 맞춤', '맞춤 보기', '거리 재기', '전체 백업(파일로 내려받기)', '파일 불러오기', 'PNG로 저장'])
     expect((screen.getByRole('menuitem', { name: '다시 실행' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '격자 보이기' }))
     expect(stores.ui.getState().gridVisible).toBe(false)
+    // 격자 간격(휴대폰은 캔버스 칩 대신 메뉴에서 창을 엶)
+    fireEvent.click(within(bar).getByRole('button', { name: '메뉴' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '격자 간격 (10cm)' }))
+    expect(stores.ui.getState().gridPanelOpen).toBe(true)
   })
 
   it('실행 취소 → 메뉴의 다시 실행으로 되돌린다', () => {

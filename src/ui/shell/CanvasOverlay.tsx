@@ -209,7 +209,8 @@ export function CanvasOverlay(p: { variant: Variant }) {
         />
       )}
       <ScaleBarView zoom={zoom} />
-      <CornerControls />
+      {/* 휴대폰은 위쪽 가운데 요약 칩과 겹쳐 격자 칩 대신 ☰ 메뉴「격자 간격」 */}
+      <CornerControls gridChip={p.variant === 'desktop'} />
       {p.variant === 'desktop' && <ZoomControls zoom={zoom} />}
       {/* 그리는 중 PC 그리기 막대(휴대폰은 툴바가 같은 버튼, Plan 4.1) */}
       {p.variant === 'desktop' && drawing && <DrawTools variant="bar" />}
