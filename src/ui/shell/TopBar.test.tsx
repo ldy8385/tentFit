@@ -139,7 +139,7 @@ describe('TopBar', () => {
   it('이 계획에 없는 버튼(측정·파일)은 두지 않는다(모드 토글은 radio라 버튼 목록에 없음)', () => {
     renderBar('desktop')
     const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)
-    expect(names).toEqual(['실행 취소', '다시 실행', '보기'])
+    expect(names).toEqual(['실행 취소', '다시 실행', '파일', '보기']) // 파일 = Plan 7(전체 백업·불러오기)
   })
 })
 
@@ -206,7 +206,7 @@ describe('MobileTopBar', () => {
 
     fireEvent.click(within(bar).getByRole('button', { name: '메뉴' }))
     const items = Array.from(screen.getByRole('menu').querySelectorAll('button'), (el) => el.textContent)
-    expect(items).toEqual(['다시 실행', '격자 보이기', '맞춤 보기'])
+    expect(items).toEqual(['다시 실행', '격자 보이기', '맞춤 보기', '전체 백업(파일로 내려받기)', '파일 불러오기'])
     expect((screen.getByRole('menuitem', { name: '다시 실행' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '격자 보이기' }))
     expect(stores.ui.getState().gridVisible).toBe(false)

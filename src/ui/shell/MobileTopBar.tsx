@@ -1,6 +1,7 @@
 // 모바일 상단 바(스펙 §4.2): ☰ 메뉴(다시 실행, 격자 보이기, 맞춤 보기), 배치 이름, 실행 취소.
 // 메뉴의 파일 항목·스냅 켜기·설치 안내는 Plan 5·7·8에서 붙입니다.
 import { useDoc, useStores, useUi } from '../../app/stores'
+import { downloadBackup, pickAndImport } from '../../app/persist/files'
 import { fitToLayout } from '../../app/viewActions'
 import { MenuIcon, UndoIcon } from './icons'
 import { LayoutNameField } from './LayoutNameField'
@@ -29,6 +30,8 @@ export function MobileTopBar() {
             onSelect: () => stores.ui.getState().patch({ gridVisible: !stores.ui.getState().gridVisible }),
           },
           { label: '맞춤 보기', onSelect: () => fitToLayout(stores) },
+          { label: '전체 백업(파일로 내려받기)', onSelect: () => downloadBackup() },
+          { label: '파일 불러오기', onSelect: () => pickAndImport(stores) },
         ]}
       />
       <LayoutNameField className="shell-name--mobile" />

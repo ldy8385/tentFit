@@ -475,3 +475,30 @@
   outline: 2px solid var(--select);
   outline-offset: 2px;
 }
+
+/* 내 텐트 카드의 [×](지우기, 2026-10-15) */
+.tf-picker__mine {
+  position: relative;
+}
+
+.tf-picker__delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.tf-picker__delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}

@@ -117,7 +117,7 @@ describe('TentEditor 구성 목록(§4.4-3)', () => {
     expect(within(editor()).getByText(EMPTY_TARGET_TEXT)).toBeTruthy()
     expect(screen.queryByTestId('tent-target-fields')).toBeNull()
     expect(within(editor()).getByRole('button', { name: '텐트 바꾸기' })).toBeTruthy()
-    expect(within(editor()).queryByRole('button', { name: /내 텐트로 저장/ })).toBeNull() // R1
+    expect(within(editor()).getByRole('button', { name: '내 텐트로 저장' })).toBeTruthy() // Plan 7(2026-10-15)
   })
 
   it('[+ 이너 ▾] → 사각형은 새 이너를 만들고 그 이너를 대상으로 고른다', () => {

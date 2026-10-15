@@ -1,6 +1,7 @@
 // PC 상단 바(스펙 §4.1): 로고, 배치 이름, 모드 토글(배치│텐트 편집), 실행 취소·다시 실행, [보기] 메뉴(격자 보이기, 맞춤 보기).
 // 굵은 포인터 기기에서만 [선택] 토글을 더합니다. [측정]·[파일]·스냅 항목은 Plan 5·7에서 붙입니다.
 import { useDoc, useStores, useUi } from '../../app/stores'
+import { downloadBackup, pickAndImport } from '../../app/persist/files'
 import { enterTentMode, exitTentMode, tentControlsEnabled } from '../../app/tentActions'
 import { fitToLayout } from '../../app/viewActions'
 import type { Mode } from '../../store/ui'
@@ -83,6 +84,14 @@ export function TopBar() {
       >
         <RedoIcon />
       </button>
+      <MenuButton
+        label="파일"
+        showLabel
+        items={[
+          { label: '전체 백업(파일로 내려받기)', onSelect: () => downloadBackup() },
+          { label: '파일 불러오기', onSelect: () => pickAndImport(stores) },
+        ]}
+      />
       <MenuButton
         label="보기"
         showLabel

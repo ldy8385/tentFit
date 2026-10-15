@@ -3,6 +3,7 @@
 // 미니 평면도는 core thumbnailSvg 문자열이고, 목록 안 모든 카드가 같은 축척(extentCm = 목록 최대 외곽 변)입니다.
 // PC는 4열 카드, 휴대폰은 1열(직접 만들기는 행 카드)이고 오른쪽 끝에 ›를 둡니다.
 import { useId, useMemo, type JSX } from 'react'
+import { deleteMyTent, useMyTents } from '../../app/persist/storage'
 import type { TentCatalog } from '../../app/tentCatalog'
 import type { TentPreset } from '../../core/model'
 import { thumbnailSvg } from '../../core/thumbnail'
@@ -100,8 +101,21 @@ function Section(p: {
       <p className="tf-picker__note">{p.note}</p>
       <ul className="tf-picker__grid">
         {p.presets.map((preset) => (
-          <li key={preset.id}>
+          <li key={preset.id} className={p.sectionKey === 'mine' ? 'tf-picker__mine' : undefined}>
             <PresetCard preset={preset} extentCm={p.extentCm} desktop={p.desktop} onPick={p.onPick} />
+            {p.sectionKey === 'mine' && (
+              <button
+                type="button"
+                className="tf-picker__delete"
+                aria-label={`${preset.model} 지우기`}
+                title="내 텐트에서 지우기"
+                onClick={() => {
+                  if (window.confirm(`「${preset.model}」을(를) 내 텐트에서 지울까요?`)) void deleteMyTent(preset.id)
+                }}
+              >
+                ×
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -118,7 +132,8 @@ export function TentPickerList(p: {
   onRetry?(): void
 }): JSX.Element {
   const desktop = useIsDesktop()
-  const sections = useMemo(() => (p.catalog === null ? [] : sectionsOf(p.catalog)), [p.catalog])
+  const mine = useMyTents()
+  const sections = useMemo(() => (p.catalog === null ? [] : sectionsOf(p.catalog, mine)), [p.catalog, mine])
   const extentCm = useMemo(() => commonExtentCm(sections.flatMap((s) => s.presets)), [sections])
   const hasError = p.error !== undefined && p.error !== ''
 

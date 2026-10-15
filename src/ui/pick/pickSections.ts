@@ -5,16 +5,20 @@ import type { TentCatalog } from '../../app/tentCatalog'
 import { outerRing, ringBBox } from '../../core/geom'
 import { round1, type Tent, type TentPreset } from '../../core/model'
 
-export type PickSection = { key: 'generic' | 'brand'; title: string; note: string; presets: TentPreset[] }
+export type PickSection = { key: 'mine' | 'generic' | 'brand'; title: string; note: string; presets: TentPreset[] }
+
+export const MINE_SECTION_TITLE = '내 텐트'
+export const MINE_SECTION_NOTE = '이 브라우저에 저장한 텐트예요'
 
 export const GENERIC_SECTION_TITLE = '일반 예시'
 export const GENERIC_SECTION_NOTE = '흔한 크기로 만든 예시예요'
 export const BRAND_SECTION_TITLE = '브랜드'
 export const BRAND_SECTION_NOTE = '치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요'
 
-/** 일반 예시 → 브랜드 순. 프리셋이 없는 구역은 뺍니다. 브랜드 구역은 catalog.brands 순서(브랜드 이름순) 그대로 이어 붙입니다. */
-export function sectionsOf(catalog: TentCatalog): PickSection[] {
+/** 내 텐트 → 일반 예시 → 브랜드 순. 프리셋이 없는 구역은 뺍니다. 브랜드 구역은 catalog.brands 순서(브랜드 이름순) 그대로 이어 붙입니다. */
+export function sectionsOf(catalog: TentCatalog, mine: readonly TentPreset[] = []): PickSection[] {
   const out: PickSection[] = []
+  if (mine.length > 0) out.push({ key: 'mine', title: MINE_SECTION_TITLE, note: MINE_SECTION_NOTE, presets: [...mine] })
   if (catalog.generic.length > 0) {
     out.push({ key: 'generic', title: GENERIC_SECTION_TITLE, note: GENERIC_SECTION_NOTE, presets: catalog.generic })
   }

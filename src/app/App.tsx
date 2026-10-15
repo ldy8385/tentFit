@@ -11,7 +11,11 @@ import { DesktopShell } from '../ui/shell/DesktopShell'
 import { MobileShell } from '../ui/shell/MobileShell'
 import { useIsDesktop } from '../ui/shell/useIsDesktop'
 import { getLastLayoutId, getLayout, listLayoutSummaries, putLayout, setLastLayoutId } from './layoutRepo'
+import { flushSaves, useStorageStatus } from './persist/storage'
 import { PickRoute } from './PickRoute'
+
+/** 저장소를 못 쓸 때(§9.6) */
+export const STORAGE_UNAVAILABLE_MESSAGE = '이 브라우저에는 저장되지 않아요 · 메뉴의 [전체 백업]으로 파일에 남겨 주세요'
 import { editHash, PICK_HASH, useRoute } from './router'
 import { useShortcuts } from './shortcuts'
 import { startRoute } from './startRoute'
@@ -53,8 +57,20 @@ function Editor(p: { layout: Layout }) {
     setLastLayoutId(p.layout.id)
   }, [p.layout.id])
 
-  // 문서가 바뀔 때마다 보관본을 최신으로(같은 탭에서 해시를 오가도 이어서 편집)
-  useEffect(() => stores.doc.subscribe((s) => putLayout(s.layout)), [stores])
+  // 문서가 바뀔 때마다 보관본을 최신으로(같은 탭에서 해시를 오가도 이어서 편집). 브라우저 저장은 1초 뒤, 배치를 떠날 때는 바로.
+  useEffect(() => {
+    const off = stores.doc.subscribe((s) => putLayout(s.layout))
+    return () => {
+      off()
+      void flushSaves()
+    }
+  }, [stores])
+
+  // 저장되지 않는 환경이면 한 번 알립니다(§9.6).
+  const storage = useStorageStatus()
+  useEffect(() => {
+    if (storage === 'unavailable' || storage === 'failed') stores.ui.getState().showToast(STORAGE_UNAVAILABLE_MESSAGE)
+  }, [storage, stores])
 
   // 시트·버튼(DOM)을 눌러도 마지막 포인터 종류를 기억합니다. 캔버스를 누르기 전에도 핸들 모양이 입력에 맞게.
   useEffect(() => {

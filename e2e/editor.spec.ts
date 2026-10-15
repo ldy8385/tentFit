@@ -297,3 +297,38 @@ test.describe('도형 도구(2026-10-14)', () => {
     await expect(lib.getByLabel('제조사')).toBeVisible()
   })
 })
+
+// ── 브라우저 저장(Plan 7, 2026-10-15) ──────────────────────────────
+
+test.describe('브라우저 저장', () => {
+  test('배치는 자동 저장돼 새로고침해도 그대로 열리고, 내 텐트는 고르기 화면에 남음', async ({ page }) => {
+    const item = await createItem(page, MAT_ITEM)
+    const layoutId = (await getDoc(page)).layout.id
+    await page.getByRole('radio', { name: '텐트 편집', exact: true }).click()
+    await page.getByRole('button', { name: '내 텐트로 저장' }).click()
+    await page.waitForTimeout(1300) // 1초 뒤 저장
+    await page.reload()
+    await expect.poll(async () => (await getDoc(page)).layout.id).toBe(layoutId)
+    expect((await getDoc(page)).layout.items.map((it) => it.id)).toEqual([item.id])
+    await page.goto('/#/pick')
+    const mine = page.locator('[data-section="mine"]')
+    await expect(mine.getByRole('heading', { name: '내 텐트' })).toBeVisible()
+    await expect(mine.getByRole('button', { name: /지우기$/ })).toHaveCount(1)
+  })
+
+  test('전체 백업 내려받기 → 파일 불러오기: 배치가 「(가져옴)」으로 하나 더', async ({ page }) => {
+    await createItem(page, MAT_ITEM)
+    const name = (await getDoc(page)).layout.name
+    await page.getByRole('button', { name: '파일' }).click()
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: '전체 백업(파일로 내려받기)' }).click()])
+    expect(download.suggestedFilename()).toMatch(/^tentfit-backup-\d{8}\.json$/)
+    const path = await download.path()
+    await page.getByRole('button', { name: '파일' }).click()
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('menuitem', { name: '파일 불러오기' }).click()])
+    await chooser.setFiles(path!)
+    await expect(page.getByText(/불러왔어요: 배치 1개/)).toBeVisible()
+    await page.goto('/#/pick')
+    await page.getByRole('button', { name: /내 배치/ }).click()
+    await expect(page.getByText(`${name} (가져옴)`)).toBeVisible()
+  })
+})

@@ -1,8 +1,9 @@
 // 배치 보관 경계(스펙 §4.7·§9). 고르기 화면·만들기 화면·편집기는 memoryLayouts.ts를 직접 부르지 않고 이것만 씁니다.
-// 지금은 이 탭의 메모리(새로고침하면 사라짐)이고, Plan 7이 이 한 겹만 IndexedDB로 바꿉니다. 그때까지 동기 API입니다.
+// 메모리 보관소가 원본이고, 바뀌면 persist/storage가 IndexedDB에 씁니다(Plan 7, 2026-10-15). 앱을 열 때 저장된 배치를 먼저 불러오므로 동기 API 그대로입니다.
 import { createLayout, type Layout, type Tent } from '../core/model'
 import { uniqueName } from '../core/ops/items'
 import { clearMemoryLayouts, getMemoryLayout, listMemoryLayouts, putMemoryLayout } from './memoryLayouts'
+import { lastLayoutChanged, layoutChanged, restoredLastLayoutId } from './persist/storage'
 
 /** 내 배치 목록·시작 규칙이 쓰는 요약 */
 export type LayoutSummary = { id: string; name: string; updatedAt: string; itemCount: number }
@@ -32,6 +33,7 @@ export function getLayout(id: string): Layout | undefined {
 
 export function putLayout(layout: Layout): void {
   putMemoryLayout(layout)
+  layoutChanged(layout)
 }
 
 /** updatedAt 내림차순(같으면 이름) */
@@ -53,17 +55,19 @@ export function createLayoutFromTent(tent: Tent, opts?: { sourcePresetId?: strin
   const names = listMemoryLayouts().map((l) => l.name)
   const name = uniqueName(names, `${tent.name} 배치`)
   const layout = createLayout(tent, { name, sourcePresetId: opts?.sourcePresetId })
-  putMemoryLayout(layout)
+  putLayout(layout)
   return layout
 }
 
 export function getLastLayoutId(): string | null {
-  return lastLayoutId
+  return lastLayoutId ?? restoredLastLayoutId()
 }
 
-/** 편집기를 열 때마다 부릅니다(Task 5). */
+/** 편집기를 열 때마다 부릅니다(Task 5). 브라우저에도 기억합니다. */
 export function setLastLayoutId(id: string | null): void {
+  if (lastLayoutId === id) return
   lastLayoutId = id
+  lastLayoutChanged(id)
 }
 
 /** 테스트용: 보관한 배치와 마지막 배치 기록을 비웁니다. */

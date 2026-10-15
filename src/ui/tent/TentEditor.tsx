@@ -45,6 +45,7 @@ import { TextField } from '../fields/TextField'
 import { NAME_MAX_LENGTH } from '../fields/limits'
 import '../panels/panels.css'
 import { applyDim } from '../../app/dimActions'
+import { saveMyTent } from '../../app/persist/storage'
 import { AxisLockToggle } from '../common/AxisLockToggle'
 import { KeepRatioToggle } from '../common/KeepRatioToggle'
 import { RadiusFields } from '../panels/RadiusFields'
@@ -190,9 +191,23 @@ export function TentEditor(p: {
       )}
 
       {!maker && (
-        <button type="button" className="tf-btn tf-tent__swap" disabled={!enabled || drawing} onClick={openSwap}>
-          텐트 바꾸기
-        </button>
+        <div className="tf-row2">
+          <button type="button" className="tf-btn tf-tent__swap" disabled={!enabled || drawing} onClick={openSwap}>
+            텐트 바꾸기
+          </button>
+          <button
+            type="button"
+            className="tf-btn"
+            disabled={!enabled || drawing}
+            onClick={() => {
+              void saveMyTent(stores.doc.getState().layout.tent).then((t) =>
+                stores.ui.getState().showToast(`내 텐트에 「${t.model}」로 저장했어요 · 텐트 고르기에서 쓸 수 있어요`),
+              )
+            }}
+          >
+            내 텐트로 저장
+          </button>
+        </div>
       )}
     </section>
   )
