@@ -6,10 +6,13 @@ import { createRoot } from 'react-dom/client'
 import App from './app/App'
 import { openIdbKv } from './app/persist/kv'
 import { flushSaves, initStorage } from './app/persist/storage'
+import { installAutoTitle } from './ui/autoTitle'
 import { blockBrowserGestures } from './ui/browserGestures'
 
 // iOS Safari 핀치 확대(gesturestart·gesturechange) 차단(스펙 §4.5). 앱이 살아 있는 동안 계속 붙여 둡니다.
 blockBrowserGestures(document)
+// 말줄임으로 잘린 이름은 마우스를 올리면 전체 이름을 툴팁으로(2026-10-15).
+installAutoTitle(document)
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {
