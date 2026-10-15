@@ -49,6 +49,7 @@ import { saveMyTent } from '../../app/persist/storage'
 import { AxisLockToggle } from '../common/AxisLockToggle'
 import { KeepRatioToggle } from '../common/KeepRatioToggle'
 import { RadiusFields } from '../panels/RadiusFields'
+import { TentPresetForm } from './TentPresetForm'
 import { MenuButton } from '../shell/MenuButton'
 import { COORDS_LABEL, Disclosure, PolygonFields } from './PolygonFields'
 import { DRAWING_HINT, innerShapeMenu, KIND_LABELS, TEMPLATE_KINDS } from './shapeMenu'
@@ -209,6 +210,7 @@ export function TentEditor(p: {
           </button>
         </div>
       )}
+      {!maker && import.meta.env.DEV && p.variant === 'panel' && <TentPresetForm disabled={!enabled || drawing} />}
     </section>
   )
 }

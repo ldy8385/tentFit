@@ -661,3 +661,25 @@ test.describe('상하좌우로만 이동(Shift, 소유자 요청)', () => {
     ])
   })
 })
+
+test('로컬 [텐트 프리셋으로 저장]: 제조사·모델·파일 이름으로 보내고 텐트 고르기 「브랜드」에 바로 보임(2026-10-15)', async ({ page }) => {
+  let sent: { slug: string; entry: { id: string; brand: string; model: string } } | null = null
+  await page.route('**/__tentfit/tent-presets', async (route) => {
+    sent = route.request().postDataJSON()
+    await route.fulfill({ json: { ok: true, file: 'presets/tents/snow-peak.json' } })
+  })
+  await openEditorWith(page)
+  await enterTentModeByUi(page)
+  const form = page.getByTestId('save-tent-preset')
+  await form.getByLabel('제조사').fill('Snow Peak')
+  await form.getByLabel('모델명').fill('Land Lock')
+  await form.getByRole('button', { name: '텐트 프리셋으로 저장' }).click()
+  await expect.poll(() => sent?.entry.id).toBe('snow-peak/land-lock')
+  expect(sent!.slug).toBe('snow-peak')
+  await expect(page.getByText(/텐트 프리셋에 넣었어요/)).toBeVisible()
+  // 새로 고치지 않고(메모리 목록) 고르기 화면으로
+  await page.evaluate(() => {
+    window.location.hash = '#/pick'
+  })
+  await expect(page.locator('[data-section="brand"]').getByText('Snow Peak')).toBeVisible()
+})

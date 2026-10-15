@@ -1,6 +1,7 @@
+import { cornerCount, radiiOf, withRadii } from './radii'
 import { area, inflate, intersect, region, ringArea, ringSelfIntersects, worldRing } from './geom'
 import { EPS_AREA, newId, TOL_CM } from './model'
-import type { Inner, Item, Layout, Pt, Shape, Tent } from './model'
+import type { Inner, Item, Layout, Pt, Shape, ShapeTemplate, Tent } from './model'
 import { shapeFromTemplate, shapesEqual } from './templates'
 
 export type IssueCode =
@@ -124,9 +125,15 @@ export function newTentIssues(before: Tent, after: Tent): Issue[] {
 }
 
 /** 템플릿이 있으면 템플릿으로 만든 도형과 비교해 다르면 다시 만듭니다(§5.3-6). */
+/** 템플릿으로 만든 도형에 지금 도형의 모서리 반지름을 이어 붙입니다(꼭짓점 수가 같을 때, 템플릿에는 반지름이 없음 — 2026-10-15) */
+function fromTemplateKeepingRadii(template: ShapeTemplate, current: Shape): Shape {
+  const base = shapeFromTemplate(template)
+  return current.kind !== 'circle' && cornerCount(current) === cornerCount(base) ? withRadii(base, radiiOf(current)) : base
+}
+
 function fixTemplates(tent: Tent, issues: Issue[]): void {
   if (tent.outerTemplate) {
-    const made = shapeFromTemplate(tent.outerTemplate)
+    const made = fromTemplateKeepingRadii(tent.outerTemplate, tent.outer)
     if (!shapesEqual(tent.outer, made)) {
       tent.outer = made
       issues.push({ code: 'template-mismatch', path: 'tent.outer', message: '외곽을 템플릿으로 다시 만들었어요', fixed: true })
@@ -134,7 +141,7 @@ function fixTemplates(tent: Tent, issues: Issue[]): void {
   }
   tent.inners.forEach((inner, k) => {
     if (!inner.template) return
-    const made = shapeFromTemplate(inner.template)
+    const made = fromTemplateKeepingRadii(inner.template, inner.shape)
     if (!shapesEqual(inner.shape, made)) {
       inner.shape = made
       issues.push({

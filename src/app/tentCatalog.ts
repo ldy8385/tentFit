@@ -49,6 +49,23 @@ export function catalogFromFiles(files: Record<string, unknown>): TentCatalog {
 let pending: Promise<TentCatalog> | null = null
 
 /**
+ * 로컬 개발 서버에서 [텐트 프리셋으로 저장]한 프리셋을 이미 불러온 목록에 바로 넣습니다(화면을 새로 고치지 않으므로, 2026-10-15).
+ * 같은 id면 바꿉니다. 아직 안 불러왔으면 다음 불러오기가 파일에서 읽습니다.
+ */
+export function registerTentPreset(preset: TentPreset): void {
+  if (pending === null) return
+  pending = pending.then((c) => {
+    const brand = preset.brand ?? ''
+    const others = c.brands.map((b) => ({ brand: b.brand, presets: b.presets.filter((p) => p.id !== preset.id) }))
+    const hit = others.find((b) => b.brand === brand)
+    if (hit !== undefined) hit.presets.push(preset)
+    else others.push({ brand, presets: [preset] })
+    others.sort((a, b) => a.brand.localeCompare(b.brand, 'ko'))
+    return { generic: c.generic, brands: others.filter((b) => b.presets.length > 0) }
+  })
+}
+
+/**
  * 고르기 화면·텐트 바꾸기 대화상자가 부릅니다. tentCatalogData를 동적 import해 청크를 나눕니다(§5.4).
  * 같은 Promise를 재사용하고, 실패하면 다음 호출([다시 시도])이 새로 불러오도록 비웁니다.
  */

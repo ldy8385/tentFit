@@ -1,3 +1,4 @@
+import { cornerCount, radiiOf, withRadii } from './radii'
 import { z } from 'zod'
 import { ItemPresetSchema, TentFileEntrySchema } from './model'
 import type { Inner, ItemPreset, Shape, ShapeTemplate, TentFileEntry, TentPreset } from './model'
@@ -26,7 +27,10 @@ function zodIssueLines(file: string, base: string, error: z.ZodError): string[] 
   return error.issues.map((i) => issueLine(file, joinPath(base, i.path), i.message))
 }
 
-/** 템플릿이 있으면 템플릿으로 도형을 만들고, 함께 적힌 도형이 0.1cm 넘게 다르면 issue를 남깁니다. */
+/**
+ * 템플릿이 있으면 템플릿으로 도형을 만들고, 함께 적힌 도형이 0.1cm 넘게 다르면 issue를 남깁니다.
+ * 함께 적힌 도형의 모서리 반지름(radii)은 이어 붙입니다(템플릿에는 반지름이 없음, 2026-10-15).
+ */
 function resolveShape(
   shape: Shape | undefined,
   template: ShapeTemplate | undefined,
@@ -34,7 +38,8 @@ function resolveShape(
   issues: string[],
 ): Shape {
   if (template !== undefined) {
-    const made = shapeFromTemplate(template)
+    const base = shapeFromTemplate(template)
+    const made = shape !== undefined && shape.kind !== 'circle' && cornerCount(shape) === cornerCount(base) ? withRadii(base, radiiOf(shape)) : base
     if (shape !== undefined && !shapesEqual(shape, made)) {
       issues.push(`${path}: 템플릿으로 만든 도형과 0.1cm 넘게 달라요`)
     }

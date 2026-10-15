@@ -7,6 +7,7 @@ import { deleteVertex, insertVertex, setOuterTemplate, setTargetPolygon, setVert
 import { normalizeShape } from './ops/util'
 import { normalizeRadii, radiiOf, withRadii } from './radii'
 import { shapesEqual } from './templates'
+import { validateLayout } from './validate'
 
 const NOW = '2026-10-14T00:00:00.000Z'
 
@@ -95,6 +96,16 @@ describe('텐트 꼭짓점 편집', () => {
     const l = layoutWith(square)
     expect(targetWorldRing(l, 'outer')).toHaveLength(4)
     expect(targetWorldOutline(l, 'outer').length).toBeGreaterThan(8)
+  })
+})
+
+describe('검사(validateLayout)·프리셋 읽기', () => {
+  it('템플릿 도형의 모서리 반지름은 다시 만들 때도 그대로(이슈 없음)', () => {
+    const l = layoutWith({ kind: 'rect', w: 600, h: 300, radii: [20, 20, 20, 20] })
+    const withTpl: Layout = { ...l, tent: { ...l.tent, outerTemplate: { kind: 'rect', w: 600, h: 300 } } }
+    const v = validateLayout(withTpl)
+    expect(v.issues).toEqual([])
+    expect(v.layout.tent.outer).toEqual({ kind: 'rect', w: 600, h: 300, radii: [20, 20, 20, 20] })
   })
 })
 
