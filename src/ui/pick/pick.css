@@ -195,6 +195,38 @@
   font-weight: 700;
 }
 
+.tf-picker__title + .tf-picker__grid {
+  margin-top: var(--sp-3);
+}
+
+/* 브랜드 필터(소유자 요청 2026-10-15) */
+.tf-picker__filter {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 360px;
+  margin: var(--sp-4) 0 0;
+}
+
+.tf-picker__filter-label {
+  flex: none;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.tf-picker__filter-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+}
+
 .tf-picker__note {
   margin: var(--sp-1) 0 var(--sp-3);
   color: var(--text-secondary);

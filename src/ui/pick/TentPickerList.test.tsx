@@ -58,21 +58,35 @@ function viewBoxSize(svg: Element): [number, number] {
 }
 
 describe('TentPickerList', () => {
-  it('구역 순서는 일반 예시 → 브랜드, 소제목 아래 안내 문구는 스펙 원문', () => {
+  it('구역 순서는 일반 예시 → 브랜드마다 한 구역(제목 = 브랜드 이름), 공개 자료 안내는 첫 브랜드 구역에', () => {
     renderList({ catalog: withBrands() })
-    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['일반 예시', '브랜드'])
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['일반 예시', '가나텐트', '다라'])
     const generic = screen.getByRole('region', { name: '일반 예시' })
-    const brand = screen.getByRole('region', { name: '브랜드' })
+    const gana = screen.getByRole('region', { name: '가나텐트' })
+    const dara = screen.getByRole('region', { name: '다라' })
     expect(within(generic).getByText('흔한 크기로 만든 예시예요')).toBeTruthy()
-    expect(within(brand).getByText('치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요')).toBeTruthy()
+    expect(within(gana).getByText('치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요')).toBeTruthy()
+    expect(within(dara).queryByText('치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요')).toBeNull()
     expect(within(generic).getAllByRole('button')).toHaveLength(5)
-    expect(within(brand).getAllByRole('button').map((b) => b.getAttribute('data-preset-id'))).toEqual(['gana/shelter', 'dara/bell'])
+    expect(within(gana).getAllByRole('button').map((b) => b.getAttribute('data-preset-id'))).toEqual(['gana/shelter'])
+    expect(within(dara).getAllByRole('button').map((b) => b.getAttribute('data-preset-id'))).toEqual(['dara/bell'])
   })
 
-  it('브랜드 프리셋이 없으면 브랜드 구역도 안내 문구도 없다(필터·검색도 없음)', () => {
+  it('브랜드 필터(소유자 요청 2026-10-15): 고른 브랜드 구역만, 「브랜드 전체」로 되돌림', () => {
+    renderList({ catalog: withBrands() })
+    const select = screen.getByRole('combobox', { name: '브랜드' }) as HTMLSelectElement
+    expect(Array.from(select.options, (o) => o.textContent)).toEqual(['브랜드 전체', '가나텐트', '다라'])
+    fireEvent.change(select, { target: { value: '다라' } })
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['다라'])
+    fireEvent.change(select, { target: { value: '' } })
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['일반 예시', '가나텐트', '다라'])
+  })
+
+  it('브랜드 프리셋이 없으면 브랜드 구역도 안내 문구도 필터도 없다(검색도 없음)', () => {
     renderList()
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['일반 예시'])
     expect(screen.queryByText('치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요')).toBeNull()
+    expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.queryByRole('searchbox')).toBeNull()
     expect(screen.queryByRole('textbox')).toBeNull()
   })

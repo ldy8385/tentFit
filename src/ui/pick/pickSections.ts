@@ -1,32 +1,44 @@
 // 텐트 고르기 목록의 순수 계산(스펙 §4.7-1). 고르기 화면과 텐트 바꾸기 대화상자(Task 11)가 같이 씁니다.
-// 브랜드 필터·검색은 만들지 않습니다(브랜드 프리셋이 생긴 뒤, §4.7-1). 내 텐트 구역은 Plan 7(R1).
+// 브랜드마다 구역 하나와 브랜드 필터(소유자 요청 2026-10-15). 검색은 아직 없습니다. 내 텐트 구역은 Plan 7(R1).
 import type { LayoutSummary } from '../../app/layoutRepo'
 import type { TentCatalog } from '../../app/tentCatalog'
 import { outerRing, ringBBox } from '../../core/geom'
 import { round1, type Tent, type TentPreset } from '../../core/model'
 
-export type PickSection = { key: 'mine' | 'generic' | 'brand'; title: string; note: string; presets: TentPreset[] }
+/** brand = 브랜드 구역의 브랜드 이름(제목과 같음). note가 ''이면 안내 문구 없음 */
+export type PickSection = { key: 'mine' | 'generic' | 'brand'; title: string; note: string; presets: TentPreset[]; brand?: string }
 
 export const MINE_SECTION_TITLE = '내 텐트'
 export const MINE_SECTION_NOTE = '이 브라우저에 저장한 텐트예요'
 
 export const GENERIC_SECTION_TITLE = '일반 예시'
 export const GENERIC_SECTION_NOTE = '흔한 크기로 만든 예시예요'
-export const BRAND_SECTION_TITLE = '브랜드'
 export const BRAND_SECTION_NOTE = '치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요'
 
-/** 내 텐트 → 일반 예시 → 브랜드 순. 프리셋이 없는 구역은 뺍니다. 브랜드 구역은 catalog.brands 순서(브랜드 이름순) 그대로 이어 붙입니다. */
-export function sectionsOf(catalog: TentCatalog, mine: readonly TentPreset[] = []): PickSection[] {
+/**
+ * 내 텐트 → 일반 예시 → 브랜드마다 한 구역(catalog.brands 순서 = 브랜드 이름순, 제목 = 브랜드 이름). 프리셋이 없는 구역은 뺍니다.
+ * 공개 자료 안내(BRAND_SECTION_NOTE)는 첫 브랜드 구역에만 둡니다. brand(필터)를 주면 그 브랜드 구역만 돌려줍니다.
+ */
+export function sectionsOf(catalog: TentCatalog, mine: readonly TentPreset[] = [], brand: string | null = null): PickSection[] {
   const out: PickSection[] = []
-  if (mine.length > 0) out.push({ key: 'mine', title: MINE_SECTION_TITLE, note: MINE_SECTION_NOTE, presets: [...mine] })
-  if (catalog.generic.length > 0) {
-    out.push({ key: 'generic', title: GENERIC_SECTION_TITLE, note: GENERIC_SECTION_NOTE, presets: catalog.generic })
+  if (brand === null) {
+    if (mine.length > 0) out.push({ key: 'mine', title: MINE_SECTION_TITLE, note: MINE_SECTION_NOTE, presets: [...mine] })
+    if (catalog.generic.length > 0) {
+      out.push({ key: 'generic', title: GENERIC_SECTION_TITLE, note: GENERIC_SECTION_NOTE, presets: catalog.generic })
+    }
   }
-  const branded = catalog.brands.flatMap((b) => b.presets)
-  if (branded.length > 0) {
-    out.push({ key: 'brand', title: BRAND_SECTION_TITLE, note: BRAND_SECTION_NOTE, presets: branded })
+  let first = true
+  for (const b of catalog.brands) {
+    if (b.presets.length === 0 || (brand !== null && b.brand !== brand)) continue
+    out.push({ key: 'brand', title: b.brand, note: first ? BRAND_SECTION_NOTE : '', presets: b.presets, brand: b.brand })
+    first = false
   }
   return out
+}
+
+/** 필터에 보일 브랜드 이름(프리셋이 있는 브랜드만, catalog 순서) */
+export function brandNamesOf(catalog: TentCatalog | null): string[] {
+  return catalog === null ? [] : catalog.brands.filter((b) => b.presets.length > 0).map((b) => b.brand)
 }
 
 /** 외곽 바운딩 박스의 가로·세로(cm). 원은 지름 × 지름. 계산할 수 없으면 null */

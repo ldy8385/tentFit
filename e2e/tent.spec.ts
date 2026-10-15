@@ -683,5 +683,8 @@ test('로컬 [텐트 프리셋으로 저장]: 제조사·모델로 presets/tents
   await page.evaluate(() => {
     window.location.hash = '#/pick'
   })
-  await expect(page.locator('[data-section="brand"]').getByText('Snow Peak')).toBeVisible()
+  // 브랜드마다 구역(제목 = 브랜드 이름): 「Snow Peak」 구역에 새 카드
+  const section = page.getByRole('region', { name: 'Snow Peak' })
+  await expect(section).toBeVisible()
+  await expect(section.locator('[data-preset-id="snow-peak/land-lock"]')).toBeVisible()
 })

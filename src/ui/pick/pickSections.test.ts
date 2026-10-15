@@ -24,7 +24,7 @@ const TRAPEZOID: Tent = {
 }
 
 describe('sectionsOf', () => {
-  it('일반 예시 → 브랜드 순, 문구는 스펙 원문, 브랜드는 catalog 순서대로 이어 붙인다', () => {
+  it('일반 예시 → 브랜드마다 구역(제목 = 브랜드 이름, catalog 순서), 공개 자료 안내는 첫 브랜드 구역에만', () => {
     const catalog: TentCatalog = {
       generic: [preset('generic/a', RECT)],
       brands: [
@@ -35,11 +35,26 @@ describe('sectionsOf', () => {
     const sections = sectionsOf(catalog)
     expect(sections.map((s) => [s.key, s.title, s.note])).toEqual([
       ['generic', '일반 예시', '흔한 크기로 만든 예시예요'],
-      ['brand', '브랜드', '치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요'],
+      ['brand', '가나', '치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요'],
+      ['brand', '다라', ''],
     ])
     expect(GENERIC_SECTION_NOTE).toBe('흔한 크기로 만든 예시예요')
     expect(BRAND_SECTION_NOTE).toBe('치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요')
-    expect(sections[1]!.presets.map((p) => p.id)).toEqual(['gana/x', 'dara/y', 'dara/z'])
+    expect(sections.map((s) => s.presets.map((p) => p.id))).toEqual([['generic/a'], ['gana/x'], ['dara/y', 'dara/z']])
+    expect(sections.map((s) => s.brand)).toEqual([undefined, '가나', '다라'])
+  })
+
+  it('브랜드 필터: 그 브랜드 구역만(내 텐트·일반 예시도 숨김, 안내 문구는 그 구역에)', () => {
+    const catalog: TentCatalog = {
+      generic: [preset('generic/a', RECT)],
+      brands: [
+        { brand: '가나', presets: [preset('gana/x', CIRCLE, '가나')] },
+        { brand: '다라', presets: [preset('dara/y', TRAPEZOID, '다라')] },
+      ],
+    }
+    const sections = sectionsOf(catalog, [preset('mine/1', RECT)], '다라')
+    expect(sections.map((s) => [s.key, s.title, s.note])).toEqual([['brand', '다라', '치수는 제조사 공개 자료 기준이며 실제와 다를 수 있어요']])
+    expect(sectionsOf(catalog, [], null).map((s) => s.title)).toEqual(['일반 예시', '가나', '다라'])
   })
 
   it('브랜드 프리셋이 없으면 브랜드 구역이 없고, 일반 예시가 없으면 일반 구역이 없다', () => {

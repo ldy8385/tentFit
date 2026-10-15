@@ -1,15 +1,15 @@
-// 텐트 고르기 목록(스펙 §4.7-1): 맨 앞 [직접 만들기] 카드, 일반 예시·브랜드 구역(소제목 + 안내 문구) 아래 프리셋 카드.
+// 텐트 고르기 목록(스펙 §4.7-1): 맨 앞 [직접 만들기] 카드, 브랜드 필터, 일반 예시·브랜드마다 구역(소제목 + 안내 문구) 아래 프리셋 카드.
 // 고르기 화면(PickScreen)과 텐트 바꾸기 대화상자(Task 11)가 같이 씁니다. 카드를 누르면 확인 없이 onPick(§4.7-1).
 // 미니 평면도는 core thumbnailSvg 문자열이고, 목록 안 모든 카드가 같은 축척(extentCm = 목록 최대 외곽 변)입니다.
 // PC는 4열 카드, 휴대폰은 1열(직접 만들기는 행 카드)이고 오른쪽 끝에 ›를 둡니다.
-import { useId, useMemo, type JSX } from 'react'
+import { useId, useMemo, useState, type JSX } from 'react'
 import { deleteMyTent, useMyTents } from '../../app/persist/storage'
 import type { TentCatalog } from '../../app/tentCatalog'
 import type { TentPreset } from '../../core/model'
 import { thumbnailSvg } from '../../core/thumbnail'
 import { ChevronRightIcon, PlusIcon } from '../shell/icons'
 import { useIsDesktop } from '../shell/useIsDesktop'
-import { commonExtentCm, outerSizeText, sectionsOf } from './pickSections'
+import { brandNamesOf, commonExtentCm, outerSizeText, sectionsOf } from './pickSections'
 import './pick.css'
 
 export { outerSizeText, sectionsOf, type PickSection } from './pickSections'
@@ -98,7 +98,7 @@ function Section(p: {
       <h2 id={titleId} className="tf-picker__title">
         {p.title}
       </h2>
-      <p className="tf-picker__note">{p.note}</p>
+      {p.note !== '' && <p className="tf-picker__note">{p.note}</p>}
       <ul className="tf-picker__grid">
         {p.presets.map((preset) => (
           <li key={preset.id} className={p.sectionKey === 'mine' ? 'tf-picker__mine' : undefined}>
@@ -133,7 +133,12 @@ export function TentPickerList(p: {
 }): JSX.Element {
   const desktop = useIsDesktop()
   const mine = useMyTents()
-  const sections = useMemo(() => (p.catalog === null ? [] : sectionsOf(p.catalog, mine)), [p.catalog, mine])
+  const filterId = useId()
+  const brands = useMemo(() => brandNamesOf(p.catalog), [p.catalog])
+  const [picked, setPicked] = useState<string | null>(null)
+  // 고른 브랜드가 목록에서 사라졌으면 전체로
+  const brand = picked !== null && brands.includes(picked) ? picked : null
+  const sections = useMemo(() => (p.catalog === null ? [] : sectionsOf(p.catalog, mine, brand)), [p.catalog, mine, brand])
   const extentCm = useMemo(() => commonExtentCm(sections.flatMap((s) => s.presets)), [sections])
   const hasError = p.error !== undefined && p.error !== ''
 
@@ -158,9 +163,30 @@ export function TentPickerList(p: {
           {CATALOG_LOADING_TEXT}
         </p>
       ) : (
-        sections.map((s) => (
+        <>
+          {brands.length > 0 && (
+            <div className="tf-picker__filter">
+              <label htmlFor={filterId} className="tf-picker__filter-label">
+                브랜드
+              </label>
+              <select
+                id={filterId}
+                className="tf-picker__filter-select"
+                value={brand ?? ''}
+                onChange={(e) => setPicked(e.target.value === '' ? null : e.target.value)}
+              >
+                <option value="">브랜드 전체</option>
+                {brands.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {sections.map((s) => (
           <Section
-            key={s.key}
+            key={`${s.key}:${s.brand ?? ''}`}
             sectionKey={s.key}
             title={s.title}
             note={s.note}
@@ -169,7 +195,8 @@ export function TentPickerList(p: {
             desktop={desktop}
             onPick={p.onPick}
           />
-        ))
+          ))}
+        </>
       )}
     </div>
   )
