@@ -16,9 +16,9 @@
     {
       "id": "awesome-holiday/oasix",
       "brand": "Awesome Holiday",
-      "model": "oasix",
+      "model": "Oasix",
       "tent": {
-        "name": "oasix",
+        "name": "Oasix",
         "outerTemplate": { "kind": "hexagon", "w": 260, "h": 225, "edge": 130 },
         "inners": [
           {
@@ -47,9 +47,9 @@
     {
       "id": "awesome-holiday/rito",
       "brand": "Awesome Holiday",
-      "model": "rito",
+      "model": "Lito/Lito D",
       "tent": {
-        "name": "rito",
+        "name": "Lito/Lito D",
         "outerTemplate": { "kind": "rect", "w": 220, "h": 100 },
         "inners": []
       }
