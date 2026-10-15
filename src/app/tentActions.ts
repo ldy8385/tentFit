@@ -73,6 +73,8 @@ export const TINY_MESSAGE = '너무 작아요'
 export const ZERO_EDGE_MESSAGE = '변 길이가 0이 돼요'
 /** 육각형 윗·아랫변이 가로보다 길 때(업체 도면식 육각형) */
 export const HEXAGON_EDGE_MESSAGE = '윗·아랫변은 가로보다 길 수 없어요'
+/** 오각형 전실 깊이가 그 방향 길이 이상일 때(2026-10-15) */
+export const PENTAGON_TIP_MESSAGE = '전실 깊이는 그 방향 길이보다 짧아야 해요'
 /** 각도 입력 결과 다각형 방향이 뒤집혀 그 각이 되지 않을 때(최종 리뷰) */
 export const ANGLE_FLIP_MESSAGE = '그 각도로는 만들 수 없어요'
 
@@ -116,6 +118,11 @@ function templateRangeError(t: ShapeTemplate): EditResult | null {
         return rangeError(...LIMITS.length)
       }
       return t.edge > t.w ? { ok: false, error: HEXAGON_EDGE_MESSAGE } : null
+    case 'pentagon': {
+      if (!inRange(t.w, LIMITS.length) || !inRange(t.h, LIMITS.length) || !inRange(t.tip, LIMITS.length)) return rangeError(...LIMITS.length)
+      const along = t.dir === 'left' || t.dir === 'right' ? t.w : t.h
+      return t.tip >= along ? { ok: false, error: PENTAGON_TIP_MESSAGE } : null
+    }
   }
 }
 

@@ -269,6 +269,46 @@
                       "h",
                       "edge"
                     ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "pentagon"
+                      },
+                      "w": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "h": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "tip": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 5000
+                      },
+                      "dir": {
+                        "type": "string",
+                        "enum": [
+                          "front",
+                          "back",
+                          "left",
+                          "right"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "w",
+                      "h",
+                      "tip",
+                      "dir"
+                    ]
                   }
                 ]
               },
@@ -536,6 +576,46 @@
                             "w",
                             "h",
                             "edge"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "pentagon"
+                            },
+                            "w": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "h": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "tip": {
+                              "type": "number",
+                              "minimum": 1,
+                              "maximum": 5000
+                            },
+                            "dir": {
+                              "type": "string",
+                              "enum": [
+                                "front",
+                                "back",
+                                "left",
+                                "right"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "w",
+                            "h",
+                            "tip",
+                            "dir"
                           ]
                         }
                       ]

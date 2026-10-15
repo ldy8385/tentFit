@@ -5,7 +5,7 @@ import type { JSX } from 'react'
 import { useStores, useUi } from '../../app/stores'
 import { addInnerShape, setMakerOuterShape, startDrawingAction, tentControlsEnabled } from '../../app/tentActions'
 import { defaultItemTemplate, type TemplateKind } from '../../core/templates'
-import { ShapeCircleIcon, ShapeFreeIcon, ShapeHexagonIcon, ShapeNgonIcon, ShapeRectIcon, ShapeTrapezoidIcon } from '../shell/icons'
+import { ShapeCircleIcon, ShapeFreeIcon, ShapeHexagonIcon, ShapeNgonIcon, ShapePentagonIcon, ShapeRectIcon, ShapeTrapezoidIcon } from '../shell/icons'
 import { FREE_DRAW_LABEL, KIND_LABELS, TEMPLATE_KINDS } from '../tent/shapeMenu'
 
 function KindIcon(p: { kind: TemplateKind }): JSX.Element {
@@ -16,6 +16,8 @@ function KindIcon(p: { kind: TemplateKind }): JSX.Element {
       return <ShapeTrapezoidIcon size={20} />
     case 'hexagon':
       return <ShapeHexagonIcon size={20} />
+    case 'pentagon':
+      return <ShapePentagonIcon size={20} />
     case 'ngon':
       return <ShapeNgonIcon size={20} />
     case 'circle':

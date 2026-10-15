@@ -5,11 +5,12 @@ import type { TemplateKind } from '../../core/templates'
 import type { MenuItem } from '../shell/MenuButton'
 
 /** 예시 모양 순서(설계 §2.1) */
-export const TEMPLATE_KINDS: readonly TemplateKind[] = ['rect', 'trapezoid', 'hexagon', 'ngon', 'circle']
+export const TEMPLATE_KINDS: readonly TemplateKind[] = ['rect', 'trapezoid', 'pentagon', 'hexagon', 'ngon', 'circle']
 
 export const KIND_LABELS: Readonly<Record<TemplateKind, string>> = {
   rect: '사각형',
   trapezoid: '사다리꼴',
+  pentagon: '오각형(전실)',
   hexagon: '육각형',
   ngon: '정N각형',
   circle: '원',

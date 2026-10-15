@@ -64,6 +64,17 @@ export const ShapeTemplateSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('circle'), d: LengthSchema }),
   /** 육각형(업체 도면식): 가로 = 좌우 꼭짓점 끝↔끝, 세로 = 윗변↔아랫변, edge = 윗·아랫변 길이(Plan 4.1 소유자 피드백) */
   z.object({ kind: z.literal('hexagon'), w: LengthSchema, h: LengthSchema, edge: LengthSchema }),
+  /**
+   * 오각형(전실형, 소유자 요청 2026-10-15): 사각형 몸통 + 한쪽만 뾰족한 전실. 가로·세로 = 바깥 상자, tip = 전실 깊이(어깨선 → 뾰족한 끝),
+   * dir = 뾰족한 쪽(앞 = 아래 y+, 뒤 = 위, 왼쪽, 오른쪽). 뾰족한 끝은 늘 그 변의 가운데입니다.
+   */
+  z.object({
+    kind: z.literal('pentagon'),
+    w: LengthSchema,
+    h: LengthSchema,
+    tip: LengthSchema,
+    dir: z.enum(['front', 'back', 'left', 'right']),
+  }),
 ])
 
 export const PlacedSchema = z.object({

@@ -86,6 +86,13 @@ const [OFFSET_MIN, OFFSET_MAX] = LIMITS.offset
 const [N_MIN, N_MAX] = LIMITS.ngonN
 const [COORD_MIN, COORD_MAX] = LIMITS.coord
 
+const PENTAGON_DIR_OPTIONS = [
+  { value: 'back', label: '뒤' },
+  { value: 'front', label: '앞' },
+  { value: 'left', label: '왼쪽' },
+  { value: 'right', label: '오른쪽' },
+] as const
+
 const NGON_SIZE_OPTIONS = [
   { value: 'diameter', label: '지름' },
   { value: 'side', label: '한 변' },
@@ -337,7 +344,7 @@ function TargetFields(p: {
     if (tpl === null) return
     if (tpl.kind === 'circle') return errorOf(setTargetDiameter(stores, t, value))
     // 사각형·육각형의 가로·세로는 「비율 유지」를 따릅니다(캔버스 치수 숫자와 같음, 소유자 요청 2026-10-14).
-    if ((field === 'w' || field === 'h') && (tpl.kind === 'rect' || tpl.kind === 'hexagon')) {
+    if ((field === 'w' || field === 'h') && (tpl.kind === 'rect' || tpl.kind === 'hexagon' || tpl.kind === 'pentagon')) {
       return errorOf(applyDim(stores, { kind: 'tent', target: t }, { kind: field }, value, stores.ui.getState().keepRatio))
     }
     if (field === 'n' && !Number.isInteger(value)) return `${N_MIN}~${N_MAX} 사이의 정수로 입력해 주세요`
@@ -531,6 +538,26 @@ function TemplateFields(p: {
             />
           </div>
           <p className="tf-hint">+면 윗변이 오른쪽으로</p>
+        </div>
+      )
+    case 'pentagon':
+      // 전실형 오각형(2026-10-15): 바깥 가로·세로, 전실 깊이(어깨선 → 뾰족한 끝), 뾰족한 쪽. 끝은 늘 가운데
+      return (
+        <div className="tf-tent__dims">
+          <div className="tf-row2">
+            {len('가로', 'w', t.w)}
+            {len('세로', 'h', t.h)}
+          </div>
+          <KeepRatioToggle />
+          {len('전실 깊이', 'tip', t.tip)}
+          <SegmentedControl
+            label="뾰족한 쪽"
+            options={PENTAGON_DIR_OPTIONS}
+            value={t.dir}
+            disabled={!enabled}
+            onChange={(dir) => p.onTemplate({ ...t, dir })}
+          />
+          <p className="tf-hint">뾰족한 끝은 늘 그 변의 가운데예요 · 전실 깊이는 어깨선에서 끝까지</p>
         </div>
       )
     case 'hexagon':

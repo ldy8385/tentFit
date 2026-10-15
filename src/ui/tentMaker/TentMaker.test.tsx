@@ -60,7 +60,7 @@ describe('TentMaker — 단계 ① 외곽', () => {
     expect(screen.getByRole('dialog', { name: '텐트 만들기' })).toBeTruthy()
     expect(step()).toBe('1')
     expect((within(maker()).getByLabelText('텐트 이름') as HTMLInputElement).value).toBe('내 텐트')
-    expect(tools().getAllByRole('button').map((b) => b.textContent)).toEqual(['사각형', '사다리꼴', '육각형', '정N각형', '원', '자유 그리기'])
+    expect(tools().getAllByRole('button').map((b) => b.textContent)).toEqual(['사각형', '사다리꼴', '오각형(전실)', '육각형', '정N각형', '원', '자유 그리기'])
     expect(button('다음').disabled).toBe(true)
     expect(reason().textContent).toBe(NEED_OUTER_REASON)
     expect(button('다음').getAttribute('aria-describedby')).toBe(reason().id)

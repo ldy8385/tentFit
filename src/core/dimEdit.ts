@@ -18,7 +18,7 @@ export type DimKey = { kind: 'edge'; index: number } | { kind: 'w' } | { kind: '
 export type ShapeSpec = { shape: Shape; template?: ShapeTemplate }
 
 /** range = 1~5000(반지름 0~5000)·좌표 범위 밖, hexagon-edge = 육각형 윗·아랫변 > 가로, zero-edge = 0.05cm 미만 변, invalid = 꼬임·그 키 없음 */
-export type DimReason = 'range' | 'hexagon-edge' | 'zero-edge' | 'invalid'
+export type DimReason = 'range' | 'hexagon-edge' | 'pentagon-tip' | 'zero-edge' | 'invalid'
 export type DimResult = { ok: true; spec: ShapeSpec } | { ok: false; reason: DimReason }
 
 const [LEN_MIN, LEN_MAX] = LIMITS.length
@@ -59,6 +59,8 @@ function scaleTemplate(t: ShapeTemplate, k: number): ShapeTemplate {
       return { ...t, d: t.d * k }
     case 'hexagon':
       return { ...t, w: t.w * k, h: t.h * k, edge: t.edge * k }
+    case 'pentagon':
+      return { ...t, w: t.w * k, h: t.h * k, tip: t.tip * k }
   }
 }
 
@@ -77,6 +79,11 @@ function templateReason(t: ShapeTemplate): DimReason | null {
     case 'hexagon':
       if (!inLen(t.w) || !inLen(t.h) || !inLen(t.edge)) return 'range'
       return t.edge > t.w + 1e-9 ? 'hexagon-edge' : null
+    case 'pentagon': {
+      if (!inLen(t.w) || !inLen(t.h) || !inLen(t.tip)) return 'range'
+      const along = t.dir === 'left' || t.dir === 'right' ? t.w : t.h
+      return t.tip >= along - 1e-9 ? 'pentagon-tip' : null
+    }
   }
 }
 
@@ -265,7 +272,7 @@ function axisOnly(spec: ShapeSpec, axis: 'w' | 'h', value: number): DimResult {
   if (template?.kind === 'rect') {
     return fromTemplate(template.square === true ? { ...template, w: value, h: value } : { ...template, [axis]: value }, radii)
   }
-  if (template?.kind === 'hexagon') return fromTemplate({ ...template, [axis]: value }, radii)
+  if (template?.kind === 'hexagon' || template?.kind === 'pentagon') return fromTemplate({ ...template, [axis]: value }, radii)
   if (template === undefined && shape.kind === 'rect') return fromRect(axis === 'w' ? value : shape.w, axis === 'h' ? value : shape.h, radii)
   return scaleAxis(spec, axis, value)
 }

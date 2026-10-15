@@ -51,6 +51,8 @@ function normalizeTemplate(t: ShapeTemplate): ShapeTemplate {
       return { kind: 'circle', d: clampLen(t.d) }
     case 'hexagon':
       return { kind: 'hexagon', w: clampLen(t.w), h: clampLen(t.h), edge: clampLen(t.edge) }
+    case 'pentagon':
+      return { kind: 'pentagon', w: clampLen(t.w), h: clampLen(t.h), tip: clampLen(t.tip), dir: t.dir }
   }
 }
 
@@ -67,6 +69,8 @@ function sameTemplate(a: ShapeTemplate, b: ShapeTemplate): boolean {
       return b.kind === 'circle' && a.d === b.d
     case 'hexagon':
       return b.kind === 'hexagon' && a.w === b.w && a.h === b.h && a.edge === b.edge
+    case 'pentagon':
+      return b.kind === 'pentagon' && a.w === b.w && a.h === b.h && a.tip === b.tip && a.dir === b.dir
   }
 }
 
@@ -376,7 +380,16 @@ export function rotateTent(d: Layout, deg: number): void {
   const pivot: Pt = [(bb.minX + bb.maxX) / 2, (bb.minY + bb.maxY) / 2]
   const outer = d.tent.outer
   const quarter = delta === 90 || delta === 180 || delta === 270
-  if (outer.kind === 'rect' && quarter) {
+  const tpl = d.tent.outerTemplate
+  // 오각형(전실형) 템플릿은 90° 단위면 뾰족한 방향만 돌리고 가로·세로를 바꿉니다(모서리 반지름이 없을 때)
+  if (tpl?.kind === 'pentagon' && quarter && !(outer.kind !== 'circle' && (outer.radii ?? []).some((r) => r > 0))) {
+    const order = ['right', 'front', 'left', 'back'] as const // 시계 방향 90°씩
+    const dir = order[(order.indexOf(tpl.dir) + delta / 90) % 4] as (typeof order)[number]
+    const swap = delta !== 180
+    const next = { ...tpl, dir, w: swap ? tpl.h : tpl.w, h: swap ? tpl.w : tpl.h }
+    d.tent.outerTemplate = next
+    d.tent.outer = shapeFromTemplate(next)
+  } else if (outer.kind === 'rect' && quarter) {
     const steps = delta / 90
     const radii = radiiOf(outer)
     const turned = radii.map((_, i) => radii[(i - steps + 4) % 4] ?? 0)

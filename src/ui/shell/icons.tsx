@@ -167,6 +167,15 @@ export function ShapeHexagonIcon(p: IconProps) {
   )
 }
 
+/** 모양: 오각형(전실형) — 사각형 몸통 + 오른쪽만 뾰족 */
+export function ShapePentagonIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M3 6h12l6 6-6 6H3z" />
+    </Svg>
+  )
+}
+
 /** 모양: 정N각형(팔각으로 그려 육각형 예시와 구분, 한 변이 아래 수평, §4.8) */
 export function ShapeNgonIcon(p: IconProps) {
   return (

@@ -83,6 +83,25 @@ function hexagonPoints(w: number, h: number, edge: number): Pt[] {
   ])
 }
 
+/**
+ * 오각형(전실형): 바깥 상자 w×h, dir 쪽 가운데가 뾰족(tip = 어깨선에서 끝까지). 시계 방향(y 아래) 5점.
+ * 앞(아래)·뒤(위)는 위 왼쪽부터, 오른쪽은 위 왼쪽부터, 왼쪽은 뾰족한 끝부터.
+ */
+function pentagonPoints(w: number, h: number, tip: number, dir: 'front' | 'back' | 'left' | 'right'): Pt[] {
+  const x = w / 2
+  const y = h / 2
+  switch (dir) {
+    case 'front':
+      return centerAndRound([[-x, -y], [x, -y], [x, y - tip], [0, y], [-x, y - tip]])
+    case 'back':
+      return centerAndRound([[0, -y], [x, -y + tip], [x, y], [-x, y], [-x, -y + tip]])
+    case 'right':
+      return centerAndRound([[-x, -y], [x - tip, -y], [x, 0], [x - tip, y], [-x, y]])
+    case 'left':
+      return centerAndRound([[-x, 0], [-x + tip, -y], [x, -y], [x, y], [-x + tip, y]])
+  }
+}
+
 /** 템플릿 → 도형(§4.8). 템플릿이 원본이고 도형은 여기서 만든 값입니다. */
 export function shapeFromTemplate(t: ShapeTemplate): Shape {
   switch (t.kind) {
@@ -100,6 +119,8 @@ export function shapeFromTemplate(t: ShapeTemplate): Shape {
     }
     case 'hexagon':
       return { kind: 'polygon', points: hexagonPoints(t.w, t.h, t.edge) }
+    case 'pentagon':
+      return { kind: 'polygon', points: pentagonPoints(t.w, t.h, t.tip, t.dir) }
   }
 }
 
@@ -143,6 +164,7 @@ export function attachSidesFor(outer: ShapeTemplate | undefined): AttachSide[] {
   if (outer.kind === 'rect') return ['back', 'front', 'left', 'right']
   if (outer.kind === 'trapezoid' || outer.kind === 'hexagon') return ['back', 'front']
   if (outer.kind === 'ngon') return Math.round(outer.n) % 2 === 0 ? ['back', 'front'] : ['front']
+  if (outer.kind === 'pentagon') return (['back', 'front', 'left', 'right'] as const).filter((s) => s !== outer.dir)
   return []
 }
 
@@ -192,6 +214,23 @@ function wallOf(outer: ShapeTemplate, side: AttachSide): Wall | null {
     if (side === 'front') return { cx: (fl[0] + fr[0]) / 2, cy: fl[1], dx: 0, dy: -1 }
     return null
   }
+  if (outer.kind === 'pentagon') {
+    if (side === outer.dir) return null
+    const shape = shapeFromTemplate(outer)
+    if (shape.kind !== 'polygon') return null
+    const b = shape.points.reduce(
+      (a, [x, y]) => ({ minX: Math.min(a.minX, x), minY: Math.min(a.minY, y), maxX: Math.max(a.maxX, x), maxY: Math.max(a.maxY, y) }),
+      { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
+    )
+    // 그 벽 = 바깥 상자의 그 변 위에 놓인 변(두 꼭짓점), 가운데 = 그 변 중점
+    const onSide = (p: Pt) =>
+      side === 'back' ? Math.abs(p[1] - b.minY) < 0.05 : side === 'front' ? Math.abs(p[1] - b.maxY) < 0.05 : side === 'left' ? Math.abs(p[0] - b.minX) < 0.05 : Math.abs(p[0] - b.maxX) < 0.05
+    const on = shape.points.filter(onSide)
+    if (on.length !== 2) return null
+    const [a, c] = on as [Pt, Pt]
+    const dir = { back: [0, 1], front: [0, -1], left: [1, 0], right: [-1, 0] }[side]
+    return { cx: (a[0] + c[0]) / 2, cy: (a[1] + c[1]) / 2, dx: dir[0] as number, dy: dir[1] as number }
+  }
   if ((outer.kind === 'hexagon' || outer.kind === 'ngon') && (side === 'back' || side === 'front') && attachSidesFor(outer).includes(side)) {
     const shape = shapeFromTemplate(outer)
     if (shape.kind !== 'polygon') return null
@@ -225,6 +264,8 @@ export function defaultOuterTemplate(kind: TemplateKind): ShapeTemplate {
       return { kind: 'circle', d: 400 }
     case 'hexagon':
       return { kind: 'hexagon', w: 400, h: round1(400 * HEX_RATIO), edge: 200 }
+    case 'pentagon':
+      return { kind: 'pentagon', w: 500, h: 300, tip: 100, dir: 'right' }
   }
 }
 
@@ -241,6 +282,8 @@ export function defaultItemTemplate(kind: TemplateKind): ShapeTemplate {
       return { kind: 'circle', d: 50 }
     case 'hexagon':
       return { kind: 'hexagon', w: 190, h: 60, edge: 150 }
+    case 'pentagon':
+      return { kind: 'pentagon', w: 190, h: 60, tip: 30, dir: 'right' }
   }
 }
 
@@ -258,6 +301,8 @@ export function defaultInnerTemplate(kind: TemplateKind, outer: Shape): ShapeTem
       return { kind: 'circle', d: s }
     case 'hexagon':
       return { kind: 'hexagon', w: s, h: round1(s * HEX_RATIO), edge: round1(s / 2) }
+    case 'pentagon':
+      return { kind: 'pentagon', w: s, h: s, tip: Math.max(NEW_INNER_MIN, round10(s * 0.3)), dir: 'front' }
   }
 }
 
@@ -279,6 +324,8 @@ export function templateFromBBox(kind: TemplateKind, w: number, h: number): Shap
       return { kind: 'circle', d: Math.min(W, H) }
     case 'hexagon':
       return { kind: 'hexagon', w: W, h: H, edge: clampLength(W / 2) }
+    case 'pentagon':
+      return { kind: 'pentagon', w: W, h: H, tip: clampLength(Math.max(10, round10(W * 0.2))), dir: 'right' }
   }
 }
 

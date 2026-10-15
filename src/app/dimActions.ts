@@ -6,7 +6,7 @@ import { LIMITS, type Layout } from '../core/model'
 import { setItemShape } from '../core/ops/items'
 import { setTargetSpec, type TentTarget } from '../core/ops/tent'
 import type { Stores } from './stores'
-import { canEditTentTarget, HEXAGON_EDGE_MESSAGE, tryTentEdit, ZERO_EDGE_MESSAGE, type EditResult } from './tentActions'
+import { canEditTentTarget, HEXAGON_EDGE_MESSAGE, PENTAGON_TIP_MESSAGE, tryTentEdit, ZERO_EDGE_MESSAGE, type EditResult } from './tentActions'
 
 export type DimSubject = { kind: 'tent'; target: TentTarget } | { kind: 'item'; id: string }
 
@@ -28,6 +28,8 @@ function reasonMessage(reason: DimReason, radius: boolean): string {
       return `${formatBound(radius ? 0 : LIMITS.length[0])}~${formatBound(LIMITS.length[1])} 사이로 입력해 주세요`
     case 'hexagon-edge':
       return HEXAGON_EDGE_MESSAGE
+    case 'pentagon-tip':
+      return PENTAGON_TIP_MESSAGE
     case 'zero-edge':
       return ZERO_EDGE_MESSAGE
     case 'invalid':

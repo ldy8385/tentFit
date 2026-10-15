@@ -419,7 +419,7 @@ describe('TentEditor 예시 모양 메뉴(Plan 4.1 §3)', () => {
   it('[+ 이너 ▾] 항목: 사각형·사다리꼴·정N각형·원·자유 그리기, 자유 그리기는 새 이너 그리기를 시작', () => {
     const stores = setup(TWO_INNERS)
     fireEvent.click(within(editor()).getByRole('button', { name: '+ 이너' }))
-    expect(within(editor()).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['사각형', '사다리꼴', '육각형', '정N각형', '원', '자유 그리기'])
+    expect(within(editor()).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['사각형', '사다리꼴', '오각형(전실)', '육각형', '정N각형', '원', '자유 그리기'])
     fireEvent.click(within(editor()).getByRole('menuitem', { name: '자유 그리기' }))
     expect(stores.ui.getState().drawing).toEqual({ goal: 'newInner', points: [] })
   })
@@ -563,7 +563,7 @@ describe('최종 리뷰 수정(Plan 4.1)', () => {
     const stores = setup(TWO_INNERS, { variant: 'sheet', target: 'i2' })
     expect(within(editor()).queryByRole('button', { name: '모양 바꾸기' })).toBeNull()
     const group = within(editor()).getByRole('group', { name: '모양 바꾸기' })
-    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['사각형', '사다리꼴', '육각형', '정N각형', '원'])
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['사각형', '사다리꼴', '오각형(전실)', '육각형', '정N각형', '원'])
     expect((within(group).getByRole('button', { name: '사각형' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(within(group).getByRole('button', { name: '원' }))
     expect(stores.doc.getState().layout.tent.inners[1]!.shape).toEqual({ kind: 'circle', d: 100 })
