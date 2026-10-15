@@ -192,7 +192,8 @@ describe('checkPresets — 깨진 데이터', () => {
     writeJson(acmePath, { $schema: '../tents.schema.json', presets: [{ ...dome, brand: 'ACME' }] })
     const ok = checkPresets(dir)
     expect(ok.errors).toEqual([])
-    expect(ok.tentFiles).toEqual(['acme', 'generic'])
+    // 저장소에 실제 브랜드 파일(로컬 [텐트 프리셋으로 저장])이 더 있어도 됩니다.
+    expect(ok.tentFiles).toEqual(expect.arrayContaining(['acme', 'generic']))
   })
 
   it('id 앞부분이 파일 slug와 다르면 실패', () => {

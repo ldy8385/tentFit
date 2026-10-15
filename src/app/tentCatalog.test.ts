@@ -84,7 +84,7 @@ describe('loadTentCatalog', () => {
     vi.resetModules()
   })
 
-  it('저장소의 프리셋 파일을 동적으로 불러온다(일반 예시 5개, 브랜드 없음)', async () => {
+  it('저장소의 프리셋 파일을 동적으로 불러온다(일반 예시 5개 + 브랜드 묶음)', async () => {
     const catalog = await loadTentCatalog()
     expect(catalog.generic.map((p) => p.tent.name)).toEqual([
       '돔 2인 예시',
@@ -93,7 +93,11 @@ describe('loadTentCatalog', () => {
       '벨텐트 4m 예시',
       '티피 6각 예시',
     ])
-    expect(catalog.brands).toEqual([])
+    // 브랜드 묶음(로컬 [텐트 프리셋으로 저장]으로 늘어남): 묶음마다 같은 브랜드의 프리셋만
+    for (const group of catalog.brands) {
+      expect(group.presets.length).toBeGreaterThan(0)
+      expect(group.presets.every((p) => p.brand === group.brand)).toBe(true)
+    }
   })
 
   it('같은 Promise를 재사용한다', () => {
