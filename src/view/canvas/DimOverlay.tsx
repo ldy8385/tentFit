@@ -16,34 +16,27 @@ import { KeepRatioToggle } from '../../ui/common/KeepRatioToggle'
 import { checkNumber, INPUT_FONT_PX } from '../../ui/fields/numberInput'
 import { useVisualViewport } from '../../ui/fields/useVisualViewport'
 import { useIsDesktop } from '../../ui/shell/useIsDesktop'
-import { cornerRing, transformRing } from '../../core/geom'
 import { dimModel, type DimLabel, type DimLine, type DimPlacement } from '../dimLabels'
-import { worldToScreen, type View } from '../viewport'
 import '../../ui/panels/panels.css'
 import './dimOverlay.css'
 
 export type ActiveDim = { subject: DimSubject; shape: Shape; place: DimPlacement }
 
-/** 치수를 보여 줄 도형. 없으면 null */
+/**
+ * 치수를 보여 줄 도형. 텐트 편집 모드(편집기의 텐트 편집·만들기 화면·물건 모양 편집 화면)의 편집 대상만입니다.
+ * 배치 모드는 이동·회전만이라 치수·모서리 포인트를 띄우지 않습니다(소유자 결정 2026-10-15). 없으면 null.
+ */
 export function activeDimSubject(
-  ui: Pick<UiState, 'mode' | 'measuring' | 'drawing' | 'tentTarget' | 'tentLock' | 'outerPending' | 'selection'>,
+  ui: Pick<UiState, 'mode' | 'measuring' | 'drawing' | 'tentTarget' | 'tentLock' | 'outerPending'>,
   layout: Layout,
-  dimmed: ReadonlySet<string>,
 ): ActiveDim | null {
-  if (ui.measuring) return null
-  if (ui.mode === 'tent') {
-    const target = ui.tentTarget
-    if (target === null || ui.drawing !== null || tentTargetBlocked(ui, target)) return null
-    if (target === 'outer') return { subject: { kind: 'tent', target }, shape: layout.tent.outer, place: { x: 0, y: 0, rotation: 0 } }
-    const inner = layout.tent.inners.find((it) => it.id === target.innerId)
-    if (inner === undefined) return null
-    return { subject: { kind: 'tent', target }, shape: inner.shape, place: { x: inner.x, y: inner.y, rotation: inner.rotation } }
-  }
-  if (ui.selection.length !== 1) return null
-  const id = ui.selection[0] as string
-  const it = layout.items.find((x) => x.id === id)
-  if (it === undefined || dimmed.has(id)) return null
-  return { subject: { kind: 'item', id }, shape: it.shape, place: { x: it.x, y: it.y, rotation: it.rotation } }
+  if (ui.measuring || ui.mode !== 'tent') return null
+  const target = ui.tentTarget
+  if (target === null || ui.drawing !== null || tentTargetBlocked(ui, target)) return null
+  if (target === 'outer') return { subject: { kind: 'tent', target }, shape: layout.tent.outer, place: { x: 0, y: 0, rotation: 0 } }
+  const inner = layout.tent.inners.find((it) => it.id === target.innerId)
+  if (inner === undefined) return null
+  return { subject: { kind: 'tent', target }, shape: inner.shape, place: { x: inner.x, y: inner.y, rotation: inner.rotation } }
 }
 
 function subjectKey(s: DimSubject): string {
@@ -107,7 +100,7 @@ function DimLines(p: { lines: DimLine[] }): JSX.Element {
  * 도형 위 치수 층. busy = 물건을 끌거나 변형하는 중(값이 손을 뗄 때 바뀌므로 숨김), dimmed = 그룹 밖이라 흐린 물건.
  * hidden = 그 밖에 숨길 때(텐트 끌기 미리보기·배경 맞추기).
  */
-export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: ReadonlySet<string> }): JSX.Element | null {
+export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element | null {
   const stores = useStores()
   const layout = useDoc((s) => s.layout)
   const view = useUi((s) => s.view)
@@ -117,9 +110,7 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
   const tentTarget = useUi((s) => s.tentTarget)
   const tentLock = useUi((s) => s.tentLock)
   const outerPending = useUi((s) => s.outerPending)
-  const selection = useUi((s) => s.selection)
   const keepRatio = useUi((s) => s.keepRatio)
-  const focusVertex = useUi((s) => (s.polygonFocus?.kind === 'vertex' ? s.polygonFocus.index : null))
   const size = useUi((s) => s.size)
   const insets = useUi((s) => s.insets)
   const desktop = useIsDesktop()
@@ -129,7 +120,7 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
   /** 닫은 뒤(Esc·확인·닫기) 따라오는 blur가 다시 반영하지 않게 */
   const closedRef = useRef(false)
 
-  const active = p.busy || p.hidden ? null : activeDimSubject({ mode, measuring, drawing, tentTarget, tentLock, outerPending, selection }, layout, p.dimmed)
+  const active = p.busy || p.hidden ? null : activeDimSubject({ mode, measuring, drawing, tentTarget, tentLock, outerPending }, layout)
   const key = active === null ? null : subjectKey(active.subject)
 
   // 대상이 바뀌거나 숨으면 입력은 보이지 않습니다(반영하지 않음). 다음에 숫자를 누르면 새로 엽니다.
@@ -276,8 +267,6 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
   return (
     <div className="tf-dims" data-canvas-ui="" data-testid="dim-overlay" data-keep-ratio={keepRatio}>
       <DimLines lines={model.lines} />
-      {/* 패널의 모서리 칸에 들어가 있으면 그 모서리 강조(물건. 텐트 대상은 텐트 편집 층이 꼭짓점을 강조) */}
-      {active.subject.kind === 'item' && focusVertex !== null && <CornerFocus active={active} index={focusVertex} view={view} />}
       {model.labels.map((l) =>
         edit !== null && desktop && l.id === edit.id && l.key.kind !== 'radius' ? null : (
           <button
@@ -298,21 +287,6 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean; dimmed: Readonly
       )}
       {desktop ? editor : <MobileBar>{editor}</MobileBar>}
     </div>
-  )
-}
-
-/** 고른 물건의 모서리 하나를 화면에 동그라미로 */
-function CornerFocus(p: { active: ActiveDim; index: number; view: View }): JSX.Element | null {
-  const { shape, place } = p.active
-  if (shape.kind === 'circle') return null
-  const corner = cornerRing(shape)[p.index]
-  if (corner === undefined) return null
-  const [w] = transformRing([corner], place.x, place.y, place.rotation)
-  const [x, y] = worldToScreen(p.view, w as Pt)
-  return (
-    <svg className="tf-dims__svg" aria-hidden="true" data-testid="corner-focus">
-      <circle className="tf-dims__corner" cx={x} cy={y} r={10} />
-    </svg>
   )
 }
 

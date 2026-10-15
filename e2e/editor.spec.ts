@@ -77,12 +77,9 @@ test('새 도형으로 만들면 물건이 추가·선택되고 속성 패널과
   expect(added.totalFloor.percent).toBeGreaterThan(0)
   await expectAreaSummaryMatchesDoc(page)
 
-  // 「비율 유지」(기본 켬): 가로를 바꾸면 세로도 같은 배율(소유자 요청 2026-10-14)
-  const width = properties(page).getByLabel('가로', { exact: true })
-  await width.fill('250')
-  await width.press('Enter')
-  await expect.poll(async () => (await itemById(page, item.id))?.shape).toEqual({ kind: 'rect', w: 250, h: 75 })
-  await expect(width).toHaveValue('250')
+  // 배치 모드는 이동·회전만(2026-10-15): 크기는 읽기 전용, 바꾸려면 [모양 편집]
+  await expect(properties(page).getByTestId('item-size')).toHaveText('200×60 cm')
+  await expect(properties(page).getByLabel('가로', { exact: true })).toHaveCount(0)
   await expectAreaSummaryMatchesDoc(page)
 })
 
@@ -176,18 +173,16 @@ for (const spec of [BOX_ITEM, STOOL_ITEM]) {
   })
 }
 
-test('재검증 회귀: 조금 축소한 매트(짧은 변 72px 미만)도 오른쪽 가운데 핸들로 길이만 바꾼다(D31)', async ({ page }) => {
+test('배치 모드는 이동·회전만(2026-10-15): 가장자리를 끌어도 크기는 그대로 옮겨지고, 두 번 누르면 모양 편집', async ({ page }) => {
   const item = await addMatFromLibrary(page)
-  // 매트 200×60 → 배율 1.1 이하면 화면 높이 66px 이하(축별 기준 48px 이상이라 좌·우 핸들은 남아야 함)
-  const zoom = await zoomOutTo(page, await worldToClient(page, item.x, item.y), 1.1)
-  expect(60 * zoom).toBeGreaterThanOrEqual(48)
-  const right = await worldToClient(page, item.x + 100, item.y)
+  const right = await worldToClient(page, item.x + 95, item.y)
   await dragBetween(page, right, { x: right.x + 40, y: right.y })
-  await expect.poll(async () => (await itemById(page, item.id))?.shape).not.toEqual(item.shape)
-  const after = (await itemById(page, item.id))!
-  if (after.shape.kind !== 'rect') throw new Error('사각형이어야 합니다')
-  expect(after.shape.h).toBe(60)
-  expect(Math.abs(after.shape.w - (200 + 40 / zoom))).toBeLessThan(2)
+  await expect.poll(async () => (await itemById(page, item.id))?.x).not.toBe(item.x)
+  expect((await itemById(page, item.id))!.shape).toEqual(item.shape)
+  const at = await worldToClient(page, (await itemById(page, item.id))!.x, item.y)
+  await page.mouse.click(at.x, at.y)
+  await page.mouse.click(at.x, at.y)
+  await expect(page.getByTestId('tent-maker').getByRole('heading', { name: '모양 편집' })).toBeVisible()
 })
 
 test('리뷰 회귀: 새 도형 폼의 입력칸·스위치·select에서 Enter를 눌러도 물건이 생기지 않고, 입력칸은 다음 칸으로 간다', async ({ page }) => {
@@ -211,15 +206,18 @@ test('리뷰 회귀: 새 도형 폼의 입력칸·스위치·select에서 Enter�
 type ExtraUi = { keepRatio: boolean; backdrop: { x: number; y: number; w: number; opacity: number; adjusting: boolean } | null }
 
 test.describe('도형 도구(2026-10-14)', () => {
-  test('캔버스 숫자: 가로를 눌러 고치면 비율 유지로 전체 배율, 모서리 둥글기 → R 숫자, 끄면 그 축만', async ({ page }) => {
+  test('[모양 편집] 화면 캔버스 숫자: 가로를 눌러 고치면 비율 유지로 전체 배율, 모서리 둥글기 → R 숫자, 끄면 그 축만, 적용하면 물건에', async ({ page }) => {
     const item = await createItem(page, MAT_ITEM)
-    const dims = page.getByTestId('dim-overlay')
+    await expect(page.getByTestId('dim-overlay')).toHaveCount(0) // 배치 모드에는 없음
+    await page.getByTestId('properties-panel').getByRole('button', { name: '모양 편집' }).click()
+    const maker = page.getByTestId('tent-maker')
+    const dims = maker.getByTestId('dim-overlay')
     await dims.getByRole('button', { name: /^가로 200cm/ }).click()
     await dims.getByRole('textbox', { name: '가로', exact: true }).fill('300')
     await page.keyboard.press('Enter')
-    await expect.poll(async () => (await getDoc(page)).layout.items.find((it) => it.id === item.id)?.shape).toEqual({ kind: 'rect', w: 300, h: 90 })
+    await expect(dims.getByRole('button', { name: /^세로 90cm/ })).toBeVisible()
 
-    const props = page.getByTestId('properties-panel')
+    const props = maker.getByTestId('tent-editor')
     await props.getByLabel('모서리 둥글기', { exact: true }).fill('5')
     await props.getByLabel('모서리 둥글기', { exact: true }).press('Enter')
     await expect(dims.locator('[data-kind="radius"]')).toHaveCount(4)
@@ -228,6 +226,9 @@ test.describe('도형 도구(2026-10-14)', () => {
     await dims.getByRole('switch', { name: '비율 유지' }).uncheck()
     await dims.getByRole('textbox', { name: '세로', exact: true }).fill('120')
     await page.keyboard.press('Enter')
+    await expect(dims.getByRole('button', { name: /^세로 120cm/ })).toBeVisible()
+    await maker.getByRole('button', { name: '이 모양으로 적용' }).click()
+    await expect(maker).toHaveCount(0)
     await expect
       .poll(async () => (await getDoc(page)).layout.items.find((it) => it.id === item.id)?.shape)
       .toEqual({ kind: 'rect', w: 300, h: 120, radii: [5, 5, 5, 5] })

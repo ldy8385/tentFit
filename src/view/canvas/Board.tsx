@@ -58,6 +58,8 @@ import {
 import { TentLayer } from './TentLayer'
 import { transformerConfig } from './transformerConfig'
 
+/** 같은 물건을 이 시간(ms) 안에 다시 누르면 두 번 누름(모양 편집) */
+const DOUBLE_TAP_MS = 400
 /** 이보다 작게 움직였으면(cm, 저장 단위 0.1cm의 절반) 끌기를 커밋하지 않습니다. */
 const MOVE_EPS_CM = 0.05
 /** 핸들로 이보다 작게(화면 px) 줄이지 못하게 합니다. 1cm가 이보다 크게 보이면 1cm가 하한입니다. */
@@ -102,19 +104,6 @@ function isEditable(el: Element | EventTarget | null): boolean {
 
 function sameView(a: View, b: View): boolean {
   return a.zoom === b.zoom && a.panX === b.panX && a.panY === b.panY
-}
-
-/** 물건의 로컬 축 너비·높이(cm): 사각형 w·h, 원 d·d, 다각형 bbox(Transformer 상자와 같음) */
-function localSize(shape: Shape): { w: number; h: number } {
-  if (shape.kind === 'rect') return { w: shape.w, h: shape.h }
-  if (shape.kind === 'circle') return { w: shape.d, h: shape.d }
-  const xs = shape.points.map((p) => p[0])
-  const ys = shape.points.map((p) => p[1])
-  return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
-}
-
-function scaleSize(s: { w: number; h: number }, k: number): { w: number; h: number } {
-  return { w: s.w * k, h: s.h * k }
 }
 
 function fmt(v: number): string {
@@ -175,6 +164,8 @@ class BoardController {
   private tentDragLive = false
   /** 마지막 자동 맞춤 보기. 사용자가 보기를 바꾸지 않았으면 크기가 바뀔 때 다시 맞춥니다. */
   private autoFit: View | null = null
+  /** 마지막 물건 탭(두 번 누름 = 모양 편집) */
+  private lastTap: { id: string; at: number } | null = null
   /** 이번 누름이 배경 이미지 맞추기 중에 시작됐음(끌기 = 이미지 이동, 두 손가락 = 이미지 크기, 탭 = 없음) */
   private pressInBackdrop = false
   /** 이번 누름이 자유 그리기 중에 시작됐음(탭 = 점, 끌기 = 화면 이동, 텐트 대상 판정 안 함) */
@@ -559,6 +550,15 @@ class BoardController {
     const layout = this.stores.doc.getState().layout
     const expanded = expandSelection(layout, [id], ui.scopeGroupId ?? undefined)
     if (!toggle) {
+      // 같은 물건을 빠르게 두 번 = 모양 편집 화면(배치 모드는 이동·회전만, 2026-10-15)
+      const now = Date.now()
+      const last = this.lastTap
+      this.lastTap = { id, at: now }
+      if (last !== null && last.id === id && now - last.at <= DOUBLE_TAP_MS) {
+        this.lastTap = null
+        ui.patch({ itemMaker: { editId: id } })
+        return
+      }
       this.select(expanded)
       return
     }
@@ -1007,9 +1007,9 @@ function BackdropImage(): JSX.Element | null {
 }
 
 /** 도형 위 치수 층 연결: 텐트 끌기 미리보기 동안에는 숨깁니다(값이 손을 뗄 때 바뀜). */
-function DimLayer(props: { overlay: StoreApi<Overlay>; busy: boolean; dimmed: ReadonlySet<string> }): JSX.Element | null {
+function DimLayer(props: { overlay: StoreApi<Overlay>; busy: boolean }): JSX.Element | null {
   const dragging = useStore(props.overlay, (s) => s.tentPreview !== null)
-  return <DimOverlay busy={props.busy} hidden={dragging} dimmed={props.dimmed} />
+  return <DimOverlay busy={props.busy} hidden={dragging} />
 }
 
 function BoardOverlay(props: { store: StoreApi<Overlay> }): JSX.Element {
@@ -1097,7 +1097,6 @@ export function Board(): JSX.Element {
   )
   const zoom = view.zoom
   const selected = useMemo(() => new Set(selection), [selection])
-  const dimmedIds = useMemo(() => new Set(scene.items.filter((n) => n.dimmed).map((n) => n.id)), [scene.items])
 
   const itemsById = useMemo(() => new Map(layout.items.map((it) => [it.id, it] as const)), [layout.items])
   const attached = useMemo(
@@ -1108,11 +1107,7 @@ export function Board(): JSX.Element {
     [selection, itemsById, scene.items],
   )
   const single = attached.length === 1 ? attached[0] : undefined
-  const cfg = transformerConfig(
-    { count: attached.length, singleIsCircle: single?.shape.kind === 'circle' },
-    pointer,
-    single ? scaleSize(localSize(single.shape), zoom) : { w: 0, h: 0 },
-  )
+  const cfg = transformerConfig({ count: attached.length, singleIsCircle: single?.shape.kind === 'circle' }, pointer)
   const anchorHit = cfg.anchorHitPx
   const anchorSize = cfg.anchorSize
   const anchorStyle = useCallback(
@@ -1284,7 +1279,7 @@ export function Board(): JSX.Element {
         </Layer>
       </Stage>
       <BoardOverlay store={overlay} />
-      <DimLayer overlay={overlay} busy={activeIds.size > 0 || adjustingBackdrop} dimmed={dimmedIds} />
+      <DimLayer overlay={overlay} busy={activeIds.size > 0 || adjustingBackdrop} />
     </div>
   )
 }

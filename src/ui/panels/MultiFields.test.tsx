@@ -92,7 +92,7 @@ describe('MultiFields', () => {
     expect(list.textContent).toContain('100×50')
     fireEvent.click(screen.getByRole('button', { name: '물건 b 선택에서 빼기' }))
     expect(stores.ui.getState().selection).toEqual(['a'])
-    expect(screen.getByLabelText('가로')).toBeTruthy()
+    expect(screen.getByTestId('item-size')).toBeTruthy()
   })
 
   it('그룹 멤버를 빼면 그 그룹 전체가 선택에서 빠진다', () => {

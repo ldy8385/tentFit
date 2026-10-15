@@ -43,7 +43,7 @@ export const CONFIRM_LABELS: Readonly<Record<TentMakerMode, { full: string; shor
   start: { full: '이 텐트로 시작', short: '시작' },
   swap: { full: '이 텐트로 바꾸기', short: '바꾸기' },
   item: { full: '캔버스에 추가', short: '추가' },
-  itemEdit: { full: '모양 바꾸기', short: '바꾸기' },
+  itemEdit: { full: '이 모양으로 적용', short: '적용' },
 }
 
 function isItemMode(mode: TentMakerMode): boolean {

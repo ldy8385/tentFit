@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { StoresProvider, createStores, type Stores } from '../../app/stores'
 import { createLayout, type Item, type Tent } from '../../core/model'
@@ -86,20 +86,15 @@ describe('SelectionSheet 1개', () => {
   })
 
   it('펼치면 상세 속성(ItemFields compact)이 나오고 버튼은 겹치지 않는다', () => {
-    const stores = setup([item('a')], ['a'])
-    act(() => stores.ui.getState().patch({ keepRatio: false }))
+    setup([item('a')], ['a'])
     fireEvent.click(screen.getByRole('button', { name: '펼치기' }))
     expect(sheet().getAttribute('data-expanded')).toBe('true')
-    expect((screen.getByLabelText('가로') as HTMLInputElement).value).toBe('90')
+    expect(screen.getByTestId('item-size').textContent).toBe('90×60 cm')
     expect(screen.getAllByRole('button', { name: '복제' })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: '90도' })).toHaveLength(1)
-    const el = screen.getByLabelText('세로') as HTMLInputElement
-    act(() => el.focus())
-    fireEvent.change(el, { target: { value: '75' } })
-    act(() => el.blur())
-    expect(stores.doc.getState().layout.items[0]?.shape).toEqual({ kind: 'rect', w: 90, h: 75 })
-    expect(screen.getByText('90×75cm · 회전 0°')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: '모양 편집' })).toHaveLength(1)
   })
+
 })
 
 describe('SelectionSheet 여러 개', () => {

@@ -250,3 +250,21 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--sp-2);
 }
+
+/* 배치 모드의 읽기 전용 크기 줄 + [모양 편집](2026-10-15) */
+.tf-item-size {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+}
+
+.tf-item-size .tf-field__label {
+  grid-column: 1 / -1;
+}
+
+.tf-item-size__value {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
