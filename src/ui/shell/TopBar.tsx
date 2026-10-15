@@ -1,6 +1,7 @@
 // PC 상단 바(스펙 §4.1): 로고, 배치 이름, 모드 토글(배치│텐트 편집), 실행 취소·다시 실행, [보기] 메뉴(격자 보이기, 맞춤 보기).
 // 굵은 포인터 기기에서만 [선택] 토글을 더합니다. [측정]·[파일]·스냅 항목은 Plan 5·7에서 붙입니다.
 import { endMeasuring, startMeasuring } from '../../app/measureActions'
+import { goHome } from '../../app/PickRoute'
 import { useDoc, useStores, useUi } from '../../app/stores'
 import { downloadBackup, pickAndImport } from '../../app/persist/files'
 import { enterTentMode, exitTentMode, tentControlsEnabled } from '../../app/tentActions'
@@ -39,10 +40,16 @@ export function TopBar() {
 
   return (
     <header className="shell-topbar" data-testid="top-bar">
-      <div className="shell-logo">
+      <button
+        type="button"
+        className="shell-logo"
+        aria-label="처음 화면으로"
+        title="처음 화면(텐트 고르기)으로"
+        onClick={() => goHome(stores.doc.getState().layout.id)}
+      >
         <LogoIcon size={22} />
         <span>tentFit</span>
-      </div>
+      </button>
       <LayoutNameField className="shell-name--desktop" />
       <div className="shell-spacer" />
       <div className="shell-modetoggle" data-testid="mode-toggle">

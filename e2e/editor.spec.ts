@@ -11,6 +11,7 @@ import {
   getUi,
   nextFrames,
   openEditorWith,
+  waitReady,
   statRowPattern,
   MAT_ITEM,
   setSnap,
@@ -414,4 +415,15 @@ test('내 배치에서 ×로 지우면 목록에서 빠짐(2026-10-15)', async (
   page.once('dialog', (d) => void d.accept())
   await dialog.getByRole('button', { name: `${name} 지우기` }).click()
   await expect(dialog.getByRole('button', { name: `${name} 지우기` })).toHaveCount(0)
+})
+
+test('로고 tentFit = 처음 화면(텐트 고르기), [취소]로 보던 배치에 돌아옴', async ({ page }) => {
+  const editUrl = page.url()
+  await page.getByRole('button', { name: '처음 화면으로' }).click()
+  await expect(page).toHaveURL(/#\/pick$/)
+  const pick = page.getByTestId('pick-screen')
+  await expect(pick).toBeVisible()
+  await pick.getByRole('button', { name: '취소', exact: true }).click()
+  await expect(page).toHaveURL(editUrl)
+  await waitReady(page)
 })

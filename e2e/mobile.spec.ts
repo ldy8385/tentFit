@@ -13,6 +13,7 @@ import {
   pickOpenPoint,
   touchDrag,
   openEditorWith,
+  waitReady,
   touchSecondFinger,
   visibleInputFontSizes,
   worldToClient,
@@ -263,4 +264,16 @@ test('재검증 회귀: 펼친 라이브러리 시트에서 추가해도, 가운
   await nextFrames(page, 3)
   expect(await isCanvasAt(page, await worldToClient(page, item.x, item.y))).toBe(true)
   expect((await getUi(page)).view).toEqual(before)
+})
+
+test('☰ 메뉴 「처음 화면」 = 텐트 고르기, [취소]로 보던 배치에 돌아옴', async ({ page }) => {
+  const editUrl = page.url()
+  await page.getByRole('button', { name: '메뉴' }).tap()
+  await page.getByRole('menuitem', { name: '처음 화면' }).tap()
+  await expect(page).toHaveURL(/#\/pick$/)
+  const pick = page.getByTestId('pick-screen')
+  await expect(pick).toBeVisible()
+  await pick.getByRole('button', { name: '취소', exact: true }).tap()
+  await expect(page).toHaveURL(editUrl)
+  await waitReady(page)
 })

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+import { clearPickReturn, getPickReturn } from '../../app/PickRoute'
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
 import { createLayout, type Tent } from '../../core/model'
 import { addItem, makeItem } from '../../core/ops/items'
@@ -139,7 +140,7 @@ describe('TopBar', () => {
   it('이 계획에 없는 버튼(측정·파일)은 두지 않는다(모드 토글은 radio라 버튼 목록에 없음)', () => {
     renderBar('desktop')
     const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)
-    expect(names).toEqual(['측정', '실행 취소', '다시 실행', '파일', '보기']) // 측정 = Plan 5, 파일 = Plan 7(전체 백업·불러오기)
+    expect(names).toEqual(['처음 화면으로', '측정', '실행 취소', '다시 실행', '파일', '보기']) // 측정 = Plan 5, 파일 = Plan 7(전체 백업·불러오기)
   })
 })
 
@@ -206,7 +207,7 @@ describe('MobileTopBar', () => {
 
     fireEvent.click(within(bar).getByRole('button', { name: '메뉴' }))
     const items = Array.from(screen.getByRole('menu').querySelectorAll('button'), (el) => el.textContent)
-    expect(items).toEqual(['다시 실행', '격자 보이기', '격자 간격 (10cm)', '자석 맞춤', '맞춤 보기', '거리 재기', '전체 백업(파일로 내려받기)', '파일 불러오기', 'PNG로 저장'])
+    expect(items).toEqual(['처음 화면', '다시 실행', '격자 보이기', '격자 간격 (10cm)', '자석 맞춤', '맞춤 보기', '거리 재기', '전체 백업(파일로 내려받기)', '파일 불러오기', 'PNG로 저장'])
     expect((screen.getByRole('menuitem', { name: '다시 실행' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '격자 보이기' }))
     expect(stores.ui.getState().gridVisible).toBe(false)
@@ -250,5 +251,27 @@ describe('그리는 중 실행 취소·다시 실행(Plan 4.1 판단 Q5)', () =>
     })
     fireEvent.click(screen.getByRole('button', { name: '메뉴' }))
     expect((screen.getByRole('menuitem', { name: '다시 실행' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+describe('처음 화면으로(소유자 요청 2026-10-15: "홈으로 가기가 없나?")', () => {
+  afterEach(() => {
+    clearPickReturn()
+    window.location.hash = ''
+  })
+
+  it('PC: 로고 tentFit을 누르면 텐트 고르기 화면, [취소]로 돌아올 배치 = 지금 배치', () => {
+    const stores = renderBar('desktop')
+    fireEvent.click(screen.getByRole('button', { name: '처음 화면으로' }))
+    expect(window.location.hash).toBe('#/pick')
+    expect(getPickReturn()).toEqual({ layoutId: stores.doc.getState().layout.id })
+  })
+
+  it('휴대폰: ☰ 메뉴 「처음 화면」', () => {
+    const stores = renderBar('mobile')
+    fireEvent.click(screen.getByRole('button', { name: '메뉴' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '처음 화면' }))
+    expect(window.location.hash).toBe('#/pick')
+    expect(getPickReturn()).toEqual({ layoutId: stores.doc.getState().layout.id })
   })
 })

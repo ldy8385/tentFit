@@ -1,6 +1,7 @@
-// 모바일 상단 바(스펙 §4.2): ☰ 메뉴(다시 실행, 격자 보이기, 맞춤 보기), 배치 이름, 실행 취소.
+// 모바일 상단 바(스펙 §4.2): ☰ 메뉴(처음 화면, 다시 실행, 격자 보이기, 맞춤 보기), 배치 이름, 실행 취소.
 // 메뉴의 파일 항목·스냅 켜기·설치 안내는 Plan 5·7·8에서 붙입니다.
 import { endMeasuring, startMeasuring } from '../../app/measureActions'
+import { goHome } from '../../app/PickRoute'
 import { useDoc, useStores, useUi } from '../../app/stores'
 import { downloadBackup, pickAndImport } from '../../app/persist/files'
 import { fitToLayout } from '../../app/viewActions'
@@ -27,6 +28,7 @@ export function MobileTopBar() {
         icon={<MenuIcon size={22} />}
         align="left"
         items={[
+          { label: '처음 화면', onSelect: () => goHome(stores.doc.getState().layout.id) },
           { label: '다시 실행', disabled: !canRedo, onSelect: () => stores.doc.getState().redo() },
           {
             label: '격자 보이기',

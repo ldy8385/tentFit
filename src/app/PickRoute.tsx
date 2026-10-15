@@ -11,7 +11,7 @@ import { TentMaker } from '../ui/tentMaker/TentMaker'
 import { MyLayoutsDialog } from '../ui/pick/MyLayoutsDialog'
 import { PickScreen } from '../ui/pick/PickScreen'
 import { createLayoutFromTent, deleteLayout, getLastLayoutId, getLayout, layoutCount, listLayoutSummaries } from './layoutRepo'
-import { editHash } from './router'
+import { editHash, PICK_HASH } from './router'
 import { loadTentCatalog, type TentCatalog } from './tentCatalog'
 
 export const CATALOG_ERROR_TEXT = '텐트 목록을 불러오지 못했어요'
@@ -33,6 +33,15 @@ export function clearPickReturn(): void {
 
 export function setPickReturn(layoutId: string | null): void {
   pickReturn = layoutId === null ? null : { layoutId }
+}
+
+/**
+ * 편집기에서 처음 화면(텐트 고르기)으로(소유자 요청 2026-10-15). 고르기 화면의 [취소]로 이 배치에 돌아옵니다.
+ * 편집기가 사라질 때 저장을 바로 끝냅니다(App의 Editor).
+ */
+export function goHome(layoutId: string): void {
+  setPickReturn(layoutId)
+  window.location.hash = PICK_HASH
 }
 
 /** [+ 새 배치] 때 돌아갈 배치: 마지막으로 연 배치, 보관소에 없으면 가장 최근 수정 배치 */
