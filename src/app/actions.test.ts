@@ -14,7 +14,8 @@ import {
   setRotation,
 } from './actions'
 import legacyItems from '../test/fixtures/legacy-items.json'
-import { defaultTentPreset, itemPresetsFrom } from './presets'
+import { defaultTentPreset } from '../test/genericTents'
+import { itemPresetsFrom } from './presets'
 import { createStores, type Stores } from './stores'
 
 const MAT: ItemPreset = {

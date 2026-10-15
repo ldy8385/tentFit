@@ -2,14 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { ITEM_CATEGORIES } from '../core/model'
 import legacyItems from '../test/fixtures/legacy-items.json'
 import itemsJson from '../../presets/items.json'
-import {
-  DEFAULT_TENT_PRESET_ID,
-  defaultTentPreset,
-  genericTentsFrom,
-  itemPresetsFrom,
-  loadGenericTents,
-  loadItemPresets,
-} from './presets'
+import { DEFAULT_TENT_PRESET_ID, defaultTentPreset, loadGenericTents } from '../test/genericTents'
+import { genericTentsFrom, itemPresetsFrom, loadItemPresets } from './presets'
 
 describe('loadItemPresets', () => {
   it('저장소 presets/items.json을 그대로 읽는다(예시 물건은 2026-10-14에 뺐고, 실제 매트가 들어올 자리)', () => {

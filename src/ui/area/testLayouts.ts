@@ -1,6 +1,6 @@
 // 면적·경고 컴포넌트 테스트용 배치(테스트에서만 import).
 import { createLayout, type Item, type Layout, type Tent } from '../../core/model'
-import { loadGenericTents } from '../../app/presets'
+import { loadGenericTents } from '../../test/genericTents'
 
 function tentOf(id: string): Tent {
   const preset = loadGenericTents().find((t) => t.id === id)

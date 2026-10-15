@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { loadGenericTents } from '../../app/presets'
+import { loadGenericTents } from '../../test/genericTents'
 import type { TentCatalog } from '../../app/tentCatalog'
 import { installFakeMatchMedia, type FakeMedia } from '../shell/fakeMatchMedia'
 import { DESKTOP_QUERY } from '../shell/useIsDesktop'

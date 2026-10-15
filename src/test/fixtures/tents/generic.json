@@ -1,5 +1,5 @@
 {
-  "$schema": "../tents.schema.json",
+  "$schema": "../../../../presets/tents.schema.json",
   "presets": [
     {
       "id": "generic/dome-2p",

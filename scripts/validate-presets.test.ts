@@ -29,6 +29,8 @@ const temps: string[] = []
 
 /** 예전 예시 물건 20개(테스트 전용). 실제 presets/items.json은 소유자가 실제 매트를 넣기 전까지 비어 있습니다. */
 const LEGACY_ITEMS = join(ROOT, 'src', 'test', 'fixtures', 'legacy-items.json')
+/** 시험 전용 예시 텐트(배포본 presets/에는 없음, 2026-10-15) */
+const GENERIC_FIXTURE = join(ROOT, 'src', 'test', 'fixtures', 'tents', 'generic.json')
 
 /**
  * 실제 presets/를 임시 폴더로 복사합니다. 테스트는 복사본만 고칩니다.
@@ -39,6 +41,7 @@ function copyPresets(): string {
   temps.push(dir)
   cpSync(PRESETS, dir, { recursive: true })
   cpSync(LEGACY_ITEMS, join(dir, 'items.json'))
+  cpSync(GENERIC_FIXTURE, join(dir, 'tents', 'generic.json'))
   return dir
 }
 
@@ -68,22 +71,15 @@ describe('checkPresets — 실제 데이터', () => {
   it('저장소의 presets/는 오류 없이 통과한다', () => {
     const r = checkPresets(PRESETS)
     expect(r.errors).toEqual([])
-    expect(r.tentFiles).toContain('generic')
-    expect(r.tents.map((t) => t.id)).toEqual(
-      expect.arrayContaining([
-        'generic/dome-2p',
-        'generic/tunnel-4p',
-        'generic/living-shell',
-        'generic/bell-4m',
-        'generic/tipi-hex',
-      ]),
-    )
+    // 일반 예시는 배포본에서 없앴습니다(소유자 결정 2026-10-15). 텐트 프리셋은 브랜드 파일만.
+    expect(r.tentFiles).not.toContain('generic')
+    expect(r.tents.every((t) => t.brand !== undefined)).toBe(true)
     // 물건 프리셋은 소유자가 실제 매트를 넣을 때까지 비어 있을 수 있습니다(예시 물건은 2026-10-14에 뺌).
     expect(r.items).toHaveLength(readJson<RawItemFile>(join(PRESETS, 'items.json')).items.length)
   })
 
-  it('일반 예시 텐트 5개의 넓이와 구역이 손계산과 같고, 이너 이탈이 없다', () => {
-    const { tents } = checkPresets(PRESETS)
+  it('시험용 예시 텐트 5개의 넓이와 구역이 손계산과 같고, 이너 이탈이 없다', () => {
+    const { tents } = checkPresets(copyPresets())
     const byId = new Map(tents.map((t) => [t.id, t]))
     const zonesOf = (id: string) => {
       const t = byId.get(id)
@@ -271,14 +267,11 @@ describe('checkPresets — 깨진 데이터', () => {
     expect(errors.every((e) => e.startsWith('items.json'))).toBe(true)
   })
 
-  it('필수 파일이 없으면 실패', () => {
+  it('필수 파일(items.json)이 없으면 실패, 일반 예시(generic.json)는 없어도 됨(2026-10-15)', () => {
     const dir = copyPresets()
     rmSync(join(dir, 'items.json'))
     rmSync(join(dir, 'tents', 'generic.json'))
-    expect(checkPresets(dir).errors).toEqual([
-      'tents/generic.json: 파일이 없어요(일반 예시용 예약 파일)',
-      'items.json: 파일이 없어요',
-    ])
+    expect(checkPresets(dir).errors).toEqual(['items.json: 파일이 없어요'])
   })
 })
 

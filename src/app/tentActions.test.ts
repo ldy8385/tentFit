@@ -4,7 +4,7 @@ import { createLayout, type Inner, type Item, type Pt, type Tent } from '../core
 import { addItem } from '../core/ops/items'
 import { targetWorldRing } from '../core/ops/tent'
 import { defaultInnerTemplate } from '../core/templates'
-import { loadGenericTents } from './presets'
+import { loadGenericTents } from '../test/genericTents'
 import { createStores, type Stores } from './stores'
 import {
   addInnerAction,

@@ -92,7 +92,6 @@ export function checkPresets(presetsDir: string): PresetCheckResult {
         .filter((f) => f.endsWith('.json'))
         .sort()
     : []
-  if (!files.includes('generic.json')) errors.push('tents/generic.json: 파일이 없어요(일반 예시용 예약 파일)')
 
   for (const file of files) {
     const slug = basename(file, '.json')

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import genericJson from '../../presets/tents/generic.json'
+import genericJson from '../test/fixtures/tents/generic.json'
 import { catalogFromFiles, loadTentCatalog } from './tentCatalog'
 
 /** 브랜드 파일 항목(사각 300×200, 이너 없음) */

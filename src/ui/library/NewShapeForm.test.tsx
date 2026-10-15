@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLayout, type ItemPreset } from '../../core/model'
 import { addPresetItem } from '../../app/actions'
-import { defaultTentPreset } from '../../app/presets'
+import { defaultTentPreset } from '../../test/genericTents'
 import { createStores, StoresProvider, type Stores } from '../../app/stores'
 import { NewShapeForm } from './NewShapeForm'
 

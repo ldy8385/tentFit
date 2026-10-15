@@ -5,7 +5,7 @@ import { installFakeMatchMedia, type FakeMedia } from '../ui/shell/fakeMatchMedi
 import { DESKTOP_QUERY } from '../ui/shell/useIsDesktop'
 import { clearLayoutRepo, createLayoutFromTent, getLayout, layoutCount, listLayoutSummaries, setLastLayoutId } from './layoutRepo'
 import { CATALOG_ERROR_TEXT, getPickReturn, PickRoute, setPickReturn } from './PickRoute'
-import { defaultTentPreset, loadGenericTents } from './presets'
+import { defaultTentPreset, loadGenericTents } from '../test/genericTents'
 import { editHash, parseHash } from './router'
 import type { TentCatalog } from './tentCatalog'
 

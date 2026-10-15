@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_PRESETS_DIR, renderSchemas } from './gen-schemas'
@@ -50,9 +50,12 @@ describe('gen-schemas', () => {
   })
 
   it('데이터 파일의 $schema가 생성된 스키마 파일을 가리킨다', () => {
-    const generic = JSON.parse(readFileSync(join(DEFAULT_PRESETS_DIR, 'tents', 'generic.json'), 'utf8')) as { $schema?: string }
+    const tentsDir = join(DEFAULT_PRESETS_DIR, 'tents')
+    for (const f of readdirSync(tentsDir).filter((n) => n.endsWith('.json'))) {
+      const tent = JSON.parse(readFileSync(join(tentsDir, f), 'utf8')) as { $schema?: string }
+      expect(tent.$schema, f).toBe('../tents.schema.json')
+    }
     const items = JSON.parse(readFileSync(join(DEFAULT_PRESETS_DIR, 'items.json'), 'utf8')) as { $schema?: string }
-    expect(generic.$schema).toBe('../tents.schema.json')
     expect(items.$schema).toBe('./items.schema.json')
   })
 })

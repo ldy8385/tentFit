@@ -6,7 +6,6 @@
 
 | 파일 | 내용 |
 |---|---|
-| `tents/generic.json` | 일반 예시(브랜드 없음). 예약된 파일 이름입니다 |
 | `tents/<브랜드 slug>.json` | 브랜드별 텐트. 파일 이름(확장자 제외)이 slug입니다. 소문자·숫자·하이픈을 권장합니다 |
 | `items.json` | 물건 |
 | `tents.schema.json`, `items.schema.json` | `pnpm gen:schemas`가 만든 파일입니다. 직접 고치지 마세요 |
@@ -14,7 +13,7 @@
 ## 텐트 규칙
 
 - `id`는 `<파일 slug>/<모델 slug>`입니다. id는 텐트와 물건을 통틀어 겹치면 안 됩니다.
-- `generic.json` 밖에서는 `brand`가 필수입니다. `source`(출처 URL)와 `checkedAt`(`YYYY-MM-DD`)도 적어 주세요.
+- `brand`가 필수입니다(일반 예시는 2026-10-15에 없앴고, 시험 전용 예시는 `src/test/fixtures/tents/generic.json`에 있습니다). `source`(출처 URL)와 `checkedAt`(`YYYY-MM-DD`)도 적어 주세요.
 - 모양은 템플릿(`outerTemplate`, 이너의 `template`)으로 적고 `outer`·`shape`는 생략합니다. 둘 다 적으면 템플릿으로 만든 도형과 0.1cm 넘게 다를 때 검사가 실패합니다.
 - 단위는 cm입니다. 원점은 외곽 바운딩 박스의 중심이고, x는 오른쪽, y는 아래쪽(텐트 앞쪽)이 +입니다.
 - 이너 `id`는 `node -e "console.log(crypto.randomUUID())"`로 만든 값을 씁니다.

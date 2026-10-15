@@ -16,7 +16,7 @@ import {
   setLastLayoutId,
 } from './layoutRepo'
 import { getPickReturn, setPickReturn } from './PickRoute'
-import { defaultTentPreset } from './presets'
+import { defaultTentPreset } from '../test/genericTents'
 import { editHash, parseHash, useRoute } from './router'
 import type { TentfitAppHook, TentfitTestHook } from './testHook'
 

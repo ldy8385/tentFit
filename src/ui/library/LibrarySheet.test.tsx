@@ -2,7 +2,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLayout } from '../../core/model'
-import { defaultTentPreset } from '../../app/presets'
+import { defaultTentPreset } from '../../test/genericTents'
 
 // 실제 presets/items.json은 소유자가 실제 매트를 넣기 전까지 비어 있어, 화면 동작은 예전 예시 20개(테스트 고정 데이터)로 봅니다.
 vi.mock('../../app/presets', async (importOriginal) => {
