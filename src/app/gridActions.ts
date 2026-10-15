@@ -1,5 +1,5 @@
-// 격자 간격(소유자 요청 2026-10-15: "1cm~1000cm 까지, 확대축소와는 무관하게"). 화면 상태(ui.gridStep)만 바꾸고 문서·기록은 그대로입니다.
-// 이 브라우저에 기억합니다(localStorage, 막혀 있거나 값이 잘못되면 기본 10cm).
+// 격자 간격(소유자 요청 2026-10-15: "1cm~1000cm 까지, 확대축소와는 무관하게")·정렬 안내선 켜기·끄기.
+// 화면 상태(ui)만 바꾸고 문서·기록은 그대로입니다. 이 브라우저에 기억합니다(localStorage, 막혀 있거나 값이 잘못되면 기본값).
 import { GRID_STEP, GRID_STEP_RANGE } from '../core/snap'
 import type { Stores } from './stores'
 
@@ -26,6 +26,27 @@ export function setGridStep(stores: Stores, cm: number): void {
   stores.ui.getState().patch({ gridStep: step })
   try {
     localStorage.setItem(KEY, String(step))
+  } catch {
+    // 저장이 막힌 브라우저: 이번 화면에서만 씁니다.
+  }
+}
+
+const GUIDES_KEY = 'tentfit.guidesVisible'
+
+/** 기억해 둔 정렬 안내선 켜기·끄기(없으면 켬) */
+export function loadGuidesVisible(): boolean {
+  try {
+    return localStorage.getItem(GUIDES_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+/** 정렬 안내선 켜기·끄기(기억함) */
+export function setGuidesVisible(stores: Stores, on: boolean): void {
+  stores.ui.getState().patch({ guidesVisible: on })
+  try {
+    localStorage.setItem(GUIDES_KEY, String(on))
   } catch {
     // 저장이 막힌 브라우저: 이번 화면에서만 씁니다.
   }

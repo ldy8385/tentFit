@@ -1,6 +1,7 @@
 // PC 상단 바(스펙 §4.1): 로고, 배치 이름, 모드 토글(배치│텐트 편집), 실행 취소·다시 실행, [보기] 메뉴(격자 보이기, 맞춤 보기).
 // 굵은 포인터 기기에서만 [선택] 토글을 더합니다. [측정]·[파일]·스냅 항목은 Plan 5·7에서 붙입니다.
 import { endMeasuring, startMeasuring } from '../../app/measureActions'
+import { setGuidesVisible } from '../../app/gridActions'
 import { goHome } from '../../app/PickRoute'
 import { useDoc, useStores, useUi } from '../../app/stores'
 import { downloadBackup, pickAndImport } from '../../app/persist/files'
@@ -32,6 +33,7 @@ export function TopBar() {
   const canRedo = useDoc((s) => s.canRedo) && !drawing
   const gridVisible = useUi((s) => s.gridVisible)
   const snapEnabled = useUi((s) => s.snapEnabled)
+  const guidesVisible = useUi((s) => s.guidesVisible)
   const selectToggle = useUi((s) => s.selectToggle)
   const mode = useUi((s) => s.mode)
   const measuring = useUi((s) => s.measuring)
@@ -125,6 +127,7 @@ export function TopBar() {
             checked: snapEnabled,
             onSelect: () => stores.ui.getState().patch({ snapEnabled: !stores.ui.getState().snapEnabled }),
           },
+          { label: '정렬 안내선', checked: guidesVisible, onSelect: () => setGuidesVisible(stores, !stores.ui.getState().guidesVisible) },
           { label: '맞춤 보기', onSelect: () => fitToLayout(stores) },
         ]}
       />

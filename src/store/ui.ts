@@ -50,6 +50,8 @@ export type UiState = {
   gridVisible: boolean
   /** 격자 간격(cm, 1~1000, 확대·축소와 무관). 그리기·꼭짓점·물건 맞춤과 격자 표시가 함께 씁니다(소유자 요청 2026-10-15). */
   gridStep: number
+  /** 꼭짓점 정렬 안내선(반투명 점선)을 보일지(소유자 요청 2026-10-15, 끄면 이 브라우저에 기억) */
+  guidesVisible: boolean
   /** 격자 간격 설정 창이 열렸는지(캔버스 칩 또는 휴대폰 ☰ 메뉴「격자 간격」) */
   gridPanelOpen: boolean
   pointer: PointerKind // 마지막 pointerdown의 pointerType
@@ -124,6 +126,7 @@ export type UiState = {
         | 'gridVisible'
         | 'gridStep'
         | 'gridPanelOpen'
+        | 'guidesVisible'
         | 'mobileSheet'
         | 'desktopPanel'
         | 'areaExpanded'
@@ -199,7 +202,7 @@ function vertexCountOf(layout: Layout, target: TentTarget): number | null {
 }
 
 export function createUiStore(
-  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'gridStep' | 'view' | 'size' | 'pointer'>>,
+  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'gridStep' | 'guidesVisible' | 'view' | 'size' | 'pointer'>>,
 ): UiStore {
   // 토스트 번호. 지운 뒤에도 줄지 않아서, 같은 문구를 다시 띄워도 새 id가 됩니다.
   let toastSeq = 0
@@ -223,6 +226,7 @@ export function createUiStore(
       gridVisible: init?.gridVisible ?? true,
       gridStep: validGridStep(init?.gridStep),
       gridPanelOpen: false,
+      guidesVisible: init?.guidesVisible ?? true,
       pointer: init?.pointer ?? 'mouse',
       canvasPressed: false,
       revealRequest: 0,

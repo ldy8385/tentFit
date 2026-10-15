@@ -1,6 +1,7 @@
 // 모바일 상단 바(스펙 §4.2): ☰ 메뉴(처음 화면, 다시 실행, 격자 보이기, 맞춤 보기), 배치 이름, 실행 취소.
 // 메뉴의 파일 항목·스냅 켜기·설치 안내는 Plan 5·7·8에서 붙입니다.
 import { endMeasuring, startMeasuring } from '../../app/measureActions'
+import { setGuidesVisible } from '../../app/gridActions'
 import { goHome } from '../../app/PickRoute'
 import { useDoc, useStores, useUi } from '../../app/stores'
 import { downloadBackup, pickAndImport } from '../../app/persist/files'
@@ -19,6 +20,7 @@ export function MobileTopBar() {
   const gridVisible = useUi((s) => s.gridVisible)
   const gridStep = useUi((s) => s.gridStep)
   const snapEnabled = useUi((s) => s.snapEnabled)
+  const guidesVisible = useUi((s) => s.guidesVisible)
   const measuring = useUi((s) => s.measuring)
 
   return (
@@ -41,6 +43,7 @@ export function MobileTopBar() {
             checked: snapEnabled,
             onSelect: () => stores.ui.getState().patch({ snapEnabled: !stores.ui.getState().snapEnabled }),
           },
+          { label: '정렬 안내선', checked: guidesVisible, onSelect: () => setGuidesVisible(stores, !stores.ui.getState().guidesVisible) },
           { label: '맞춤 보기', onSelect: () => fitToLayout(stores) },
           { label: measuring ? '거리 재기 끝내기' : '거리 재기', onSelect: () => (measuring ? endMeasuring(stores) : startMeasuring(stores)) },
           { label: '전체 백업(파일로 내려받기)', onSelect: () => downloadBackup() },

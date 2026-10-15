@@ -115,11 +115,19 @@ export type TentLayerProps = {
   view: View
   /** 끄는 중 미리보기(Board 화면 상태). 있으면 그 텐트로 대상·핸들을 그림 */
   preview: TentPreview | null
+  /** 꼭짓점 정렬 안내선(반투명 점선)을 그릴지(ui.guidesVisible) */
+  showGuides?: boolean
   /** 패널에서 포커스한 변·꼭짓점 칸(ui.polygonFocus). 그 변을 굵게, 그 꼭짓점을 선택 모양으로 */
   focus?: PolygonFocus | null
 }
 
 /** 텐트 모드에서 Board가 경고 레이어 안 맨 위(경고 표시 위·Transformer 아래)에 그립니다. */
+/** 정렬 안내선 모양(화면 px). 선택 테두리(파랑·초록)와 헷갈리지 않게 자홍색 */
+const GUIDE_COLOR = '#D6409F'
+const GUIDE_STROKE_PX = 1.5
+const GUIDE_DASH = [6, 4]
+const GUIDE_OPACITY = 0.7
+
 export function TentLayer(props: TentLayerProps): JSX.Element | null {
   const { layout, vertexIndex, view, preview } = props
   const zoom = view.zoom
@@ -143,8 +151,24 @@ export function TentLayer(props: TentLayerProps): JSX.Element | null {
     focus?.kind === 'edge' && ring.length >= 2 ? [ring[focus.index], ring[(focus.index + 1) % ring.length]] : null
   const focusVertex = focus?.kind === 'vertex' ? focus.index : null
 
+  const guides = props.showGuides === true ? (preview?.guides ?? []) : []
+
   return (
     <Group listening={false} name="tent-edit">
+      {/* 꼭짓점 정렬 안내선(2026-10-15): 다른 꼭짓점과 가로·세로 줄이 맞으면 반투명 점선 */}
+      {guides.map((g, i) => (
+        <Line
+          key={`guide:${String(i)}`}
+          name="align-guide"
+          points={[g.a[0], g.a[1], g.b[0], g.b[1]]}
+          stroke={GUIDE_COLOR}
+          strokeWidth={GUIDE_STROKE_PX}
+          dash={GUIDE_DASH}
+          opacity={GUIDE_OPACITY}
+          strokeScaleEnabled={false}
+          perfectDrawEnabled={false}
+        />
+      ))}
       {ring.length >= 2 && !invalid && (
         <>
           <Line

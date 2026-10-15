@@ -687,6 +687,12 @@ class BoardController {
   }
 
   /** 끄는 중: 경계를 넘으면 제스처를 열고, 매 이동마다 미리보기를 그립니다(문서는 그대로). */
+  /** 꼭짓점 정렬 붙임 거리(cm): 자석 맞춤이 켜졌으면 화면 SNAP_PX, 꺼졌으면 0(정확히 맞을 때만 안내선) */
+  private alignTol(): number {
+    const ui = this.stores.ui.getState()
+    return snapOn(ui.snapEnabled, this.altDown) && ui.view.zoom > 0 ? SNAP_PX / ui.view.zoom : 0
+  }
+
   /** 꼭짓점 끌기 격자 맞춤(그리기와 같은 격자): 자석 맞춤이 켜졌을 때만(Alt로 반대) */
   private vertexGrid(): { origin: Pt; step: number } | null {
     const ui = this.stores.ui.getState()
@@ -704,7 +710,11 @@ class BoardController {
       this.openGesture()
     }
     const ui = this.stores.ui.getState()
-    const { preview } = tentDragStep(this.stores.doc.getState().layout, drag, p, ui.view, { axisLock: this.axisLocked(), grid: this.vertexGrid() })
+    const { preview } = tentDragStep(this.stores.doc.getState().layout, drag, p, ui.view, {
+      axisLock: this.axisLocked(),
+      grid: this.vertexGrid(),
+      alignTol: this.alignTol(),
+    })
     this.overlay.setState({ tentPreview: preview })
   }
 
@@ -722,6 +732,7 @@ class BoardController {
     const { commit } = tentDragStep(this.stores.doc.getState().layout, drag, p, this.stores.ui.getState().view, {
       axisLock: this.axisLocked(),
       grid: this.vertexGrid(),
+      alignTol: this.alignTol(),
     })
     this.overlay.setState({ tentPreview: null })
     this.closeGesture()
@@ -989,7 +1000,8 @@ function TentEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | nul
   const view = useUi((s) => s.view)
   const preview = useStore(props.overlay, (s) => s.tentPreview)
   const focus = useUi((s) => s.polygonFocus)
-  return <TentLayer layout={layout} target={target} vertexIndex={vertexIndex} view={view} preview={preview} focus={focus} />
+  const guidesVisible = useUi((s) => s.guidesVisible)
+  return <TentLayer layout={layout} target={target} vertexIndex={vertexIndex} view={view} preview={preview} focus={focus} showGuides={guidesVisible} />
 }
 
 /** 그리는 중 표시: 찍은 점·열린 선·고무줄(그때 보기로 계산 — 휠 이동에도 포인터를 따라감) */

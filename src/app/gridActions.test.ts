@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
 import { createLayout } from '../core/model'
-import { loadGridStep, setGridStep } from './gridActions'
+import { loadGridStep, loadGuidesVisible, setGridStep, setGuidesVisible } from './gridActions'
 import { createStores } from './stores'
 
 const KEY = 'tentfit.gridStep'
@@ -34,5 +34,18 @@ describe('격자 간격(소유자 요청 2026-10-15)', () => {
     expect(loadGridStep()).toBe(10)
     localStorage.setItem(KEY, '0')
     expect(loadGridStep()).toBe(10)
+  })
+})
+
+describe('정렬 안내선 켜기·끄기(소유자 요청 2026-10-15)', () => {
+  afterEach(() => localStorage.removeItem('tentfit.guidesVisible'))
+
+  it('기본 켬, 끄면 기억해서 다음에도 꺼짐', () => {
+    const s = setup()
+    expect(s.ui.getState().guidesVisible).toBe(true)
+    setGuidesVisible(s, false)
+    expect(s.ui.getState().guidesVisible).toBe(false)
+    expect(setup().ui.getState().guidesVisible).toBe(false)
+    expect(loadGuidesVisible()).toBe(false)
   })
 })

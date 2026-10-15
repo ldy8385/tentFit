@@ -197,6 +197,17 @@ describe('tentDragStep — 미리보기와 커밋할 값', () => {
     expect(tentDragStep(LAYOUT, drag, [512, -188], VIEW1, { grid }).commit).toBeNull()
   })
 
+  it('꼭짓점 정렬(2026-10-15): 다른 꼭짓점과 줄이 맞으면 그 줄에(격자보다 먼저), 미리보기에 안내선', () => {
+    const drag = tentDragFor({ kind: 'vertex', target: 'outer', index: 1, world: [500, -200] }, 3, 'mouse', [500, -200], VIEW1) as TentDrag
+    const grid = { origin: [-500, -200] as [number, number], step: 30 }
+    // x 347 → 이너 c 오른쪽 변 x 350에 붙고(격자라면 340), y는 정렬할 점이 없어 격자(-151 → -140)
+    const r = tentDragStep(LAYOUT, drag, [347, -151], VIEW1, { grid, alignTol: 5 })
+    expect(r.commit).toMatchObject({ world: [350, -140] })
+    expect(r.preview.guides).toEqual([{ a: [350, -140], b: [350, 50] }])
+    // 허용 거리 0이면 정확히 같을 때만
+    expect(tentDragStep(LAYOUT, drag, [347, -151], VIEW1, { alignTol: 0 }).preview.guides).toEqual([])
+  })
+
   it('꼭짓점을 자기교차로 끌면 invalid·커밋 없음', () => {
     const drag = tentDragFor({ kind: 'vertex', target: 'outer', index: 0, world: [-500, -200] }, 3, 'mouse', [-500, -200], VIEW1) as TentDrag
     const r = tentDragStep(LAYOUT, drag, [0, 400], VIEW1)

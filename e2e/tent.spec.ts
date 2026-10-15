@@ -18,6 +18,7 @@ import {
   waitMakerReady,
   waitReady,
   worldToClient,
+  setSnap,
 } from './helpers'
 import {
   DOME,
@@ -333,6 +334,28 @@ test.describe('텐트 편집 모드', () => {
     await expect.poll(async () => (await getTent(page)).outer).toEqual(original.outer)
     expect((await getTent(page)).outerTemplate).toEqual(original.outerTemplate)
     expect((await getDoc(page)).canUndo).toBe(false)
+  })
+
+  test('꼭짓점 정렬(2026-10-15): 다른 꼭짓점과 가로 줄이 맞으면 반투명 점선·그 줄에 붙음, 자석 맞춤을 끄면 붙지 않음', async ({ page }) => {
+    // 이너 1 오른쪽 위 꼭짓점 = (−90, −150). 외곽 오른쪽 위 꼭짓점(310, −160)을 (330, −152) 쪽으로 끌면 y가 −150에 붙음
+    await selectOuter(page)
+    const from = await vertexClient(page, 'outer', 1)
+    const to = await worldToClient(page, 330, -152)
+    await mouseDragHolding(page, from, to, async () => {
+      const guides = await page.evaluate(() => (window as unknown as { Konva: { stages: { find(s: string): unknown[] }[] } }).Konva.stages[0]!.find('.align-guide').length)
+      expect(guides).toBeGreaterThan(0)
+    })
+    await expect.poll(async () => (await vertexWorld(page, 'outer', 1))[1]).toBe(-150)
+
+    await page.keyboard.press('ControlOrMeta+z')
+    await expect.poll(async () => (await getTent(page)).outer.kind).toBe('rect')
+    await setSnap(page, false)
+    await selectOuter(page)
+    await mouseDragHolding(page, await vertexClient(page, 'outer', 1), await worldToClient(page, 330, -152), async () => undefined)
+    await expect.poll(async () => (await getDoc(page)).canUndo).toBe(true)
+    const y = (await vertexWorld(page, 'outer', 1))[1]
+    expect(y).not.toBe(-150)
+    expect(Math.abs(y + 152)).toBeLessThan(1.5)
   })
 
   test('「+」을 누르면 그 변 가운데에 꼭짓점이 생기고 새 꼭짓점이 선택된다', async ({ page }) => {

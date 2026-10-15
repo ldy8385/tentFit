@@ -2,7 +2,8 @@
 // Board(BoardController)가 pointerdown에서 classifyTentPress로 대상을 정하고, 탭이면 tentTapEffect,
 // 끌기면 tentDragStep으로 미리보기와 커밋 값을 얻습니다. 문서는 Board가 손을 뗄 때 tentActions로 한 번만 바꿉니다.
 import type { Layout, Pt, Tent } from '../../core/model'
-import type { TentTarget } from '../../core/ops/tent'
+import { targetWorldRing, type TentTarget } from '../../core/ops/tent'
+import { alignAxes, alignGuides, type AlignGuide } from '../../core/align'
 import { snapToGrid } from '../../core/polygonEdit'
 import { tentTargetBlocked, type PointerKind, type TentLock } from '../../store/ui'
 import { TAP_SLOP } from '../gestures'
@@ -52,7 +53,8 @@ export type TentDrag =
   | { kind: 'inner'; innerId: string; pointerId: number; pointer: PointerKind; start: Pt; startWorld: Pt }
 
 /** 끄는 중 화면에만 그리는 미리보기(문서 밖). invalid면 빨간 점선 + 「놓으면 취소돼요」 */
-export type TentPreview = { target: TentTarget; tent: Tent; invalid: boolean }
+/** guides = 꼭짓점 정렬 안내선(월드 cm, 2026-10-15). 이너 옮기기는 빈 배열 */
+export type TentPreview = { target: TentTarget; tent: Tent; invalid: boolean; guides: AlignGuide[] }
 
 export type TentDragCommit =
   | { kind: 'vertex'; target: TentTarget; index: number; world: Pt }
@@ -172,7 +174,7 @@ export function tentDragStep(
   drag: TentDrag,
   screen: Pt,
   view: View,
-  opts?: { axisLock?: boolean; grid?: { origin: Pt; step: number } | null },
+  opts?: { axisLock?: boolean; grid?: { origin: Pt; step: number } | null; alignTol?: number },
 ): { preview: TentPreview; commit: TentDragCommit | null } {
   const w = screenToWorld(view, screen)
   // 상하좌우로만(Shift·[상하좌우] 토글): 누른 점 기준 이동량이 큰 축만 남깁니다.
@@ -185,21 +187,38 @@ export function tentDragStep(
     const moved = Math.abs(d.dx) >= TENT_MOVE_EPS_CM || Math.abs(d.dy) >= TENT_MOVE_EPS_CM
     const commit: TentDragCommit | null =
       !invalid && moved && innerExists(layout, drag.innerId) ? { kind: 'inner', innerId: drag.innerId, dx: d.dx, dy: d.dy } : null
-    return { preview: { target, tent: r.tent, invalid }, commit }
+    return { preview: { target, tent: r.tent, invalid, guides: [] }, commit }
   }
   const d = tentDragDelta({ dx: rx, dy: ry, layout, target: drag.target })
-  let world: Pt = [drag.from[0] + d.dx, drag.from[1] + d.dy]
-  // 격자 맞춤(소유자 요청 2026-10-15, 그리기와 같은 격자): 상하좌우로만이면 움직이는 축만 맞춥니다.
-  const grid = opts?.grid
-  if (grid != null) {
-    const g = snapToGrid(world, grid.origin, grid.step)
-    world = opts?.axisLock === true ? [rx === 0 ? world[0] : g[0], ry === 0 ? world[1] : g[1]] : g
-  }
+  const raw: Pt = [drag.from[0] + d.dx, drag.from[1] + d.dy]
+  // 상하좌우로만이면 움직이는 축만 맞춥니다.
+  const moving = { x: opts?.axisLock !== true || rx !== 0, y: opts?.axisLock !== true || ry !== 0 }
+  // 꼭짓점 정렬(2026-10-15): 다른 꼭짓점과 줄이 맞는 축은 그 줄에, 나머지 축은 격자(그리기와 같은 격자)에.
+  const others = alignCandidates(layout, drag.target, drag.index)
+  const al = alignAxes(raw, others, opts?.alignTol ?? 0, moving)
+  const g = opts?.grid != null ? snapToGrid(raw, opts.grid.origin, opts.grid.step) : raw
+  const world: Pt = [al.x ?? (moving.x ? g[0] : raw[0]), al.y ?? (moving.y ? g[1] : raw[1])]
   const r = previewVertexDrag(layout, drag.target, drag.index, world)
   const invalid = r.issues.length > 0
   const moved = Math.abs(world[0] - drag.from[0]) >= TENT_MOVE_EPS_CM || Math.abs(world[1] - drag.from[1]) >= TENT_MOVE_EPS_CM
   const exists = drag.target === 'outer' || innerExists(layout, drag.target.innerId)
   const commit: TentDragCommit | null =
     !invalid && moved && exists ? { kind: 'vertex', target: drag.target, index: drag.index, world } : null
-  return { preview: { target: drag.target, tent: r.tent, invalid }, commit }
+  return { preview: { target: drag.target, tent: r.tent, invalid, guides: alignGuides(world, others) }, commit }
+}
+
+/** 정렬 대상 꼭짓점(월드): 외곽·모든 이너의 꼭짓점에서 끄는 꼭짓점만 뺌. 원은 꼭짓점이 없으므로 뺍니다. */
+function alignCandidates(layout: Layout, target: TentTarget, index: number): Pt[] {
+  const targets: TentTarget[] = [
+    ...(layout.tent.outer.kind === 'circle' ? [] : ['outer' as const]),
+    ...layout.tent.inners.filter((i) => i.shape.kind !== 'circle').map((i): TentTarget => ({ innerId: i.id })),
+  ]
+  const out: Pt[] = []
+  for (const t of targets) {
+    const same = sameTentTarget(t, target)
+    targetWorldRing(layout, t).forEach((p, i) => {
+      if (!(same && i === index)) out.push(p)
+    })
+  }
+  return out
 }
