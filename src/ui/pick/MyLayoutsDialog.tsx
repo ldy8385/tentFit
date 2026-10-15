@@ -1,5 +1,5 @@
 // 내 배치 최소 목록(R2). 고르기 화면 "내 배치"로 엽니다. 맨 위 [+ 새 배치], 행 = 이름 · '수정 HH:MM · 물건 N개'.
-// 받은 순서(listLayoutSummaries = updatedAt 내림차순) 그대로 그립니다. 썸네일·복제·이름 변경·삭제·"열림" 배지는 Plan 7.
+// 받은 순서(listLayoutSummaries = updatedAt 내림차순) 그대로 그립니다. 행 옆 ×로 지우기(확인 후, 2026-10-15). 썸네일·복제·이름 변경은 아직 없음.
 import { useId, type JSX } from 'react'
 import type { LayoutSummary } from '../../app/layoutRepo'
 import { Dialog } from '../common/Dialog'
@@ -34,6 +34,8 @@ export function MyLayoutsDialog(p: {
   onOpen(id: string): void
   onNew(): void
   onClose(): void
+  /** 지우기(없으면 × 없음) */
+  onDelete?(id: string): void
 }): JSX.Element | null {
   return (
     <Dialog title="내 배치" open={p.open} onClose={p.onClose} testId="my-layouts-dialog">
@@ -43,8 +45,20 @@ export function MyLayoutsDialog(p: {
         </button>
         <ul className="tf-mylayouts__list">
           {p.summaries.map((s) => (
-            <li key={s.id}>
+            <li key={s.id} className="tf-mylayouts__item">
               <LayoutRow summary={s} onOpen={p.onOpen} />
+              {p.onDelete !== undefined && (
+                <button
+                  type="button"
+                  className="tf-mylayouts__delete"
+                  aria-label={`${s.name} 지우기`}
+                  onClick={() => {
+                    if (window.confirm(`「${s.name}」을(를) 지울까요? 되돌릴 수 없어요.`)) p.onDelete?.(s.id)
+                  }}
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>

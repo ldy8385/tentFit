@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { ItemPreset } from '../../core/model'
 import { addPresetItem } from '../../app/actions'
+import { deleteMyItem, useMyItems } from '../../app/persist/storage'
 import { useItemPresets } from '../../app/presets'
 import { useStores, useUi } from '../../app/stores'
 import { CategoryChips } from './CategoryChips'
-import { dimsText } from '../panels/itemDims'
 import { BrandSelect } from './BrandSelect'
-import { emptyLibraryText, filterByBrand, filterByCategory, sortByName, type CategoryFilter } from './libraryUtils'
+import { emptyLibraryText, filterByBrand, filterByCategory, isMine, rowMeta, sortByName, type CategoryFilter } from './libraryUtils'
 import { ShapeSwatch } from './ShapeSwatch'
 import './library.css'
 
@@ -20,7 +20,9 @@ export function LibraryPanel(p: { onCollapse?: () => void } = {}) {
   const locked = useUi((s) => s.mode !== 'place' || s.measuring)
   const [filter, setFilter] = useState<CategoryFilter>('ALL')
   const [brand, setBrand] = useState<string | null>(null)
-  const all = useItemPresets()
+  const mine = useMyItems()
+  const shared = useItemPresets()
+  const all = useMemo(() => [...mine, ...shared], [mine, shared])
   const presets = useMemo(() => sortByName(filterByBrand(filterByCategory(all, filter), brand)), [all, filter, brand])
 
   const add = (preset: ItemPreset) => {
@@ -44,19 +46,31 @@ export function LibraryPanel(p: { onCollapse?: () => void } = {}) {
       {presets.length === 0 && <p className="tf-lib__empty">{emptyLibraryText(filter)}</p>}
       <ul className="tf-lib__list">
         {presets.map((p) => (
-          <li key={p.id}>
+          <li key={p.id} className={isMine(p) ? 'tf-lib__mine' : undefined}>
             <button type="button" className="tf-lib__row" disabled={locked} aria-label={`${p.name} 추가`} onClick={() => add(p)}>
               <span className="tf-lib__thumb">
                 <ShapeSwatch shape={p.shape} color={p.color} countsArea={p.countsArea} size={32} />
               </span>
               <span className="tf-lib__text">
                 <span className="tf-lib__name">{p.name}</span>
-                <span className="tf-lib__dims">{p.brand === undefined ? dimsText(p.shape) : `${p.brand} · ${dimsText(p.shape)}`}</span>
+                <span className="tf-lib__dims">{rowMeta(p)}</span>
               </span>
               <span className="tf-lib__plus" aria-hidden="true">
                 +
               </span>
             </button>
+            {isMine(p) && (
+              <button
+                type="button"
+                className="tf-lib__delete"
+                aria-label={`${p.name} 내 도형에서 지우기`}
+                onClick={() => {
+                  if (window.confirm(`「${p.name}」을(를) 내 도형에서 지울까요?`)) void deleteMyItem(p.id)
+                }}
+              >
+                ×
+              </button>
+            )}
           </li>
         ))}
       </ul>

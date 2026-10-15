@@ -3,13 +3,16 @@
 // - 앱을 열 때 initStorage가 저장된 배치·마지막 배치·내 텐트를 메모리로 불러옵니다. 형식이 깨진 배치는 corrupt:<id>로 옮기고 계속합니다.
 // - IndexedDB를 못 쓰면(사생활 보호·차단) 메모리로만 동작하고 상태를 'unavailable'로 알립니다(§9.6).
 // - 전체 백업(내보내기 파일 §5.6)과 가져오기(§9.5: 전부 반영 또는 아무것도 안 함, 겹치는 id는 새 id·「(가져옴)」).
-// 아직 없는 것: 여러 창 알림(BroadcastChannel), persist 요청, 백업 권유 배너, 내 도형(myItems) 화면.
+// - 내 도형(myItems, 2026-10-15): 물건을 이 브라우저의 라이브러리 「내 도형」으로. 배치 지우기도 여기서.
+// 아직 없는 것: 여러 창 알림(BroadcastChannel), persist 요청, 백업 권유 배너.
 import { useSyncExternalStore } from 'react'
-import { migrateExportFile, migrateLayout, migrateMyTents } from '../../core/migrate'
-import { newId, SCHEMA_VERSION, type ExportFile, type Layout, type Tent, type TentPreset } from '../../core/model'
+import { migrateExportFile, migrateLayout, migrateMyItems, migrateMyTents } from '../../core/migrate'
+import { newId, SCHEMA_VERSION, type ExportFile, type Item, type ItemPreset, type Layout, type Shape, type Tent, type TentPreset } from '../../core/model'
+import { centerPolygon } from '../../core/polygonEdit'
+import { withRadii } from '../../core/radii'
 import { uniqueName } from '../../core/ops/items'
 import { validateLayout } from '../../core/validate'
-import { getMemoryLayout, listMemoryLayouts, putMemoryLayout } from '../memoryLayouts'
+import { deleteMemoryLayout, getMemoryLayout, listMemoryLayouts, putMemoryLayout } from '../memoryLayouts'
 import type { Kv } from './kv'
 
 export type StorageStatus = 'unknown' | 'ok' | 'unavailable' | 'failed'
@@ -22,6 +25,7 @@ let kv: Kv | null = null
 let status: StorageStatus = 'unknown'
 let restoredLast: string | null = null
 let myTents: TentPreset[] = []
+let myItems: ItemPreset[] = []
 const pendingLayouts = new Map<string, Layout>()
 let pendingLast: string | null | undefined = undefined
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -83,6 +87,13 @@ export async function initStorage(store: Kv | null): Promise<void> {
           myTents = migrateMyTents(value)
         } catch {
           corrupt.push(['corrupt:myTents', value])
+          drop.push(key)
+        }
+      } else if (key === 'myItems') {
+        try {
+          myItems = migrateMyItems(value)
+        } catch {
+          corrupt.push(['corrupt:myItems', value])
           drop.push(key)
         }
       }
@@ -196,11 +207,69 @@ export async function deleteMyTent(id: string): Promise<void> {
   await writeMyTents(myTents.filter((t) => t.id !== id))
 }
 
+// ── 배치 지우기 ──────────────────────────────────────────────────
+
+/** 배치를 메모리·저장소에서 지웁니다. 마지막으로 연 배치였으면 그 기억도 비웁니다. */
+export async function deleteStoredLayout(id: string): Promise<void> {
+  deleteMemoryLayout(id)
+  pendingLayouts.delete(id)
+  if (restoredLast === id) {
+    restoredLast = null
+    pendingLast = null
+  }
+  notify()
+  await write(pendingLast === null ? [['settings', { lastLayoutId: undefined }]] : [], [`layout:${id}`])
+  if (pendingLast === null) pendingLast = undefined
+}
+
+// ── 내 도형(§5.5 myItems) ───────────────────────────────────────
+
+export function listMyItems(): ItemPreset[] {
+  return myItems
+}
+
+/** 내 도형 목록 구독(라이브러리) */
+export function useMyItems(): ItemPreset[] {
+  return useSyncExternalStore(subscribe, listMyItems, listMyItems)
+}
+
+async function writeMyItems(next: ItemPreset[]): Promise<void> {
+  myItems = next
+  notify()
+  await write([['myItems', { schemaVersion: SCHEMA_VERSION, items: next }]])
+}
+
+/** 다각형은 바운딩 박스 가운데가 원점이 되게(반지름 유지) */
+function centered(shape: Shape): Shape {
+  if (shape.kind !== 'polygon') return structuredClone(shape)
+  return withRadii({ kind: 'polygon', points: centerPolygon(shape.points).points }, shape.radii)
+}
+
+/** 물건을 내 도형으로(새 id, 이름이 겹치면 번호, 위치·회전은 빼고 모양·색·카테고리·점유 면적만) */
+export async function saveMyItem(item: Item): Promise<ItemPreset> {
+  const name = uniqueName(
+    myItems.map((p) => p.name),
+    item.name.trim() === '' ? '내 도형' : item.name.trim(),
+  )
+  const preset: ItemPreset = { id: `my/${newId()}`, name, category: item.category, shape: centered(item.shape), color: item.color, countsArea: item.countsArea }
+  await writeMyItems([...myItems, preset])
+  return preset
+}
+
+export async function deleteMyItem(id: string): Promise<void> {
+  await writeMyItems(myItems.filter((p) => p.id !== id))
+}
+
+/** 내 도형인지(id가 my/로 시작) */
+export function isMyItem(p: { id: string }): boolean {
+  return p.id.startsWith('my/')
+}
+
 // ── 백업·가져오기(§5.6·§9.5) ────────────────────────────────────
 
 /** 전체 백업 파일 내용(모든 배치 + 내 텐트) */
 export function buildBackup(now: string = new Date().toISOString()): ExportFile {
-  return { format: 'tentfit', schemaVersion: SCHEMA_VERSION, exportedAt: now, layouts: listMemoryLayouts(), myTents, myItems: [] }
+  return { format: 'tentfit', schemaVersion: SCHEMA_VERSION, exportedAt: now, layouts: listMemoryLayouts(), myTents, myItems }
 }
 
 export type ImportResult = { ok: true; layouts: number; myTents: number } | { ok: false; error: string }
@@ -235,10 +304,17 @@ export async function importBackup(raw: unknown): Promise<ImportResult> {
     tents.push(clash ? { ...t, id: `my/${newId()}`, model: uniqueName(tents.map((x) => x.model), `${t.model}${IMPORTED}`) } : t)
   }
   myTents = tents
+  const items = [...myItems]
+  for (const p of file.myItems) {
+    const clash = items.some((x) => x.id === p.id)
+    items.push(clash ? { ...p, id: `my/${newId()}`, name: uniqueName(items.map((x) => x.name), `${p.name}${IMPORTED}`) } : p)
+  }
+  myItems = items
   notify()
   await write([
     ...layouts.map((l): [string, unknown] => [`layout:${l.id}`, l]),
     ['myTents', { schemaVersion: SCHEMA_VERSION, items: tents }],
+    ['myItems', { schemaVersion: SCHEMA_VERSION, items }],
   ])
   await writing
   return { ok: true, layouts: layouts.length, myTents: file.myTents.length }
@@ -252,6 +328,7 @@ export function resetStorageForTest(): void {
   status = 'unknown'
   restoredLast = null
   myTents = []
+  myItems = []
   pendingLayouts.clear()
   pendingLast = undefined
   writing = Promise.resolve()

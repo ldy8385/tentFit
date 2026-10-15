@@ -4,7 +4,11 @@ import { clearLayoutRepo, getLastLayoutId, getLayout, listLayoutSummaries, putLa
 import { memoryKv } from './kv'
 import {
   buildBackup,
+  deleteMyItem,
   deleteMyTent,
+  deleteStoredLayout,
+  listMyItems,
+  saveMyItem,
   flushSaves,
   importBackup,
   initStorage,
@@ -97,5 +101,33 @@ describe('브라우저 저장(Plan 7)', () => {
     const bad = await importBackup({ format: 'tentfit', schemaVersion: 1, layouts: [{ id: 1 }] })
     expect(bad.ok).toBe(false)
     expect(listLayoutSummaries()).toHaveLength(2)
+  })
+})
+
+describe('배치 지우기·내 도형(2026-10-15)', () => {
+  it('배치를 지우면 메모리·저장소에서 빠지고, 마지막 배치였으면 그것도 비움', async () => {
+    const kv = memoryKv([['layout:a', layout('a')], ['settings', { lastLayoutId: 'a' }]])
+    await initStorage(kv)
+    await deleteStoredLayout('a')
+    expect(getLayout('a')).toBeUndefined()
+    expect(kv.data.has('layout:a')).toBe(false)
+    expect(getLastLayoutId()).toBeNull()
+  })
+
+  it('내 도형 저장(새 id·이름 겹치면 번호)·지우기, 다시 열면 불러오고 백업에도 들어감', async () => {
+    const kv = memoryKv()
+    await initStorage(kv)
+    const item = { id: 'x', name: '내 매트', shape: { kind: 'rect' as const, w: 190, h: 60 }, x: 5, y: 5, rotation: 30, color: 'green' as const, category: 'MAT' as const, countsArea: true }
+    const a = await saveMyItem(item)
+    await saveMyItem(item)
+    expect(listMyItems().map((p) => p.name)).toEqual(['내 매트', '내 매트 2'])
+    expect(a).toMatchObject({ category: 'MAT', shape: { kind: 'rect', w: 190, h: 60 }, color: 'green' })
+    expect(a.id.startsWith('my/')).toBe(true)
+    expect(buildBackup(NOW).myItems).toHaveLength(2)
+    resetStorageForTest()
+    await initStorage(kv)
+    expect(listMyItems()).toHaveLength(2)
+    await deleteMyItem(a.id)
+    expect(listMyItems().map((p) => p.name)).toEqual(['내 매트 2'])
   })
 })

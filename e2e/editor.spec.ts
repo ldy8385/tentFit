@@ -390,3 +390,28 @@ test('[파일 → PNG로 저장]: 미리보기(긴 변 2048px)와 내려받기 �
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('link', { name: '내려받기' }).click()])
   expect(download.suggestedFilename()).toMatch(new RegExp(`^tentfit-${name.replace(/\s+/g, '-')}-\\d{8}\\.png$`))
 })
+
+test('내 도형: 물건을 저장하면 라이브러리 「내 도형」에 생기고 새로고침해도 남으며, ×로 지움(2026-10-15)', async ({ page }) => {
+  await createItem(page, BOX_ITEM)
+  await properties(page).getByRole('button', { name: '내 도형으로 저장' }).click()
+  const lib = page.getByRole('complementary', { name: '라이브러리' }).last()
+  await lib.getByRole('button', { name: '내 도형', exact: true }).click()
+  await expect(lib.getByRole('button', { name: `${BOX_ITEM.name} 추가` })).toBeVisible()
+  await page.waitForTimeout(1200)
+  await page.reload()
+  const lib2 = page.getByRole('complementary', { name: '라이브러리' }).last()
+  await lib2.getByRole('button', { name: '내 도형', exact: true }).click()
+  page.once('dialog', (d) => void d.accept())
+  await lib2.getByRole('button', { name: `${BOX_ITEM.name} 내 도형에서 지우기` }).click()
+  await expect(lib2.getByRole('button', { name: `${BOX_ITEM.name} 추가` })).toHaveCount(0)
+})
+
+test('내 배치에서 ×로 지우면 목록에서 빠짐(2026-10-15)', async ({ page }) => {
+  const name = (await getDoc(page)).layout.name
+  await page.goto('/#/pick')
+  await page.getByRole('button', { name: /내 배치/ }).click()
+  const dialog = page.getByTestId('my-layouts-dialog')
+  page.once('dialog', (d) => void d.accept())
+  await dialog.getByRole('button', { name: `${name} 지우기` }).click()
+  await expect(dialog.getByRole('button', { name: `${name} 지우기` })).toHaveCount(0)
+})

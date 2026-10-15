@@ -10,7 +10,7 @@ import type { Tent, TentPreset } from '../core/model'
 import { TentMaker } from '../ui/tentMaker/TentMaker'
 import { MyLayoutsDialog } from '../ui/pick/MyLayoutsDialog'
 import { PickScreen } from '../ui/pick/PickScreen'
-import { createLayoutFromTent, getLastLayoutId, getLayout, layoutCount, listLayoutSummaries } from './layoutRepo'
+import { createLayoutFromTent, deleteLayout, getLastLayoutId, getLayout, layoutCount, listLayoutSummaries } from './layoutRepo'
 import { editHash } from './router'
 import { loadTentCatalog, type TentCatalog } from './tentCatalog'
 
@@ -57,6 +57,8 @@ export function PickRoute(): JSX.Element {
   // 같은 화면에서 두 번 눌러도(빠른 두 번 탭) 배치를 하나만 만들고 한 번만 옮겨 갑니다.
   const leaving = useRef(false)
   const [making, setMaking] = useState(false)
+  // 배치를 지우면 목록·[내 배치] 버튼을 다시 그리려고 셉니다.
+  const [, setRemoved] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -129,6 +131,13 @@ export function PickRoute(): JSX.Element {
         onOpen={leaveTo}
         onNew={startNew}
         onClose={() => setDialogOpen(false)}
+        onDelete={(id) => {
+          void deleteLayout(id).then(() => {
+            if (pickReturn?.layoutId === id) pickReturn = null
+            if (returnTo?.layoutId === id) setReturnTo(null)
+            setRemoved((n) => n + 1)
+          })
+        }}
       />
       {making && <TentMaker mode="start" myTentNames={[]} onConfirm={startWithTent} onCancel={() => setMaking(false)} />}
     </>

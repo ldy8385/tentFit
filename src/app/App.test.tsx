@@ -220,7 +220,7 @@ describe('고르기 화면 → 편집기', () => {
     const pickScreen = await findPickScreen()
     fireEvent.click(within(pickScreen).getByRole('button', { name: '내 배치' }))
     const dialog = screen.getByRole('dialog', { name: '내 배치' })
-    expect(within(dialog).getAllByRole('button', { name: /터널 4인 예시 배치/ })).toHaveLength(2)
+    expect(within(dialog).getAllByRole('button', { name: /^터널 4인 예시 배치( 2)?$/ })).toHaveLength(2) // 행(× 지우기 버튼은 이름이 「… 지우기」)
     fireEvent.click(within(dialog).getByRole('button', { name: a.name }))
     await screen.findByTestId('desktop-shell')
     expect(currentEditId()).toBe(a.id)

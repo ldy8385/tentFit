@@ -16,6 +16,10 @@ export function listMemoryLayouts(): Layout[] {
   return [...layouts.values()]
 }
 
+export function deleteMemoryLayout(id: string): void {
+  layouts.delete(id)
+}
+
 export function clearMemoryLayouts(): void {
   layouts.clear()
 }

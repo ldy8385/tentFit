@@ -1,5 +1,6 @@
 // 물건 1개 편집 칸(스펙 §4.1 오른쪽 위 선택 속성, §4.2 선택 시트 펼침). PC 속성 패널과 모바일 선택 시트가 같이 씁니다.
 // 입력칸은 item.id를 targetId로 받아 포커스 시점의 물건에 반영합니다. key로 다시 만들지 않습니다(그래야 기억이 유지됨).
+import { saveMyItem } from '../../app/persist/storage'
 import type { JSX } from 'react'
 import { useId } from 'react'
 import { useStores } from '../../app/stores'
@@ -33,6 +34,15 @@ export function ItemFields(p: { item: Item; compact?: boolean }): JSX.Element {
           모양 편집
         </button>
       </div>
+      <button
+        type="button"
+        className="tf-btn"
+        onClick={() => {
+          void saveMyItem(item).then((p) => stores.ui.getState().showToast(`내 도형에 「${p.name}」로 저장했어요 · 라이브러리 「내 도형」에서 쓸 수 있어요`))
+        }}
+      >
+        내 도형으로 저장
+      </button>
       {import.meta.env.DEV && !compact && <SavePresetForm key={item.id} item={item} />}
 
       <div className="tf-rotate-row" data-compact={compact}>

@@ -3,7 +3,7 @@
 import { createLayout, type Layout, type Tent } from '../core/model'
 import { uniqueName } from '../core/ops/items'
 import { clearMemoryLayouts, getMemoryLayout, listMemoryLayouts, putMemoryLayout } from './memoryLayouts'
-import { lastLayoutChanged, layoutChanged, restoredLastLayoutId } from './persist/storage'
+import { deleteStoredLayout, lastLayoutChanged, layoutChanged, restoredLastLayoutId } from './persist/storage'
 
 /** 내 배치 목록·시작 규칙이 쓰는 요약 */
 export type LayoutSummary = { id: string; name: string; updatedAt: string; itemCount: number }
@@ -68,6 +68,12 @@ export function setLastLayoutId(id: string | null): void {
   if (lastLayoutId === id) return
   lastLayoutId = id
   lastLayoutChanged(id)
+}
+
+/** 배치를 지웁니다(내 배치 목록 ×, 2026-10-15). 마지막으로 연 배치였으면 그 기억도 비웁니다. */
+export async function deleteLayout(id: string): Promise<void> {
+  if (lastLayoutId === id) setLastLayoutId(null)
+  await deleteStoredLayout(id)
 }
 
 /** 테스트용: 보관한 배치와 마지막 배치 기록을 비웁니다. */
