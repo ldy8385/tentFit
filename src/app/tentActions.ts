@@ -14,6 +14,7 @@ import {
   moveInnerTo,
   renameInner,
   rotateInner,
+  rotateTent,
   setCircleDiameter,
   setInnerTemplate,
   setOuterTemplate,
@@ -229,6 +230,17 @@ export function rotateInner90(stores: Stores, innerId: string): EditResult {
   return toResult(
     attempt(stores, (d) => {
       rotateInner(d, innerId, 90)
+    }),
+  )
+}
+
+/** 텐트 전체(외곽 + 이너)를 deg만큼 돌립니다(소유자 요청 2026-10-14). 외곽이 잠긴 단계·측정 중이면 아무것도 하지 않음, 0°면 기록 없음. */
+export function rotateTentAction(stores: Stores, deg: number): EditResult {
+  if (!Number.isFinite(deg)) return { ok: false, error: '숫자를 입력해 주세요' }
+  if (!canEdit(stores, 'outer')) return OK
+  return toResult(
+    attempt(stores, (d) => {
+      rotateTent(d, deg)
     }),
   )
 }

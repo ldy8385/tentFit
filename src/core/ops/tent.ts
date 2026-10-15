@@ -13,7 +13,7 @@ import {
   type ShapeTemplate,
   type Tent,
 } from '../model'
-import { cornerRing, ringBBox, shapeRing, transformRing } from '../geom'
+import { cornerRing, outlineBBox, ringBBox, shapeRing, transformRing } from '../geom'
 import { cornerCount, radiiOf, withRadii } from '../radii'
 import { centerPolygon } from '../polygonEdit'
 import { newInnerSide, shapeFromTemplate, shapesEqual } from '../templates'
@@ -361,6 +361,43 @@ export function setTargetSpec(d: Layout, target: TentTarget, spec: { shape: Shap
   inner.shape = shape
   if (tpl === undefined) delete inner.template
   else inner.template = tpl
+}
+
+/**
+ * 텐트 전체 회전(소유자 요청 2026-10-14 「회전은 전부」): 외곽 윤곽 상자 가운데를 피벗으로 외곽과 이너를 함께 deg(시계 방향 양수)만큼.
+ * 물건은 그대로(텐트 편집은 물건을 건드리지 않음). 0°(360°의 배수)면 아무것도 쓰지 않습니다.
+ * 외곽: 원은 그대로. 사각형(템플릿 포함)은 90°·270°면 가로·세로를 바꾸고(템플릿 유지), 180°면 모양 그대로 — 모서리 반지름은 돈 자리로.
+ * 그 밖의 각도·다각형은 꼭짓점을 돌린 자유 다각형(템플릿 버림, 꼭짓점 순서·반지름 그대로). 이너는 자리를 돌리고 회전을 더합니다(템플릿 유지).
+ */
+export function rotateTent(d: Layout, deg: number): void {
+  const delta = normAngle(deg)
+  if (delta === 0 || !Number.isFinite(delta)) return
+  const bb = outlineBBox(d.tent.outer)
+  const pivot: Pt = [(bb.minX + bb.maxX) / 2, (bb.minY + bb.maxY) / 2]
+  const outer = d.tent.outer
+  const quarter = delta === 90 || delta === 180 || delta === 270
+  if (outer.kind === 'rect' && quarter) {
+    const steps = delta / 90
+    const radii = radiiOf(outer)
+    const turned = radii.map((_, i) => radii[(i - steps + 4) % 4] ?? 0)
+    const swap = steps % 2 === 1
+    d.tent.outer = withRadii({ kind: 'rect', w: swap ? outer.h : outer.w, h: swap ? outer.w : outer.h }, turned)
+    const t = d.tent.outerTemplate
+    if (t?.kind === 'rect' && swap) d.tent.outerTemplate = t.square === true ? { ...t } : { ...t, w: t.h, h: t.w }
+    else if (t !== undefined && t.kind !== 'rect') delete d.tent.outerTemplate
+  } else if (outer.kind !== 'circle') {
+    const points = cornerRing(outer).map((p) => roundPt(rotateAround(p, pivot, delta)))
+    d.tent.outer = withRadii({ kind: 'polygon', points }, radiiOf(outer))
+    delete d.tent.outerTemplate
+  }
+  for (let i = 0; i < d.tent.inners.length; i++) {
+    const inner = d.tent.inners[i]
+    if (inner === undefined) continue
+    const [x, y] = rotateAround([inner.x, inner.y], pivot, delta)
+    inner.x = clampCoord(x)
+    inner.y = clampCoord(y)
+    inner.rotation = normAngle(inner.rotation + delta)
+  }
 }
 
 /** 이너를 절대 위치로 옮깁니다(0.1cm 반올림). 같은 자리면 아무것도 쓰지 않습니다. */

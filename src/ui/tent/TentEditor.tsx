@@ -26,6 +26,7 @@ import {
   insertTargetVertex,
   renameInnerAction,
   rotateInner90,
+  rotateTentAction,
   setInnerRotation,
   setTargetDiameter,
   setTargetTemplate,
@@ -388,6 +389,29 @@ function TargetFields(p: {
           showTable={showTable}
           enabled={enabled}
         />
+      )}
+
+      {target === 'outer' && (
+        <div className="tf-tent__rotate">
+          <div className="tf-rotate-row">
+            {/* 지금 각도를 저장하지 않으므로(돌린 모양으로 바뀜) 돌릴 만큼을 넣는 칸입니다. 반영하면 0으로 돌아옵니다. */}
+            <NumberField
+              label="돌리기"
+              unit="°"
+              value={0}
+              targetId="tent-rotate"
+              min={-360}
+              max={360}
+              allowNegative
+              disabled={!enabled}
+              onCommit={(_id, deg) => errorOf(rotateTentAction(stores, deg))}
+            />
+            <button type="button" className="tf-btn" disabled={!enabled} onClick={() => toastIfRejected(rotateTentAction(stores, 90))}>
+              90도
+            </button>
+          </div>
+          <p className="tf-hint">{p.outerLabel !== undefined ? '모양을 시계 방향으로 돌려요' : '외곽과 이너가 함께 시계 방향으로 돌아요(물건은 그대로)'}</p>
+        </div>
       )}
 
       {inner !== undefined && (

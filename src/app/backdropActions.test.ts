@@ -8,6 +8,7 @@ import {
   scaleBackdropAt,
   setBackdropAdjusting,
   setBackdropOpacity,
+  setBackdropRotation,
   setBackdropWidth,
 } from './backdropActions'
 import { createStores, type Stores } from './stores'
@@ -23,7 +24,7 @@ describe('배경 이미지', () => {
   it('보이는 영역 가운데에 80% 안으로 깔고, 문서·기록은 그대로', () => {
     const s = setup()
     placeBackdrop(s, 'x.png', 0.5)
-    expect(s.ui.getState().backdrop).toEqual({ url: 'x.png', x: 0, y: 0, w: 800, aspect: 0.5, opacity: BACKDROP_DEFAULT_OPACITY, adjusting: false })
+    expect(s.ui.getState().backdrop).toEqual({ url: 'x.png', x: 0, y: 0, w: 800, aspect: 0.5, opacity: BACKDROP_DEFAULT_OPACITY, adjusting: false, rotation: 0 })
     placeBackdrop(s, 'tall.png', 2)
     expect(s.ui.getState().backdrop?.w).toBe(200) // 세로 400(=500×0.8)에 맞춤
     expect(s.doc.getState().canUndo).toBe(false)
@@ -43,6 +44,8 @@ describe('배경 이미지', () => {
     expect(s.ui.getState().backdrop).toMatchObject({ x: 5, y: -2.5, w: 400 })
     setBackdropOpacity(s, 0)
     expect(s.ui.getState().backdrop?.opacity).toBe(0.05)
+    setBackdropRotation(s, -90)
+    expect(s.ui.getState().backdrop?.rotation).toBe(270)
     removeBackdrop(s)
     expect(s.ui.getState().backdrop).toBeNull()
   })

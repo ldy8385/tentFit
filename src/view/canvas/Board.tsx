@@ -974,11 +974,25 @@ function BackdropImage(): JSX.Element | null {
   const h = bd.w * bd.aspect
   return (
     <>
-      <KImage image={img} x={bd.x - bd.w / 2} y={bd.y - h / 2} width={bd.w} height={h} opacity={bd.opacity} listening={false} />
+      <KImage
+        image={img}
+        x={bd.x}
+        y={bd.y}
+        offsetX={bd.w / 2}
+        offsetY={h / 2}
+        rotation={bd.rotation}
+        width={bd.w}
+        height={h}
+        opacity={bd.opacity}
+        listening={false}
+      />
       {bd.adjusting && (
         <Rect
-          x={bd.x - bd.w / 2}
-          y={bd.y - h / 2}
+          x={bd.x}
+          y={bd.y}
+          offsetX={bd.w / 2}
+          offsetY={h / 2}
+          rotation={bd.rotation}
           width={bd.w}
           height={h}
           stroke={THEME['select']}

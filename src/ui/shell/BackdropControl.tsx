@@ -6,6 +6,7 @@ import {
   removeBackdrop,
   setBackdropAdjusting,
   setBackdropOpacity,
+  setBackdropRotation,
   setBackdropWidth,
 } from '../../app/backdropActions'
 import { useStores, useUi } from '../../app/stores'
@@ -72,6 +73,21 @@ export function BackdropControl(): JSX.Element {
             max={LIMITS.length[1]}
             onCommit={(_id, w) => setBackdropWidth(stores, w)}
           />
+          <div className="tf-rotate-row">
+            <NumberField
+              label="이미지 회전"
+              unit="°"
+              value={bd.rotation}
+              targetId="backdrop-rotation"
+              min={Number.NEGATIVE_INFINITY}
+              max={Number.POSITIVE_INFINITY}
+              allowNegative
+              onCommit={(_id, deg) => setBackdropRotation(stores, deg)}
+            />
+            <button type="button" className="tf-btn" onClick={() => setBackdropRotation(stores, bd.rotation + 90)}>
+              90도
+            </button>
+          </div>
           <button type="button" className="tf-btn" aria-pressed={bd.adjusting} onClick={() => setBackdropAdjusting(stores, !bd.adjusting)}>
             위치·크기 맞추기
           </button>

@@ -1,6 +1,6 @@
 // 배경 이미지 동작(소유자 요청 2026-10-14: "이미지만 레이어처럼 깔아주면 돼", 투명도 조절, 편집하는 동안만).
 // 화면 상태(ui.backdrop)만 바꾸고 문서·실행 취소 기록은 건드리지 않습니다. 이미지 주소(object URL)는 빼거나 바꿀 때 돌려줍니다.
-import { LIMITS, type Pt } from '../core/model'
+import { LIMITS, normAngle, type Pt } from '../core/model'
 import type { Backdrop } from '../store/ui'
 import { viewCenterWorld } from '../view/viewport'
 import type { Stores } from './stores'
@@ -38,7 +38,7 @@ export function placeBackdrop(stores: Stores, url: string, aspect: number): void
   const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 1
   const w = clampW(Math.min(visW * FIT_RATIO, (visH * FIT_RATIO) / a))
   if (prev !== null && prev.url !== url) revoke(prev.url)
-  ui.setBackdrop({ url, x: center[0], y: center[1], w, aspect: a, opacity: prev?.opacity ?? BACKDROP_DEFAULT_OPACITY, adjusting: false })
+  ui.setBackdrop({ url, x: center[0], y: center[1], w, aspect: a, opacity: prev?.opacity ?? BACKDROP_DEFAULT_OPACITY, adjusting: false, rotation: 0 })
 }
 
 /** 이미지를 뺍니다. */
@@ -61,6 +61,13 @@ export function setBackdropWidth(stores: Stores, w: number): void {
   if (!Number.isFinite(w)) return
   const next = clampW(w)
   update(stores, (b) => (b.w === next ? b : { ...b, w: next }))
+}
+
+/** 회전(°, 가운데 기준, [0,360)으로) */
+export function setBackdropRotation(stores: Stores, deg: number): void {
+  if (!Number.isFinite(deg)) return
+  const r = normAngle(deg)
+  update(stores, (b) => (b.rotation === r ? b : { ...b, rotation: r }))
 }
 
 /** 맞추기 켜기·끄기 */

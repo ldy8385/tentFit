@@ -610,6 +610,23 @@ describe('모서리 둥글기(소유자 요청 2026-10-14)', () => {
   })
 })
 
+describe('텐트 회전(소유자 요청 2026-10-14)', () => {
+  it('외곽을 고르면 [90도]·돌리기 칸: 외곽과 이너가 함께 돌고 실행 취소 1칸, 칸은 0으로 돌아옴', () => {
+    const stores = setup(TWO_INNERS, { target: 'outer' })
+    fireEvent.click(within(editor()).getAllByRole('button', { name: '90도' })[0]!)
+    expect(stores.doc.getState().layout.tent.outerTemplate).toEqual({ kind: 'rect', w: 300, h: 600 })
+    expect(stores.doc.getState().layout.tent.inners[0]).toMatchObject({ x: 0, y: -150, rotation: 90 })
+    typeEnter(field('돌리기'), '-90')
+    expect(stores.doc.getState().layout.tent.outerTemplate).toEqual({ kind: 'rect', w: 600, h: 300 })
+    expect(field('돌리기').value).toBe('0')
+  })
+
+  it('이너를 고르면 텐트 돌리기 칸은 없다(이너는 자기 회전)', () => {
+    setup(TWO_INNERS, { target: 'i1' })
+    expect(within(editor()).queryByLabelText('돌리기')).toBeNull()
+  })
+})
+
 describe('육각형 칸(업체 도면식: 가로·세로·윗·아랫변)', () => {
   const HEX: Tent = { name: '육각', outer: { kind: 'rect', w: 1, h: 1 }, outerTemplate: { kind: 'hexagon', w: 260, h: 225, edge: 130 }, inners: [] }
 

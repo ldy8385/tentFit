@@ -25,10 +25,10 @@ export type Drawing = { goal: DrawGoal; points: Pt[] }
 export type TentLock = 'none' | 'outer' | 'inners'
 /**
  * 배경 이미지(소유자 요청 2026-10-14): 캔버스 맨 아래에 깔고 그 위에 그립니다. 편집하는 동안만(저장·내보내기 안 함).
- * url = 이미지 주소(object URL), x·y = 가운데(월드 cm), w = 가로(cm), aspect = 세로/가로, opacity = 0~1,
+ * url = 이미지 주소(object URL), x·y = 가운데(월드 cm), w = 가로(cm), aspect = 세로/가로, opacity = 0~1, rotation = 가운데 기준 회전(°, 시계 방향),
  * adjusting = 맞추기 중(끌기 = 이미지 이동, 휠·두 손가락 = 이미지 크기, 탭 = 아무것도 안 함)
  */
-export type Backdrop = { url: string; x: number; y: number; w: number; aspect: number; opacity: number; adjusting: boolean }
+export type Backdrop = { url: string; x: number; y: number; w: number; aspect: number; opacity: number; adjusting: boolean; rotation: number }
 /** 패널에서 포커스한 자유 다각형 칸(변 길이 = edge, 꼭짓점 각도 = vertex, 번호는 0부터). 캔버스가 그 변·꼭짓점을 강조합니다. */
 export type PolygonFocus = { kind: 'edge' | 'vertex'; index: number }
 export type UiState = {
