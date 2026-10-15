@@ -23,6 +23,8 @@ export type TentfitTestHook = {
   worldToClient(x: number, y: number): { x: number; y: number }
   /** 맞춤 보기(외곽 ∪ 모든 물건) */
   fitView(): void
+  /** 자석 맞춤 켜기·끄기(끌기 거리를 정확히 재는 화면 테스트용, 2026-10-15) */
+  setSnap(on: boolean): void
   /** 캔버스 크기가 잡히고 첫 보기 맞춤이 끝났으면 true */
   readonly ready: boolean
 }
@@ -68,6 +70,7 @@ export function installTestHook(stores: Stores, opts?: { key?: string; hostTestI
       return { x: o.left + sx, y: o.top + sy }
     },
     fitView: () => fitToLayout(stores),
+    setSnap: (on) => stores.ui.getState().patch({ snapEnabled: on }),
     get ready() {
       const ui = stores.ui.getState()
       // 스토어를 만들 때의 보기 객체에서 바뀌었으면(Board가 맞춤 보기를 한 번 했으면) 준비된 것입니다.

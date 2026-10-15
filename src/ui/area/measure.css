@@ -1,0 +1,75 @@
+/* 거리 재기 목록(2026-10-15) */
+.tf-measure {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.tf-measure__list {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.tf-measure__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+}
+
+.tf-measure__dist {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.tf-measure__pair {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.tf-measure__del {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.tf-measure__del:hover {
+  background: var(--bg-subtle);
+  color: var(--danger);
+}
+
+/* 휴대폰: 캔버스 아래쪽에 뜨는 막대 */
+.tf-measure--bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--overlay-bottom, 0px) + 12px);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.14);
+  pointer-events: auto;
+}
+
+.tf-measure--bar .tf-measure__list {
+  max-height: 20vh;
+}

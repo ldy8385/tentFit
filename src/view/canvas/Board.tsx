@@ -10,11 +10,12 @@
 import Konva from 'konva'
 import type { Box } from 'konva/lib/shapes/Transformer'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
-import { Image as KImage, Layer, Rect, Stage, Transformer } from 'react-konva'
+import { Circle, Group, Image as KImage, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva'
 import { useStore } from 'zustand'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { useStats, useZones } from '../../app/derived'
 import { moveBackdrop, scaleBackdropAt } from '../../app/backdropActions'
+import { measurementRows, measureTap } from '../../app/measureActions'
 import { useDoc, useStores, useUi, type Stores } from '../../app/stores'
 import {
   appendDrawPoint,
@@ -25,10 +26,12 @@ import {
   setTargetVertex,
   tentControlsEnabled,
 } from '../../app/tentActions'
-import { LIMITS, normAngle, round1, type Item, type Pt, type Shape } from '../../core/model'
+import { LIMITS, normAngle, round1, type Item, type Layout, type Pt, type Shape } from '../../core/model'
 import { DRAW_ANGLE_STEP_DEG, DRAW_RIGHT_ANGLE_DEG, drawGridOrigin } from '../../core/polygonEdit'
 import { expandSelection } from '../../core/ops/groups'
 import { applyTransform, moveItems } from '../../core/ops/items'
+import { worldRing } from '../../core/geom'
+import { buildSnapContext, snapMove, SNAP_PX, type Seg, type SnapContext, type SnapLock } from '../../core/snap'
 import { toPointerKind, type PointerKind } from '../../store/ui'
 import { blurActiveInput } from '../../ui/fields/blurActive'
 import { THEME } from '../../ui/theme'
@@ -58,6 +61,8 @@ import {
 import { TentLayer } from './TentLayer'
 import { transformerConfig } from './transformerConfig'
 
+/** 회전 핸들 자석: 15°마다(±3°, §6.6 — 벽과 평행한 각은 아직 없음) */
+const ROTATION_SNAPS = Array.from({ length: 24 }, (_, i) => i * 15)
 /** 같은 물건을 이 시간(ms) 안에 다시 누르면 두 번 누름(모양 편집) */
 const DOUBLE_TAP_MS = 400
 /** 이보다 작게 움직였으면(cm, 저장 단위 0.1cm의 절반) 끌기를 커밋하지 않습니다. */
@@ -86,11 +91,43 @@ type Overlay = {
   badge: { text: string; x: number; y: number } | null
   /** 텐트 끌기 미리보기(문서 밖 화면 상태, §8). 손을 떼거나 되돌리면 null */
   tentPreview: TentPreview | null
+  /** 끄는 동안 붙은 대상 변(자석 맞춤 안내선, 월드 cm). 없으면 [] */
+  snapGuides: Seg[]
   /** 그리는 중 고무줄 끝(화면 px — 휠 이동 뒤에도 포인터에 붙어 있게 월드가 아니라 화면 좌표). 안 보이면 null */
   drawPointer: { screen: Pt; pointer: PointerKind; right: boolean } | null
 }
 
 type Session = { kind: 'drag'; leadId: string; ids: string[] } | { kind: 'transform'; ids: string[] }
+
+/** 자석 맞춤이 켜졌는지: 설정(snapEnabled)을 Alt를 누르는 동안 반대로(§6.6) */
+export function snapOn(enabled: boolean, alt: boolean): boolean {
+  return enabled !== alt
+}
+
+/** 끌기 시작 때 자석 맞춤 준비: 붙을 대상(끄는 물건 빼고), 끄는 물건 고리(원은 격자용 상자만), 모두 0·90·180·270°인지 */
+function snapPrepFor(layout: Layout, ids: string[]): { ctx: SnapContext; rings: Pt[][]; gridRings: Pt[][]; axisAligned: boolean; lock: SnapLock } {
+  const set = new Set(ids)
+  const moving = layout.items.filter((it) => set.has(it.id))
+  const rings: Pt[][] = []
+  const gridRings: Pt[][] = []
+  for (const it of moving) {
+    if (it.shape.kind === 'circle') {
+      const r = it.shape.d / 2
+      gridRings.push([
+        [it.x - r, it.y - r],
+        [it.x + r, it.y - r],
+        [it.x + r, it.y + r],
+        [it.x - r, it.y + r],
+      ])
+    } else {
+      const ring = worldRing(it)
+      rings.push(ring)
+      gridRings.push(ring)
+    }
+  }
+  const axisAligned = moving.every((it) => it.shape.kind === 'circle' || it.rotation % 90 === 0)
+  return { ctx: buildSnapContext(layout, { exclude: set, mode: 'items' }), rings, gridRings, axisAligned, lock: {} }
+}
 
 /** 캔버스 위 DOM 조작 층(치수 숫자·입력 등, [data-canvas-ui]) 안의 이벤트인지. 그 누름은 캔버스 제스처로 보내지 않습니다. */
 function inCanvasUi(target: EventTarget | null): boolean {
@@ -164,6 +201,12 @@ class BoardController {
   private tentDragLive = false
   /** 마지막 자동 맞춤 보기. 사용자가 보기를 바꾸지 않았으면 크기가 바뀔 때 다시 맞춥니다. */
   private autoFit: View | null = null
+  /** 이번 누름이 거리 재기 중에 시작됐음(탭 = 대상 고르기, 끌기 = 화면 이동) */
+  private pressInMeasure = false
+  /** Alt를 누르고 있음(자석 맞춤 켜짐·꺼짐 반전, §6.6) */
+  private altDown = false
+  /** 물건을 끄는 동안의 자석 맞춤 준비물(끌기 시작 때 만듦) */
+  private snap: { ctx: SnapContext; rings: Pt[][]; gridRings: Pt[][]; axisAligned: boolean; lock: SnapLock } | null = null
   /** 마지막 물건 탭(두 번 누름 = 모양 편집) */
   private lastTap: { id: string; at: number } | null = null
   /** 이번 누름이 배경 이미지 맞추기 중에 시작됐음(끌기 = 이미지 이동, 두 손가락 = 이미지 크기, 탭 = 없음) */
@@ -224,12 +267,39 @@ class BoardController {
   /** Konva dragBoundFunc: 상하좌우로만이면 끌기 시작 절대 위치 기준 한 축으로 고정(여러 개·그룹은 Transformer가 같은 이동량으로 따라옴) */
   readonly dragBound = (pos: { x: number; y: number }): { x: number; y: number } => {
     const start = this.dragStartAbs
-    if (start === null || !this.axisLocked()) return pos
-    return axisBoundPosition(start, pos)
+    if (start === null) return pos
+    const locked = this.axisLocked()
+    const p = locked ? axisBoundPosition(start, pos) : pos
+    const snap = this.snap
+    const ui = this.stores.ui.getState()
+    if (snap === null || !snapOn(ui.snapEnabled, this.altDown)) {
+      if (this.overlay.getState().snapGuides.length > 0) this.overlay.setState({ snapGuides: [] })
+      return p
+    }
+    // 자석 맞춤(§6.6): 화면 이동량을 월드로 바꿔 core/snap에 맡기고, 상하좌우 고정이면 다른 축은 다시 0으로
+    const z = ui.view.zoom
+    const r = snapMove(snap.ctx, {
+      rings: snap.rings,
+      gridRings: snap.gridRings,
+      axisAligned: snap.axisAligned,
+      delta: [(p.x - start.x) / z, (p.y - start.y) / z],
+      T: SNAP_PX / z,
+      lock: snap.lock,
+    })
+    snap.lock = r.lock
+    this.overlay.setState({ snapGuides: r.guides })
+    let dx = r.delta[0] * z
+    let dy = r.delta[1] * z
+    if (locked) {
+      if (p.x === start.x) dx = 0
+      if (p.y === start.y) dy = 0
+    }
+    return { x: start.x + dx, y: start.y + dy }
   }
 
   readonly onPointerDown = (e: PointerEvent): void => {
     this.shiftDown = e.shiftKey
+    this.altDown = e.altKey
     if (inCanvasUi(e.target)) return
     // 오른쪽 버튼(겹친 물건 목록)은 이후 계획에서 붙입니다.
     if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return
@@ -266,9 +336,10 @@ class BoardController {
       this.tentDrag = null
       this.tentDragLive = false
       this.pressInBackdrop = ui.backdrop?.adjusting === true
-      this.pressInDraw = !this.pressInBackdrop && tentMode && ui.drawing !== null && tentControlsEnabled(ui)
+      this.pressInMeasure = !this.pressInBackdrop && ui.measuring
+      this.pressInDraw = !this.pressInBackdrop && !this.pressInMeasure && tentMode && ui.drawing !== null && tentControlsEnabled(ui)
       this.pressStart = p
-      if (this.pressInBackdrop) {
+      if (this.pressInBackdrop || this.pressInMeasure) {
         // 맞추기 중에는 물건·텐트를 잡지 않습니다(Konva 끌기도 잠금).
         this.lock()
       } else if (this.pressInDraw) {
@@ -287,7 +358,9 @@ class BoardController {
       if (panOverride) this.lock()
     }
     // 텐트 모드의 바닥·외곽선 끌기는 포인터 종류와 상관없이 화면 이동입니다(R10, 마우스도 범위 선택 아님).
-    this.handle(this.arbiter.down(sample, onNode, this.pressInTent || this.pressInDraw || this.pressInBackdrop ? 'pan' : 'marquee'))
+    this.handle(
+      this.arbiter.down(sample, onNode, this.pressInTent || this.pressInDraw || this.pressInBackdrop || this.pressInMeasure ? 'pan' : 'marquee'),
+    )
     if (this.arbiter.pointerCount >= 2) {
       this.lock()
       this.hideRubber()
@@ -298,6 +371,7 @@ class BoardController {
 
   readonly onPointerMove = (e: PointerEvent): void => {
     this.shiftDown = e.shiftKey
+    this.altDown = e.altKey
     if (this.arbiter.pointerCount === 0) {
       this.hoverRubber(e)
       return
@@ -342,6 +416,7 @@ class BoardController {
       if (this.pressInDraw && this.overlay.getState().drawPointer?.pointer === 'touch') this.hideRubber()
       this.pressInDraw = false
       this.pressInBackdrop = false
+      this.pressInMeasure = false
       this.pressStart = null
       this.afterAllUp()
     }
@@ -390,6 +465,7 @@ class BoardController {
 
   readonly onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === 'Shift') this.shiftDown = true
+    if (e.key === 'Alt') this.altDown = true
     if (e.code !== 'Space' || e.isComposing || isEditable(e.target) || isEditable(document.activeElement)) return
     this.space = true
     if (this.host) this.host.style.cursor = 'grab'
@@ -399,12 +475,14 @@ class BoardController {
 
   readonly onKeyUp = (e: KeyboardEvent): void => {
     if (e.key === 'Shift') this.shiftDown = false
+    if (e.key === 'Alt') this.altDown = false
     if (e.code !== 'Space') return
     this.releaseSpace()
   }
 
   readonly releaseSpace = (): void => {
     this.shiftDown = false
+    this.altDown = false
     this.space = false
     if (this.host) this.host.style.cursor = ''
   }
@@ -495,6 +573,10 @@ class BoardController {
           break
         case 'tap':
           if (this.pressInBackdrop) break
+          if (this.pressInMeasure) {
+            measureTap(this.stores, screenToWorld(ui.view, [o.x, o.y]), o.pointer)
+            break
+          }
           if (this.pressInDraw) this.onDrawTap(o)
           else if (this.pressInTent) this.onTentTap()
           else this.onTap(o.onNode, o.shift)
@@ -775,13 +857,13 @@ class BoardController {
       return
     }
     if (this.session) return // Transformer가 함께 끄는 다른 노드
-    // 상하좌우로만 이동의 기준점(dragstart는 첫 위치 갱신 전에 옴)
+    // 상하좌우로만 이동·자석 맞춤의 기준점(dragstart는 첫 위치 갱신 전에 옴)
     this.dragStartAbs = node.absolutePosition()
     const id = node.id()
     const ui = this.stores.ui.getState()
-    const ids = ui.selection.includes(id)
-      ? [...ui.selection]
-      : expandSelection(this.stores.doc.getState().layout, [id], ui.scopeGroupId ?? undefined)
+    const layout = this.stores.doc.getState().layout
+    const ids = ui.selection.includes(id) ? [...ui.selection] : expandSelection(layout, [id], ui.scopeGroupId ?? undefined)
+    this.snap = snapPrepFor(layout, ids)
     this.beginSession({ kind: 'drag', leadId: id, ids })
   }
 
@@ -794,6 +876,8 @@ class BoardController {
       return
     }
     this.dragStartAbs = null
+    this.snap = null
+    this.overlay.setState({ snapGuides: [] })
     const lead = this.nodes.get(s.leadId)
     const item = this.stores.doc.getState().layout.items.find((it) => it.id === s.leadId)
     const dx = lead && item ? lead.x() - item.x : 0
@@ -951,6 +1035,65 @@ function DrawLengthBadge(props: { overlay: StoreApi<Overlay> }): JSX.Element | n
   )
 }
 
+/** 자석 맞춤 안내선: 붙은 대상 변을 점선으로(§4.6) */
+function SnapGuides(props: { overlay: StoreApi<Overlay> }): JSX.Element | null {
+  const guides = useStore(props.overlay, (s) => s.snapGuides)
+  if (guides.length === 0) return null
+  return (
+    <>
+      {guides.map((g, i) => (
+        <Line
+          key={i}
+          points={[g.a[0], g.a[1], g.b[0], g.b[1]]}
+          stroke={THEME['select']}
+          strokeWidth={2}
+          dash={[6, 4]}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      ))}
+    </>
+  )
+}
+
+/** 화면 크기 고정 글자 상자(측정 거리) */
+function TagLabel(props: { at: Pt; zoom: number; text: string; color: string }): JSX.Element {
+  const k = 1 / props.zoom
+  const w = [...props.text].length * 7 + 14
+  return (
+    <Group x={props.at[0]} y={props.at[1]} scaleX={k} scaleY={k} listening={false}>
+      <Rect x={-w / 2} y={-10} width={w} height={20} cornerRadius={10} fill={props.color} />
+      <Text x={-w / 2} y={-10} width={w} height={20} text={props.text} fontSize={12} fill={THEME['text-inverse']} align="center" verticalAlign="middle" />
+    </Group>
+  )
+}
+
+/** 거리 재기 표시: 잰 선(양 끝 점·가운데 거리)과 고른 첫 대상 자리 */
+function MeasureMarks(): JSX.Element | null {
+  const layout = useDoc((s) => s.layout)
+  const measuring = useUi((s) => s.measuring)
+  const list = useUi((s) => s.measurements)
+  const first = useUi((s) => s.measureFirst)
+  const zoom = useUi((s) => s.view.zoom)
+  if (!measuring || !(zoom > 0)) return null
+  const rows = measurementRows(layout, list)
+  const color = THEME['accent'] ?? '#36704A'
+  const r = 4 / zoom
+  return (
+    <>
+      {rows.map((m) => (
+        <Group key={m.id} listening={false}>
+          <Line points={[m.p1[0], m.p1[1], m.p2[0], m.p2[1]]} stroke={color} strokeWidth={2} strokeScaleEnabled={false} />
+          <Circle x={m.p1[0]} y={m.p1[1]} radius={r} fill={color} />
+          <Circle x={m.p2[0]} y={m.p2[1]} radius={r} fill={color} />
+          <TagLabel at={[(m.p1[0] + m.p2[0]) / 2, (m.p1[1] + m.p2[1]) / 2]} zoom={zoom} text={m.label} color={color} />
+        </Group>
+      ))}
+      {first !== null && <Circle x={first.at[0]} y={first.at[1]} radius={6 / zoom} stroke={color} strokeWidth={2} strokeScaleEnabled={false} listening={false} />}
+    </>
+  )
+}
+
 /** 이미지 주소 → 불러온 HTMLImageElement(불러오는 중·실패면 null) */
 function useHtmlImage(url: string | null): HTMLImageElement | null {
   const [loaded, setLoaded] = useState<{ url: string; img: HTMLImageElement } | null>(null)
@@ -1077,13 +1220,14 @@ export function Board(): JSX.Element {
   const tentLock = useUi((s) => s.tentLock)
   const outerPending = useUi((s) => s.outerPending)
   const adjustingBackdrop = useUi((s) => s.backdrop?.adjusting === true)
+  const snapEnabled = useUi((s) => s.snapEnabled)
 
   const hostRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage>(null)
   const trRef = useRef<Konva.Transformer>(null)
   const [activeIds, setActiveIds] = useState<ReadonlySet<string>>(EMPTY_IDS)
   const [overlay] = useState(() =>
-    createStore<Overlay>()(() => ({ marquee: null, badge: null, tentPreview: null, drawPointer: null })),
+    createStore<Overlay>()(() => ({ marquee: null, badge: null, tentPreview: null, drawPointer: null, snapGuides: [] })),
   )
   const ctl = useMemo(() => new BoardController(stores, overlay, setActiveIds), [stores, overlay])
 
@@ -1248,6 +1392,8 @@ export function Board(): JSX.Element {
         </Layer>
         <Layer listening={false}>
           <WarningMarks items={scene.items} inners={scene.inners} zoom={zoom} hidden={activeIds} />
+          <SnapGuides overlay={overlay} />
+          <MeasureMarks />
           {/* 텐트 편집 핸들·선택 테두리·끌기 미리보기(경고 표시 위). 입력은 받지 않습니다.
               그리는 중에는 핸들 대신 그리는 선(누르면 점이 되므로 핸들을 보이지 않음). */}
           {mode === 'tent' && (drawing !== null ? <DrawEditLayer overlay={overlay} /> : <TentEditLayer overlay={overlay} />)}
@@ -1269,6 +1415,8 @@ export function Board(): JSX.Element {
             borderStroke={THEME['select']}
             borderStrokeWidth={1.5}
             rotateLineVisible={false}
+            rotationSnaps={snapEnabled ? ROTATION_SNAPS : []}
+            rotationSnapTolerance={3}
             flipEnabled={false}
             ignoreStroke
             boundBoxFunc={ctl.boundBox}

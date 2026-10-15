@@ -6,6 +6,7 @@
 // 그리는 중(Plan 4.1): Ctrl/Cmd+Z = 점 되돌리기, 다시 실행은 무시, Esc = 그리기 취소, Delete·화살표·R·Ctrl+D는 무시.
 // 만들기 화면은 자기 스토어로 이 훅을 따로 걸고(modalRoot = 자기 루트), 자기 루트와 그 조상은 모달로 치지 않습니다.
 // 그룹(Ctrl+G)·측정·Alt 스냅 반전은 Plan 5·6에서 더합니다.
+import { cancelMeasureFirst, endMeasuring } from './measureActions'
 import { useEffect, type RefObject } from 'react'
 import { moveItems } from '../core/ops/items'
 import { blurActiveInput } from '../ui/fields/blurActive'
@@ -154,6 +155,19 @@ export function runShortcut(a: ShortcutAction, stores: Stores): boolean {
   const doc = stores.doc.getState()
   const ui = stores.ui.getState()
   if (doc.inGesture) return false
+  // 거리 재기 중(§4.3): Esc = 첫 대상 취소 또는 끝내기, 실행 취소·편집 단축키는 막음
+  if (ui.measuring) {
+    if (a.type === 'escape') {
+      if (ui.measureFirst !== null) cancelMeasureFirst(stores)
+      else endMeasuring(stores)
+      return true
+    }
+    if (a.type === 'fit') {
+      fitToLayout(stores)
+      return true
+    }
+    return false
+  }
   if (ui.mode === 'tent' && ui.drawing !== null) {
     const handled = runDrawShortcut(a, stores)
     if (handled !== null) return handled

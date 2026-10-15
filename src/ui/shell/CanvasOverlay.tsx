@@ -13,6 +13,7 @@ import { ZOOM_MAX, ZOOM_MIN } from '../../view/viewport'
 import { ToastView } from '../common/Toast'
 import { DrawTools } from '../tent/DrawTools'
 import { openSwapTent, SwapTentDialog } from '../tent/SwapTentDialog'
+import { MeasurePanel } from '../area/MeasurePanel'
 import { BackdropControl } from './BackdropControl'
 import { ItemMakerHost } from './ItemMakerHost'
 import { emptyCardPlacement, tentScreenBox } from './emptyCardPlacement'
@@ -25,6 +26,12 @@ export const MODE_CHIP_TEXT: Readonly<Record<Mode, string>> = {
   place: '배치 모드 · 텐트는 잠겨 있어요',
   tent: '텐트 편집 · 물건은 잠겨 있어요',
 }
+
+/** 거리 재기 중 안내 칩(§4.3) */
+export const MEASURE_CHIP_TEXT = {
+  desktop: '측정 중 · 대상 두 개를 누르면 최단 거리가 나와요 · Esc로 끝내기',
+  mobile: '측정 중 · 대상 두 개를 탭하세요',
+} as const
 
 /** 모바일 모드 안내 칩이 접히기까지(ms). 요약 칩을 가리지 않게 합니다(스펙 §4.3). */
 export const MODE_CHIP_COLLAPSE_MS = 3000
@@ -194,7 +201,11 @@ export function CanvasOverlay(p: { variant: Variant }) {
     <div className="shell-overlay" style={style} data-testid="canvas-overlay">
       {/* PC 그리는 중에는 그리기 막대가 모드 안내를 대신합니다(좁은 캔버스에서 겹치지 않게, 최종 리뷰). */}
       {!(p.variant === 'desktop' && drawing) && (
-        <ModeChip key={mode} text={MODE_CHIP_TEXT[mode]} collapsible={p.variant === 'mobile'} />
+        <ModeChip
+          key={measuring ? 'measure' : mode}
+          text={measuring ? (p.variant === 'mobile' ? MEASURE_CHIP_TEXT.mobile : MEASURE_CHIP_TEXT.desktop) : MODE_CHIP_TEXT[mode]}
+          collapsible={p.variant === 'mobile'}
+        />
       )}
       <ScaleBarView zoom={zoom} />
       <BackdropControl />
@@ -202,6 +213,7 @@ export function CanvasOverlay(p: { variant: Variant }) {
       {/* 그리는 중 PC 그리기 막대(휴대폰은 툴바가 같은 버튼, Plan 4.1) */}
       {p.variant === 'desktop' && drawing && <DrawTools variant="bar" />}
       {showEmpty && <EmptyCard variant={p.variant} />}
+      {p.variant === 'mobile' && measuring && <MeasurePanel variant="bar" />}
       <div className="shell-toast">
         <ToastHost />
       </div>

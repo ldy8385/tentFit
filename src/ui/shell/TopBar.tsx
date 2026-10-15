@@ -1,5 +1,6 @@
 // PC 상단 바(스펙 §4.1): 로고, 배치 이름, 모드 토글(배치│텐트 편집), 실행 취소·다시 실행, [보기] 메뉴(격자 보이기, 맞춤 보기).
 // 굵은 포인터 기기에서만 [선택] 토글을 더합니다. [측정]·[파일]·스냅 항목은 Plan 5·7에서 붙입니다.
+import { endMeasuring, startMeasuring } from '../../app/measureActions'
 import { useDoc, useStores, useUi } from '../../app/stores'
 import { downloadBackup, pickAndImport } from '../../app/persist/files'
 import { enterTentMode, exitTentMode, tentControlsEnabled } from '../../app/tentActions'
@@ -29,6 +30,7 @@ export function TopBar() {
   const canUndo = useDoc((s) => s.canUndo) && !drawing
   const canRedo = useDoc((s) => s.canRedo) && !drawing
   const gridVisible = useUi((s) => s.gridVisible)
+  const snapEnabled = useUi((s) => s.snapEnabled)
   const selectToggle = useUi((s) => s.selectToggle)
   const mode = useUi((s) => s.mode)
   const measuring = useUi((s) => s.measuring)
@@ -66,6 +68,15 @@ export function TopBar() {
       )}
       <button
         type="button"
+        className="shell-btn"
+        aria-pressed={measuring}
+        title="거리 재기 (Esc로 끝내기)"
+        onClick={() => (measuring ? endMeasuring(stores) : startMeasuring(stores))}
+      >
+        <span>측정</span>
+      </button>
+      <button
+        type="button"
         className="shell-icon-btn"
         aria-label="실행 취소"
         title="실행 취소 (Ctrl/⌘+Z)"
@@ -100,6 +111,11 @@ export function TopBar() {
             label: '격자 보이기',
             checked: gridVisible,
             onSelect: () => stores.ui.getState().patch({ gridVisible: !stores.ui.getState().gridVisible }),
+          },
+          {
+            label: '자석 맞춤(Alt로 잠깐 반대)',
+            checked: snapEnabled,
+            onSelect: () => stores.ui.getState().patch({ snapEnabled: !stores.ui.getState().snapEnabled }),
           },
           { label: '맞춤 보기', onSelect: () => fitToLayout(stores) },
         ]}

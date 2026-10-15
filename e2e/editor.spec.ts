@@ -13,6 +13,7 @@ import {
   openEditorWith,
   statRowPattern,
   MAT_ITEM,
+  setSnap,
   STOOL_ITEM,
   worldToClient,
   type ClientPt,
@@ -85,6 +86,7 @@ test('새 도형으로 만들면 물건이 추가·선택되고 속성 패널과
 
 test('물건을 끌면 위치가 바뀌고 Ctrl+Z 한 번으로 제자리에 돌아온다', async ({ page }) => {
   const item = await addMatFromLibrary(page)
+  await setSnap(page, false) // 끈 거리를 그대로 보려고 자석 맞춤은 끔
   const { zoom } = (await getUi(page)).view
   const from = await worldToClient(page, item.x, item.y)
 
@@ -161,6 +163,7 @@ async function zoomOutTo(page: Page, at: ClientPt, maxZoom: number): Promise<num
 for (const spec of [BOX_ITEM, STOOL_ITEM]) {
   test(`리뷰 회귀: 축소해서 작아진 ${spec.name}도 몸통을 끌면 크기가 아니라 위치가 바뀐다`, async ({ page }) => {
     const item = await addMatFromLibrary(page, spec)
+    await setSnap(page, false)
     // 배율 0.6이면 수납 박스 30×21px, 원형 스툴 지름 21px(핸들 잡는 영역 24px에 몸통이 덮이던 크기)
     const zoom = await zoomOutTo(page, await worldToClient(page, item.x, item.y), 0.6)
     const from = await worldToClient(page, item.x, item.y)
@@ -331,5 +334,46 @@ test.describe('브라우저 저장', () => {
     await page.goto('/#/pick')
     await page.getByRole('button', { name: /내 배치/ }).click()
     await expect(page.getByText(`${name} (가져옴)`)).toBeVisible()
+  })
+})
+
+// ── 자석 맞춤·거리 재기(Plan 5, 2026-10-15) ─────────────────────────────
+
+test.describe('자석 맞춤·거리 재기', () => {
+  test('벽 가까이 끌어 놓으면 벽에 딱 붙고, Alt를 누른 채면 붙지 않음', async ({ page }) => {
+    const item = await createItem(page, MAT_ITEM) // 200×60, 터널 외곽 오른쪽 벽 x = 310
+    const { zoom } = (await getUi(page)).view
+    const from = await worldToClient(page, item.x, item.y)
+    // 오른쪽 변(item.x+100)이 벽에서 화면 4px 안쪽에 오도록
+    const target = 310 - 100 - 4 / zoom
+    await dragBetween(page, from, { x: from.x + (target - item.x) * zoom, y: from.y })
+    await expect.poll(async () => (await itemById(page, item.id))!.x + 100).toBeCloseTo(310, 1)
+
+    // Alt를 누른 채: 30px 떨어뜨렸다가 벽 4px 앞까지 → 붙지 않고 그 자리
+    await page.keyboard.down('Alt')
+    const at = await worldToClient(page, (await itemById(page, item.id))!.x, item.y)
+    await dragBetween(page, at, { x: at.x - 30, y: at.y })
+    const at2 = await worldToClient(page, (await itemById(page, item.id))!.x, item.y)
+    await dragBetween(page, at2, { x: at2.x + 26, y: at2.y })
+    await page.keyboard.up('Alt')
+    await expect.poll(async () => (await itemById(page, item.id))!.x + 100).toBeLessThan(309.5)
+  })
+
+  test('[측정] → 매트·오른쪽 벽 → 거리, Esc로 끝내면 지워지고 문서는 그대로', async ({ page }) => {
+    const item = await createItem(page, MAT_ITEM)
+    const before = (await getDoc(page)).layout
+    await page.getByRole('button', { name: '측정' }).click()
+    await expect(page.getByTestId('measure-panel')).toBeVisible()
+    const m = await worldToClient(page, item.x, item.y)
+    await page.mouse.click(m.x, m.y)
+    const wall = await worldToClient(page, 309, item.y)
+    await page.mouse.click(wall.x, wall.y)
+    const panel = page.getByTestId('measure-panel')
+    await expect(panel.getByRole('heading', { name: '측정 1개' })).toBeVisible()
+    await expect(panel.getByText(`${(310 - item.x - 100).toFixed(1)}cm`)).toBeVisible()
+    await expect(panel.getByText(`${MAT_ITEM.name} → 외곽 변 2`)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('measure-panel')).toHaveCount(0)
+    expect((await getDoc(page)).layout).toEqual(before)
   })
 })

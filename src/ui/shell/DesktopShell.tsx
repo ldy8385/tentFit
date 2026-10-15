@@ -8,6 +8,7 @@ import { useStores, useUi } from '../../app/stores'
 import { CANVAS_HOST_TEST_ID } from '../../app/testHook'
 import { Board } from '../../view/canvas/Board'
 import { AreaSummary } from '../area/AreaSummary'
+import { MeasurePanel } from '../area/MeasurePanel'
 import { WarningPanel } from '../area/WarningPanel'
 import { LibraryPanel } from '../library/LibraryPanel'
 import { NewShapeForm } from '../library/NewShapeForm'
@@ -25,8 +26,10 @@ function RightTopPanel() {
   const stores = useStores()
   const panel = useUi((s) => s.desktopPanel)
   const mode = useUi((s) => s.mode)
+  const measuring = useUi((s) => s.measuring)
   const back = () => stores.ui.getState().patch({ desktopPanel: 'auto' })
 
+  if (measuring) return <MeasurePanel variant="panel" />
   if (panel === 'warnings') return <WarningPanel />
   if (mode === 'tent') return <TentEditor variant="panel" />
   if (panel === 'newShape') return <NewShapeForm onDone={back} onCancel={back} />

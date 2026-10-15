@@ -1,6 +1,7 @@
 // 화면 스토어(스펙 §7·§8). 실행 취소 대상이 아닌 화면 상태: 모드, 선택, 텐트 편집 대상, 보기, 패널·시트, 토스트.
 // 같은 값으로 바꾸는 호출은 상태를 바꾸지 않습니다(구독자에게 알리지 않음).
 import { createStore, type StoreApi } from 'zustand/vanilla'
+import type { MeasureTarget } from '../core/measure'
 import type { Layout, Pt } from '../core/model'
 import { targetWorldRing, type TentTarget } from '../core/ops/tent'
 import { clampZoom, fitView, zoomAt as zoomViewAt, type BBox, type Insets, type Size, type View } from '../view/viewport'
@@ -29,6 +30,8 @@ export type TentLock = 'none' | 'outer' | 'inners'
  * adjusting = 맞추기 중(끌기 = 이미지 이동, 휠·두 손가락 = 이미지 크기, 탭 = 아무것도 안 함)
  */
 export type Backdrop = { url: string; x: number; y: number; w: number; aspect: number; opacity: number; adjusting: boolean; rotation: number }
+/** 잰 것 하나: 두 대상(문서 밖 화면 상태). 거리는 그릴 때마다 지금 배치로 다시 계산합니다 */
+export type Measurement = { id: number; a: MeasureTarget; b: MeasureTarget }
 /** 패널에서 포커스한 자유 다각형 칸(변 길이 = edge, 꼭짓점 각도 = vertex, 번호는 0부터). 캔버스가 그 변·꼭짓점을 강조합니다. */
 export type PolygonFocus = { kind: 'edge' | 'vertex'; index: number }
 export type UiState = {
@@ -63,6 +66,9 @@ export type UiState = {
   axisLock: boolean
   /** 「비율 유지」(소유자 요청 2026-10-14, 기본 켬): 변·가로·세로 숫자를 바꾸면 전체를 같은 배율로. 끄면 그 변·축만 */
   keepRatio: boolean
+  /** 거리 재기(Plan 5, 2026-10-15): 잰 것들(대상 두 개)과 첫 대상(고른 뒤 둘째를 기다림, at = 누른 자리) */
+  measurements: Measurement[]
+  measureFirst: { target: MeasureTarget; at: Pt } | null
   /** 물건 그리기·모양 편집 화면(소유자 요청 2026-10-14). editId가 있으면 그 물건의 모양 편집, 없으면 새 물건 */
   itemMaker: { editId: string | null } | null
   /** 배경 이미지(없으면 null) */
@@ -118,6 +124,8 @@ export type UiState = {
         | 'axisLock'
         | 'keepRatio'
         | 'itemMaker'
+        | 'measurements'
+        | 'measureFirst'
       >
     >,
   ): void
@@ -222,6 +230,8 @@ export function createUiStore(
       keepRatio: true,
       backdrop: null,
       itemMaker: null,
+      measurements: [],
+      measureFirst: null,
 
       setSelection(ids) {
         const next = unique(ids)

@@ -5,6 +5,7 @@ import type { Item } from '../src/core/model'
 import {
   Fingers,
   fitView,
+  setSnap,
   getDoc,
   getUi,
   isCanvasAt,
@@ -79,6 +80,7 @@ test('물건을 끄는 중 두 번째 손가락이 닿으면 시작 위치로 �
   page,
 }) => {
   const { item, at: start } = await addMatAndFrame(page)
+  await setSnap(page, false) // 끈 거리를 그대로 보려고 자석 맞춤은 끔
   const second = await pickOpenPoint(page, { avoid: [start], minDist: 120, margin: 90 })
   const zoomBefore = (await getUi(page)).view.zoom
 
@@ -180,6 +182,7 @@ async function addMatDeselected(page: Page): Promise<Item> {
 
 test('리뷰 Critical: 화면 아래쪽의 선택 안 된 물건을 눌러 바로 끌면 끈 만큼만 움직인다', async ({ page }) => {
   const item = await addMatDeselected(page)
+  await setSnap(page, false)
   // 매트가 캔버스 아래쪽(시트에 가려질 자리)에 오도록 화면을 옮깁니다.
   let c = await worldToClient(page, item.x, item.y)
   const box = (await page.locator('.konvajs-content').boundingBox())!

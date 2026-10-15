@@ -105,6 +105,11 @@ export async function worldToClient(page: Page, x: number, y: number, key: HookK
 }
 
 /** 맞춤 보기(시트·배너 높이를 뺀 영역)로 되돌립니다. key = 어느 캔버스(편집기·만들기 화면) */
+/** 자석 맞춤 켜기·끄기(끈 거리를 정확히 재는 시험은 끄고 시작) */
+export async function setSnap(page: Page, on: boolean, key: HookKey = EDITOR_HOOK): Promise<void> {
+  await page.evaluate(([k, v]) => (window as unknown as HookWindow)[k as HookKey]!.setSnap(v as boolean), [key, on] as const)
+}
+
 export async function fitView(page: Page, key: HookKey = EDITOR_HOOK): Promise<void> {
   await page.evaluate((k) => (window as unknown as HookWindow)[k]!.fitView(), key)
   await nextFrames(page)
