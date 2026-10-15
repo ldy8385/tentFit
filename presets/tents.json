@@ -14,7 +14,7 @@
       }
     },
     {
-      "id": "Awesome Holiday/oasix",
+      "id": "awesome-holiday/oasix",
       "brand": "Awesome Holiday",
       "model": "oasix",
       "tent": {
@@ -33,7 +33,7 @@
       }
     },
     {
-      "id": "Awesome Holiday/radiance-2p-ul",
+      "id": "awesome-holiday/radiance-2p-ul",
       "brand": "Awesome Holiday",
       "model": "Radiance 2p ul",
       "tent": {
@@ -42,6 +42,16 @@
         "inners": [
           { "id": "328af745-0c07-45fe-b303-a8bd22001c2e", "name": "이너", "x": 0, "y": 0, "rotation": 90, "template": { "kind": "rect", "w": 220, "h": 130 } }
         ]
+      }
+    },
+    {
+      "id": "awesome-holiday/rito",
+      "brand": "Awesome Holiday",
+      "model": "rito",
+      "tent": {
+        "name": "rito",
+        "outerTemplate": { "kind": "rect", "w": 220, "h": 100 },
+        "inners": []
       }
     }
   ]
