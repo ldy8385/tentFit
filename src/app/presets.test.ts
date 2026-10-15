@@ -58,7 +58,7 @@ describe('파싱 실패', () => {
   })
 
   it('텐트 파일에 문제가 있으면 이유를 담아 throw한다', () => {
-    const bad = { presets: [{ id: 'wrong/x', model: '잘못', tent: { name: 'x', outer: { kind: 'circle', d: 300 }, inners: [] } }] }
-    expect(() => genericTentsFrom(bad)).toThrow(/generic\.json presets\[0\]\.id/)
+    const bad = { presets: [{ id: 'x/x', model: '잘못', tent: { name: 'x', outer: { kind: 'circle', d: 0 }, inners: [] } }] }
+    expect(() => genericTentsFrom(bad)).toThrow(/generic\.json presets\[0\]\.tent\.outer/)
   })
 })

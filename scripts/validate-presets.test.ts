@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -41,7 +41,11 @@ function copyPresets(): string {
   temps.push(dir)
   cpSync(PRESETS, dir, { recursive: true })
   cpSync(LEGACY_ITEMS, join(dir, 'items.json'))
-  cpSync(GENERIC_FIXTURE, join(dir, 'tents', 'generic.json'))
+  // 시험용 예시 텐트 5개를 brand를 붙여 tents.json 뒤에 더합니다(아래 실패 시험들이 고칠 대상).
+  const tentsPath = join(dir, 'tents.json')
+  const tents = readJson<RawTentFile>(tentsPath)
+  const examples = readJson<RawTentFile>(GENERIC_FIXTURE).presets.map((p) => ({ ...p, brand: '예시' }))
+  writeJson(tentsPath, { ...tents, presets: [...tents.presets, ...examples] })
   return dir
 }
 
@@ -71,8 +75,8 @@ describe('checkPresets — 실제 데이터', () => {
   it('저장소의 presets/는 오류 없이 통과한다', () => {
     const r = checkPresets(PRESETS)
     expect(r.errors).toEqual([])
-    // 일반 예시는 배포본에서 없앴습니다(소유자 결정 2026-10-15). 텐트 프리셋은 브랜드 파일만.
-    expect(r.tentFiles).not.toContain('generic')
+    // 텐트는 tents.json 하나, 모두 brand가 있습니다(일반 예시는 2026-10-15에 없앰).
+    expect(r.tents.length).toBeGreaterThan(0)
     expect(r.tents.every((t) => t.brand !== undefined)).toBe(true)
     // 물건 프리셋은 소유자가 실제 매트를 넣을 때까지 비어 있을 수 있습니다(예시 물건은 2026-10-14에 뺌).
     expect(r.items).toHaveLength(readJson<RawItemFile>(join(PRESETS, 'items.json')).items.length)
@@ -143,20 +147,20 @@ describe('checkPresets — 깨진 데이터', () => {
 
   it('JSON 문법 오류', () => {
     const dir = copyPresets()
-    writeFileSync(join(dir, 'tents', 'generic.json'), '{ "presets": [', 'utf8')
+    writeFileSync(join(dir, 'tents.json'), '{ "presets": [', 'utf8')
     expect(checkPresets(dir).errors).toEqual(
-      expect.arrayContaining([expect.stringMatching(/^tents\/generic\.json: JSON 문법 오류/)]),
+      expect.arrayContaining([expect.stringMatching(/^tents\.json: JSON 문법 오류/)]),
     )
   })
 
   it('같은 파일 안의 id 중복', () => {
     const dir = copyPresets()
-    const path = join(dir, 'tents', 'generic.json')
+    const path = join(dir, 'tents.json')
     const file = readJson<RawTentFile>(path)
     file.presets.push(structuredClone(entry(file, 'generic/dome-2p')))
     writeJson(path, file)
     expect(checkPresets(dir).errors).toContain(
-      "tents/generic.json 'generic/dome-2p': id 중복 'generic/dome-2p' (먼저 나온 곳: tents/generic.json 'generic/dome-2p')",
+      "tents.json 'generic/dome-2p': id 중복 'generic/dome-2p' (먼저 나온 곳: tents.json 'generic/dome-2p')",
     )
   })
 
@@ -173,63 +177,52 @@ describe('checkPresets — 깨진 데이터', () => {
     )
   })
 
-  it('브랜드 파일은 brand가 필수다(있으면 통과)', () => {
+  it('brand가 없으면 실패(있으면 통과)', () => {
     const dir = copyPresets()
-    const generic = readJson<RawTentFile>(join(dir, 'tents', 'generic.json'))
-    const dome = structuredClone(entry(generic, 'generic/dome-2p'))
-    dome.id = 'acme/dome-2p'
-    const acmePath = join(dir, 'tents', 'acme.json')
-
-    writeJson(acmePath, { $schema: '../tents.schema.json', presets: [dome] })
-    const missing = checkPresets(dir)
-    expect(missing.errors.length).toBeGreaterThan(0)
-    expect(missing.errors.every((e) => e.startsWith('tents/acme.json'))).toBe(true)
-
-    writeJson(acmePath, { $schema: '../tents.schema.json', presets: [{ ...dome, brand: 'ACME' }] })
-    const ok = checkPresets(dir)
-    expect(ok.errors).toEqual([])
-    // 저장소에 실제 브랜드 파일(로컬 [텐트 프리셋으로 저장])이 더 있어도 됩니다.
-    expect(ok.tentFiles).toEqual(expect.arrayContaining(['acme', 'generic']))
+    const path = join(dir, 'tents.json')
+    const file = readJson<RawTentFile>(path)
+    delete entry(file, 'generic/dome-2p').brand
+    writeJson(path, file)
+    const i = file.presets.findIndex((p) => p.id === 'generic/dome-2p')
+    expect(checkPresets(dir).errors).toEqual([`tents.json presets[${String(i)}].brand: brand가 필요해요`])
+    entry(file, 'generic/dome-2p').brand = 'ACME'
+    writeJson(path, file)
+    expect(checkPresets(dir).errors).toEqual([])
   })
 
-  it('id 앞부분이 파일 slug와 다르면 실패', () => {
+  it('예전 브랜드별 폴더(tents/)가 남아 있으면 실패', () => {
     const dir = copyPresets()
-    const path = join(dir, 'tents', 'generic.json')
-    const file = readJson<RawTentFile>(path)
-    entry(file, 'generic/dome-2p').id = 'other/dome-2p'
-    writeJson(path, file)
-    const { errors } = checkPresets(dir)
-    expect(errors.length).toBeGreaterThan(0)
-    expect(errors.every((e) => e.startsWith('tents/generic.json'))).toBe(true)
+    mkdirSync(join(dir, 'tents'))
+    expect(checkPresets(dir).errors).toEqual(['tents/: 예전 폴더예요. 텐트는 tents.json 하나에 넣어 주세요'])
   })
 
   it('템플릿과 어긋난 outer를 함께 적으면 실패', () => {
     const dir = copyPresets()
-    const path = join(dir, 'tents', 'generic.json')
+    const path = join(dir, 'tents.json')
     const file = readJson<RawTentFile>(path)
     entry(file, 'generic/dome-2p').tent.outer = { kind: 'rect', w: 210, h: 200 }
     writeJson(path, file)
     const { errors } = checkPresets(dir)
     expect(errors.length).toBeGreaterThan(0)
-    expect(errors.every((e) => e.startsWith('tents/generic.json'))).toBe(true)
+    expect(errors.every((e) => e.startsWith('tents.json'))).toBe(true)
   })
 
   it('이너가 외곽 밖으로 나가면 실패', () => {
     const dir = copyPresets()
-    const path = join(dir, 'tents', 'generic.json')
+    const path = join(dir, 'tents.json')
     const file = readJson<RawTentFile>(path)
     const inner = entry(file, 'generic/dome-2p').tent.inners[0]
     if (!inner) throw new Error('돔 이너 없음')
     inner.y = -100 // 이너 위쪽 끝 -165 < 외곽 -105
     writeJson(path, file)
     expect(checkPresets(dir).errors).toEqual(
-      expect.arrayContaining(["tents/generic.json 'generic/dome-2p' tent.inners: 이너 '이너 1'이 외곽 밖으로 나가요"]),
+      expect.arrayContaining(["tents.json 'generic/dome-2p' tent.inners: 이너 '이너 1'이 외곽 밖으로 나가요"]),
     )
   })
 
   it('이너끼리 겹치면 실패', () => {
     const dir = copyPresets()
-    const path = join(dir, 'tents', 'generic.json')
+    const path = join(dir, 'tents.json')
     const file = readJson<RawTentFile>(path)
     const shell = entry(file, 'generic/living-shell')
     const first = shell.tent.inners[0]
@@ -237,7 +230,7 @@ describe('checkPresets — 깨진 데이터', () => {
     shell.tent.inners.push({ ...structuredClone(first), id: '0b6f3f0e-2a51-4d7c-9c1e-6a3e5b1f2d40', name: '이너 2', x: 100 })
     writeJson(path, file)
     expect(checkPresets(dir).errors).toEqual(
-      expect.arrayContaining([expect.stringMatching(/^tents\/generic\.json 'generic\/living-shell' .*\[inner-overlap\]/)]),
+      expect.arrayContaining([expect.stringMatching(/^tents\.json 'generic\/living-shell' .*\[inner-overlap\]/)]),
     )
   })
 
@@ -267,11 +260,11 @@ describe('checkPresets — 깨진 데이터', () => {
     expect(errors.every((e) => e.startsWith('items.json'))).toBe(true)
   })
 
-  it('필수 파일(items.json)이 없으면 실패, 일반 예시(generic.json)는 없어도 됨(2026-10-15)', () => {
+  it('필수 파일(tents.json·items.json)이 없으면 실패', () => {
     const dir = copyPresets()
     rmSync(join(dir, 'items.json'))
-    rmSync(join(dir, 'tents', 'generic.json'))
-    expect(checkPresets(dir).errors).toEqual(['items.json: 파일이 없어요'])
+    rmSync(join(dir, 'tents.json'))
+    expect(checkPresets(dir).errors).toEqual(['tents.json: 파일이 없어요', 'items.json: 파일이 없어요'])
   })
 })
 
@@ -287,10 +280,10 @@ describe('validate-presets 명령', () => {
 
   it('깨진 임시 파일이 있으면 exit 1과 이유를 출력', () => {
     const dir = copyPresets()
-    writeFileSync(join(dir, 'tents', 'broken.json'), '{ "presets": [', 'utf8')
+    writeFileSync(join(dir, 'tents.json'), '{ "presets": [', 'utf8')
     const r = run(dir)
     expect(r.status).toBe(1)
-    expect(r.stderr).toContain('- tents/broken.json: JSON 문법 오류')
+    expect(r.stderr).toContain('- tents.json: JSON 문법 오류')
     expect(r.stderr).toContain('프리셋 검사 실패: 1건')
   }, 30_000)
 })

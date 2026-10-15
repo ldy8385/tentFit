@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import genericJson from '../test/fixtures/tents/generic.json'
 import { catalogFromFiles, loadTentCatalog } from './tentCatalog'
 
-/** 브랜드 파일 항목(사각 300×200, 이너 없음) */
+/** tents.json 항목(사각 300×200, 이너 없음) */
 function entry(id: string, model: string, brand?: string): Record<string, unknown> {
   const e: Record<string, unknown> = {
     id,
@@ -13,10 +13,11 @@ function entry(id: string, model: string, brand?: string): Record<string, unknow
   return e
 }
 
-const GENERIC_PATH = '/presets/tents/generic.json'
+const GENERIC_PATH = '/src/test/fixtures/tents/generic.json'
+const TENTS_PATH = '/presets/tents.json'
 
 describe('catalogFromFiles', () => {
-  it('generic.json만 있으면 일반 예시 5개(파일 순서), 브랜드는 없음', () => {
+  it('brand 없는 시험용 예시만 있으면 일반 예시 5개(파일 순서), 브랜드는 없음', () => {
     const catalog = catalogFromFiles({ [GENERIC_PATH]: genericJson })
     expect(catalog.generic.map((p) => p.id)).toEqual([
       'generic/dome-2p',
@@ -30,51 +31,32 @@ describe('catalogFromFiles', () => {
     expect(catalog.generic[1]?.tent.outer).toEqual({ kind: 'rect', w: 620, h: 320 })
   })
 
-  it('브랜드 파일은 브랜드별로 묶고 브랜드 이름순(파일 이름 순서와 무관)', () => {
+  it('tents.json 하나 안에서 브랜드별로 묶고 브랜드 이름순, 같은 브랜드는 파일 안 순서(시험용 예시는 일반 예시로)', () => {
     const catalog = catalogFromFiles({
       [GENERIC_PATH]: genericJson,
-      '/presets/tents/alpha.json': { presets: [entry('alpha/b', '리빙 B', '코베아'), entry('alpha/c', '리빙 C', '코베아')] },
-      '/presets/tents/zeta.json': { presets: [entry('zeta/a', '돔 A', '가나캠핑')] },
+      [TENTS_PATH]: { presets: [entry('kovea/b', '리빙 B', '코베아'), entry('gana/a', '돔 A', '가나캠핑'), entry('kovea/c', '리빙 C', '코베아')] },
     })
     expect(catalog.generic).toHaveLength(5)
     expect(catalog.brands.map((b) => b.brand)).toEqual(['가나캠핑', '코베아'])
-    expect(catalog.brands[1]?.presets.map((p) => p.id)).toEqual(['alpha/b', 'alpha/c'])
+    expect(catalog.brands[1]?.presets.map((p) => p.id)).toEqual(['kovea/b', 'kovea/c'])
   })
 
-  it('한 파일에 브랜드가 둘이면 브랜드마다 나눈다', () => {
-    const catalog = catalogFromFiles({
-      '/presets/tents/mixed.json': { presets: [entry('mixed/a', 'A', '나 브랜드'), entry('mixed/b', 'B', '가 브랜드')] },
-    })
-    expect(catalog.generic).toEqual([])
-    expect(catalog.brands.map((b) => [b.brand, b.presets.map((p) => p.id)])).toEqual([
-      ['가 브랜드', ['mixed/b']],
-      ['나 브랜드', ['mixed/a']],
-    ])
-  })
-
-  it('generic이 아닌 파일에 brand가 없으면 throw', () => {
-    expect(() => catalogFromFiles({ '/presets/tents/nobrand.json': { presets: [entry('nobrand/a', 'A')] } })).toThrow(
-      /brand가 필요해요/,
-    )
-  })
-
-  it('id가 파일 slug로 시작하지 않으면 throw', () => {
-    expect(() => catalogFromFiles({ '/presets/tents/alpha.json': { presets: [entry('beta/a', 'A', '코베아')] } })).toThrow(
-      /"alpha\/"로 시작해야 해요/,
-    )
+  it('id는 파일 이름과 무관(예전 접두사 규칙 없음)', () => {
+    const catalog = catalogFromFiles({ [TENTS_PATH]: { presets: [entry('아무거나/a', 'A', '코베아')] } })
+    expect(catalog.brands[0]?.presets.map((p) => p.id)).toEqual(['아무거나/a'])
   })
 
   it('id가 겹치면 throw', () => {
     expect(() =>
       catalogFromFiles({
-        '/presets/tents/alpha.json': { presets: [entry('alpha/a', 'A', '코베아')] },
-        '/elsewhere/alpha.json': { presets: [entry('alpha/a', 'A2', '코베아')] },
+        [TENTS_PATH]: { presets: [entry('kovea/a', 'A', '코베아')] },
+        '/elsewhere/more.json': { presets: [entry('kovea/a', 'A2', '코베아')] },
       }),
-    ).toThrow(/id가 겹쳐요: alpha\/a/)
+    ).toThrow(/id가 겹쳐요: kovea\/a/)
   })
 
-  it('파일 이름을 읽을 수 없으면 throw', () => {
-    expect(() => catalogFromFiles({ '/presets/tents/readme': {} })).toThrow(/파일 이름을 읽지 못했어요/)
+  it('형식이 깨지면 파일 이름이 붙은 문구로 throw', () => {
+    expect(() => catalogFromFiles({ [TENTS_PATH]: { presets: 'x' } })).toThrow(/tents\.json presets/)
   })
 })
 
@@ -106,7 +88,7 @@ describe('loadTentCatalog', () => {
 
   it('실패하면 다음 호출([다시 시도])은 새로 불러온다', async () => {
     vi.resetModules()
-    vi.doMock('./tentCatalogData', () => ({ tentFiles: { '/presets/tents/broken.json': { presets: 'x' } } }))
+    vi.doMock('./tentCatalogData', () => ({ tentFiles: { '/presets/tents.json': { presets: 'x' } } }))
     const fresh = await import('./tentCatalog')
     const first = fresh.loadTentCatalog()
     await expect(first).rejects.toThrow(/텐트 프리셋을 읽지 못했어요/)

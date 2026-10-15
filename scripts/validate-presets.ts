@@ -1,12 +1,12 @@
 // 기본 프리셋(presets/) 검사. 실행: pnpm validate-presets [프리셋 폴더]
-// - zod 스키마 검사, 템플릿 ↔ 도형 비교, 브랜드·id 접두사 규칙(src/core/presets.ts)
+// - 텐트는 presets/tents.json 하나(2026-10-15). zod 스키마 검사, 템플릿 ↔ 도형 비교, brand 필수(src/core/presets.ts)
 // - validateLayout 수준의 기하 검사(자기교차, 이너 겹침 등). 기본 프리셋은 "고칠 수 있는" 이슈도 실패로 봅니다.
 // - 이너가 외곽 밖으로 나가면 실패(앱에서는 경고지만, 기본 프리셋은 이탈 0이어야 함)
 // - 물건 다각형의 유효성
 // - id는 텐트·물건을 통틀어 겹치지 않아야 함
 // 하나라도 실패하면 exit code 1.
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLayout } from '../src/core/model'
 import type { ItemPreset, TentPreset } from '../src/core/model'
@@ -16,7 +16,6 @@ import { buildZones } from '../src/core/zones'
 
 export type PresetCheckResult = {
   errors: string[]
-  tentFiles: string[] // 검사한 텐트 파일 slug(이름순)
   tents: TentPreset[] // 해석에 성공한 텐트 프리셋(outer·shape가 채워진 상태)
   items: ItemPreset[] // 해석에 성공한 물건 프리셋
 }
@@ -74,7 +73,6 @@ function checkTentGeometry(preset: TentPreset, where: string, errors: string[]):
 
 export function checkPresets(presetsDir: string): PresetCheckResult {
   const errors: string[] = []
-  const tentFiles: string[] = []
   const tents: TentPreset[] = []
   const items: ItemPreset[] = []
 
@@ -85,27 +83,22 @@ export function checkPresets(presetsDir: string): PresetCheckResult {
     else owners.set(id, where)
   }
 
-  // 1) 텐트 파일: presets/tents/*.json (slug = 파일 이름)
-  const tentsDir = join(presetsDir, 'tents')
-  const files = existsSync(tentsDir)
-    ? readdirSync(tentsDir)
-        .filter((f) => f.endsWith('.json'))
-        .sort()
-    : []
-
-  for (const file of files) {
-    const slug = basename(file, '.json')
-    const label = `tents/${file}`
-    tentFiles.push(slug)
-    const json = readJson(join(tentsDir, file), label, errors)
-    if (json === undefined) continue
-    const parsed = parseTentPresetFile(json, slug)
-    for (const issue of parsed.issues) errors.push(withFile(label, file, issue))
-    for (const preset of parsed.presets) {
-      const where = `${label} '${preset.id}'`
-      claimId(preset.id, where)
-      tents.push(preset)
-      checkTentGeometry(preset, where, errors)
+  // 1) 텐트 파일: presets/tents.json(모든 텐트, brand 필수). 예전 브랜드별 폴더(presets/tents/)가 남아 있으면 알립니다.
+  if (existsSync(join(presetsDir, 'tents'))) errors.push('tents/: 예전 폴더예요. 텐트는 tents.json 하나에 넣어 주세요')
+  const tentsPath = join(presetsDir, 'tents.json')
+  if (!existsSync(tentsPath)) {
+    errors.push('tents.json: 파일이 없어요')
+  } else {
+    const json = readJson(tentsPath, 'tents.json', errors)
+    if (json !== undefined) {
+      const parsed = parseTentPresetFile(json, { file: 'tents.json', requireBrand: true })
+      for (const issue of parsed.issues) errors.push(withFile('tents.json', 'tents.json', issue))
+      for (const preset of parsed.presets) {
+        const where = `tents.json '${preset.id}'`
+        claimId(preset.id, where)
+        tents.push(preset)
+        checkTentGeometry(preset, where, errors)
+      }
     }
   }
 
@@ -130,7 +123,7 @@ export function checkPresets(presetsDir: string): PresetCheckResult {
     }
   }
 
-  return { errors, tentFiles, tents, items }
+  return { errors, tents, items }
 }
 
 function isMain(metaUrl: string): boolean {
@@ -152,7 +145,7 @@ if (isMain(import.meta.url)) {
     process.exitCode = 1
   } else {
     console.log(
-      `프리셋 검사 통과: 텐트 파일 ${result.tentFiles.length}개, 텐트 ${result.tents.length}개, 물건 ${result.items.length}개`,
+      `프리셋 검사 통과: 텐트 ${result.tents.length}개, 물건 ${result.items.length}개`,
     )
   }
 }

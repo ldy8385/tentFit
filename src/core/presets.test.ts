@@ -108,54 +108,45 @@ describe('resolveTentEntry', () => {
 })
 
 describe('parseTentPresetFile', () => {
-  it('$schema 키를 허용하고 generic은 brand 없이 통과한다', () => {
+  const GENERIC = { file: 'generic.json', requireBrand: false }
+  const TENTS = { file: 'tents.json', requireBrand: true }
+
+  it('$schema 키를 허용하고, brand를 요구하지 않으면(시험용 예시) brand 없이 통과한다', () => {
     const { presets, issues } = parseTentPresetFile(
       { $schema: '../tents.schema.json', presets: [domeEntry, tipiEntry] },
-      'generic',
+      GENERIC,
     )
     expect(issues).toEqual([])
     expect(presets.map((p) => p.id)).toEqual(['generic/dome-2', 'generic/tipi-6'])
     expect(presets[0]!.tent.outer).toEqual({ kind: 'rect', w: 210, h: 210 })
   })
 
-  it('generic이 아닌 파일의 brand 누락', () => {
-    const { presets, issues } = parseTentPresetFile({ presets: [{ ...domeEntry, id: 'acme/dome-2' }] }, 'acme')
+  it('저장소 tents.json은 brand가 필요하다', () => {
+    const { presets, issues } = parseTentPresetFile({ presets: [{ ...domeEntry, id: 'acme/dome-2' }] }, TENTS)
     expect(presets).toEqual([])
-    expect(issues).toEqual(['acme.json presets[0].brand: generic이 아닌 파일은 brand가 필요해요'])
+    expect(issues).toEqual(['tents.json presets[0].brand: brand가 필요해요'])
   })
 
   it('brand가 있으면 통과한다', () => {
     const { presets, issues } = parseTentPresetFile(
       { presets: [{ ...domeEntry, id: 'acme/dome-2', brand: 'ACME', checkedAt: '2026-10-07', source: 'https://example.com/dome' }] },
-      'acme',
+      TENTS,
     )
     expect(issues).toEqual([])
     expect(presets[0]!.brand).toBe('ACME')
     expect(presets[0]!.checkedAt).toBe('2026-10-07')
   })
 
-  it('id 접두사 불일치', () => {
-    const { presets, issues } = parseTentPresetFile(
-      { presets: [{ ...domeEntry, id: 'other/dome-2', brand: 'ACME' }, { ...domeEntry, id: 'acme/', brand: 'ACME' }] },
-      'acme',
-    )
-    expect(presets).toEqual([])
-    expect(issues).toEqual([
-      'acme.json presets[0].id: id는 "acme/"로 시작해야 해요 (지금: "other/dome-2")',
-      'acme.json presets[1].id: id는 "acme/"로 시작해야 해요 (지금: "acme/")',
-    ])
-  })
-
   it('어긋난 outer는 파일 경로가 붙은 issue가 되고, 그 항목만 빠진다', () => {
     const broken = { ...domeEntry, tent: { ...domeEntry.tent, outer: { kind: 'rect', w: 220, h: 210 } } }
-    const { presets, issues } = parseTentPresetFile({ presets: [tipiEntry, broken] }, 'generic')
+    const { presets, issues } = parseTentPresetFile({ presets: [tipiEntry, broken] }, GENERIC)
     expect(presets.map((p) => p.id)).toEqual(['generic/tipi-6'])
     expect(issues).toEqual(['generic.json presets[1].tent.outer: 템플릿으로 만든 도형과 0.1cm 넘게 달라요'])
   })
 
   it('스키마 위반은 zod 경로를 사람이 읽는 형태로 남긴다', () => {
     const badN = { ...tipiEntry, tent: { ...tipiEntry.tent, outerTemplate: { kind: 'ngon', n: 13, sizeBy: 'diameter', size: 400 } } }
-    const { presets, issues } = parseTentPresetFile({ presets: [domeEntry, badN] }, 'generic')
+    const { presets, issues } = parseTentPresetFile({ presets: [domeEntry, badN] }, GENERIC)
     expect(presets.map((p) => p.id)).toEqual(['generic/dome-2'])
     expect(issues).toHaveLength(1)
     expect(issues[0]).toMatch(/^generic\.json presets\[1\]\.tent\.outerTemplate\.n: /)
@@ -163,16 +154,16 @@ describe('parseTentPresetFile', () => {
 
   it('outer와 outerTemplate이 둘 다 없으면 tent.outer 경로', () => {
     const none = { ...domeEntry, tent: { name: '빈 텐트', inners: [] } }
-    const { issues } = parseTentPresetFile({ presets: [none] }, 'generic')
+    const { issues } = parseTentPresetFile({ presets: [none] }, GENERIC)
     expect(issues).toEqual(['generic.json presets[0].tent.outer: outer나 outerTemplate 중 하나는 있어야 해요'])
   })
 
   it('루트가 형식에 맞지 않으면 presets 경로로 알린다', () => {
-    const { presets, issues } = parseTentPresetFile({}, 'generic')
+    const { presets, issues } = parseTentPresetFile({}, GENERIC)
     expect(presets).toEqual([])
     expect(issues).toHaveLength(1)
     expect(issues[0]).toMatch(/^generic\.json presets: /)
-    expect(parseTentPresetFile(null, 'generic').issues[0]).toMatch(/^generic\.json: /)
+    expect(parseTentPresetFile(null, GENERIC).issues[0]).toMatch(/^generic\.json: /)
   })
 })
 

@@ -1,18 +1,9 @@
-// presets/tents/<slug>.json 쓰기(로컬 개발 서버의 [텐트 프리셋으로 저장], 소유자 요청 2026-10-15).
-// 템플릿이 있으면 템플릿을 적고, 도형은 템플릿이 없거나 모서리 반지름이 있을 때만 적습니다(generic.json과 같은 모양).
+// presets/tents.json 쓰기(로컬 개발 서버의 [텐트 프리셋으로 저장], 소유자 요청 2026-10-15. 모든 텐트를 파일 하나에).
+// 템플릿이 있으면 템플릿을 적고, 도형은 템플릿이 없거나 모서리 반지름이 있을 때만 적습니다.
 import type { ShapeTemplate, Shape, Tent, TentFileEntry } from '../src/core/model'
 import { inlineJson } from './itemPresetFile'
 
 const LINE_MAX = 160
-
-/** 제조사·모델 이름 → 파일 이름·id에 쓰는 영문 조각(소문자·숫자·-). 영문이 없으면 '' */
-export function slugify(text: string): string {
-  return text
-    .normalize('NFKD')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
 
 function hasRadii(shape: Shape): boolean {
   return shape.kind !== 'circle' && (shape.radii ?? []).some((r) => r > 0)
@@ -23,12 +14,21 @@ function shapePart(shape: Shape, template: ShapeTemplate | undefined): { shape?:
   return hasRadii(shape) ? { template, shape } : { template }
 }
 
-/** 지금 텐트 → 파일 항목(id = '<slug>/<모델 조각 또는 시각>') */
-export function entryFromTent(tent: Tent, opts: { slug: string; brand: string; model: string; idTail?: string }): TentFileEntry {
-  const tail = opts.idTail ?? (slugify(opts.model) || Date.now().toString(36))
+/** id 조각: 글자(한글 포함)·숫자만 남기고 나머지는 -로, 소문자. 남는 글자가 없으면 시각 */
+function idPart(text: string): string {
+  const part = text
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+  return part || Date.now().toString(36)
+}
+
+/** 지금 텐트 → 파일 항목(id = '<제조사 조각>/<모델 조각>'. 같은 제조사·모델로 다시 저장하면 같은 id라 고쳐짐) */
+export function entryFromTent(tent: Tent, opts: { brand: string; model: string }): TentFileEntry {
   const outer = shapePart(tent.outer, tent.outerTemplate)
   return {
-    id: `${opts.slug}/${tail}`,
+    id: `${idPart(opts.brand)}/${idPart(opts.model)}`,
     brand: opts.brand,
     model: opts.model,
     tent: {
@@ -79,7 +79,7 @@ export function formatTentFile(presets: readonly TentFileEntry[]): string {
     })}`,
   )
   const body = entries.length === 0 ? '  "presets": []' : `  "presets": [\n${entries.join(',\n')}\n  ]`
-  return `{\n  "$schema": "../tents.schema.json",\n${body}\n}\n`
+  return `{\n  "$schema": "./tents.schema.json",\n${body}\n}\n`
 }
 
 /** 같은 id면 그 자리를 바꾸고, 없으면 끝에 더합니다. */

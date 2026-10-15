@@ -7,7 +7,6 @@ import { shapeFromTemplate, shapesEqual } from './templates'
 /** 템플릿도 도형도 없을 때 쓰는 빈 도형. validate의 too-few-points에 걸리므로 그대로 쓰이지 않습니다. */
 const EMPTY_SHAPE: Shape = { kind: 'polygon', points: [] }
 
-const GENERIC_SLUG = 'generic'
 
 /** ['presets', 2, 'tent', 'outer'] → 'presets[2].tent.outer' */
 function joinPath(base: string, path: ReadonlyArray<PropertyKey>): string {
@@ -96,12 +95,11 @@ const ItemFileRootSchema = z.object({
 })
 
 /**
- * presets/tents/<slug>.json 파싱. 문제가 있는 항목은 presets에서 빼고 issues에 남깁니다.
- * - slug가 'generic'이 아니면 brand 필수
- * - id는 '<slug>/'로 시작
+ * 텐트 프리셋 파일 파싱(presets/tents.json, 2026-10-15부터 파일 하나). 문제가 있는 항목은 presets에서 빼고 issues에 남깁니다.
+ * file = 문구 앞에 붙일 파일 이름, requireBrand = brand 필수(저장소 tents.json. 시험용 예시만 brand 없이 씀).
  */
-export function parseTentPresetFile(json: unknown, slug: string): { presets: TentPreset[]; issues: string[] } {
-  const file = `${slug}.json`
+export function parseTentPresetFile(json: unknown, opts: { file: string; requireBrand: boolean }): { presets: TentPreset[]; issues: string[] } {
+  const { file } = opts
   const root = TentFileRootSchema.safeParse(json)
   if (!root.success) return { presets: [], issues: zodIssueLines(file, '', root.error) }
 
@@ -118,12 +116,8 @@ export function parseTentPresetFile(json: unknown, slug: string): { presets: Ten
     const entryIssues: string[] = []
     const { preset, issues: shapeIssues } = resolveTentEntry(entry)
     for (const line of shapeIssues) entryIssues.push(`${file} ${base}.${line}`)
-    if (slug !== GENERIC_SLUG && entry.brand === undefined) {
-      entryIssues.push(issueLine(file, `${base}.brand`, `generic이 아닌 파일은 brand가 필요해요`))
-    }
-    const prefix = `${slug}/`
-    if (!entry.id.startsWith(prefix) || entry.id.length === prefix.length) {
-      entryIssues.push(issueLine(file, `${base}.id`, `id는 "${prefix}"로 시작해야 해요 (지금: "${entry.id}")`))
+    if (opts.requireBrand && entry.brand === undefined) {
+      entryIssues.push(issueLine(file, `${base}.brand`, 'brand가 필요해요'))
     }
     if (entryIssues.length > 0) issues.push(...entryIssues)
     else presets.push(preset)

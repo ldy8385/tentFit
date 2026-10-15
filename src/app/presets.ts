@@ -12,7 +12,7 @@ export function itemPresetsFrom(json: unknown): ItemPreset[] {
 }
 
 export function genericTentsFrom(json: unknown): TentPreset[] {
-  const { presets, issues } = parseTentPresetFile(json, 'generic')
+  const { presets, issues } = parseTentPresetFile(json, { file: 'generic.json', requireBrand: false })
   if (issues.length > 0) throw new Error(`기본 텐트 프리셋을 읽지 못했어요\n${issues.join('\n')}`)
   return presets
 }

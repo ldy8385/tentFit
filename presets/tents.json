@@ -1,0 +1,48 @@
+{
+  "$schema": "./tents.schema.json",
+  "presets": [
+    {
+      "id": "awesome-holiday/swift-ul-2",
+      "brand": "Awesome Holiday",
+      "model": "Swift UL 2",
+      "tent": {
+        "name": "Swift UL 2",
+        "outer": { "kind": "polygon", "points": [[-82.4, -115], [-82.4, 115], [17.6, 115], [82.6, 0], [17.6, -115]] },
+        "inners": [
+          { "id": "0d09528c-1413-4a2d-9d80-fe550a88e124", "name": "이너", "x": -32.9, "y": 0.2, "rotation": 0, "template": { "kind": "rect", "w": 90, "h": 220 } }
+        ]
+      }
+    },
+    {
+      "id": "Awesome Holiday/oasix",
+      "brand": "Awesome Holiday",
+      "model": "oasix",
+      "tent": {
+        "name": "oasix",
+        "outerTemplate": { "kind": "hexagon", "w": 260, "h": 225, "edge": 130 },
+        "inners": [
+          {
+            "id": "5d5c45d9-a7a0-48ad-b844-586c567a665f",
+            "name": "이너",
+            "x": 0,
+            "y": -54.8,
+            "rotation": 0,
+            "template": { "kind": "trapezoid", "front": 243, "back": 123, "depth": 103, "offset": 0 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Awesome Holiday/radiance-2p-ul",
+      "brand": "Awesome Holiday",
+      "model": "Radiance 2p ul",
+      "tent": {
+        "name": "radiance 2p ul",
+        "outerTemplate": { "kind": "hexagon", "w": 280, "h": 230, "edge": 140 },
+        "inners": [
+          { "id": "328af745-0c07-45fe-b303-a8bd22001c2e", "name": "이너", "x": 0, "y": 0, "rotation": 90, "template": { "kind": "rect", "w": 220, "h": 130 } }
+        ]
+      }
+    }
+  ]
+}
