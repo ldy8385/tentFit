@@ -1,6 +1,7 @@
 // 색·간격·글꼴 토큰의 TS 사본(스펙 §4 시각 토큰). Konva는 CSS 변수를 못 읽으므로 캔버스 색은 여기서 가져갑니다.
 // 값은 src/ui/tokens.css의 :root와 같아야 합니다(theme.test.ts가 파일을 읽어 비교). 키는 CSS 변수 이름에서 '--'를 뺀 것입니다.
-import type { ColorKey } from '../core/model'
+import { colorHex, isHexColor } from '../core/color'
+import type { Color } from '../core/model'
 
 const FONT_STACK = '"Pretendard", -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif'
 
@@ -67,9 +68,36 @@ export const THEME: Readonly<Record<string, string>> = Object.freeze({
   'obj-brown-fill': '#9A84493D',
 })
 
-/** 물건 색(테두리 = obj-<키>, 채움 = obj-<키>-fill, 24% 불투명). */
-export function objColor(key: ColorKey): { stroke: string; fill: string } {
-  return { stroke: THEME[`obj-${key}`] ?? '', fill: THEME[`obj-${key}-fill`] ?? '' }
+/** 물건 색(테두리 = obj-<키>, 채움 = obj-<키>-fill, 24% 불투명). 직접 고른 '#RRGGBB'는 그 색과 24% 채움(2026-10-15). */
+export function objColor(color: Color): { stroke: string; fill: string } {
+  if (isHexColor(color)) {
+    const hex = color.toLowerCase()
+    return { stroke: hex, fill: `${hex}3d` }
+  }
+  return { stroke: THEME[`obj-${color}`] ?? '', fill: THEME[`obj-${color}-fill`] ?? '' }
+}
+
+/** 이너 색: 없으면 기본(inner-stroke·inner-fill), 있으면 그 색과 12% 채움 */
+export function innerColor(color: Color | undefined): { stroke: string; fill: string } {
+  if (color === undefined) return { stroke: THEME['inner-stroke'] ?? '', fill: THEME['inner-fill'] ?? '' }
+  const hex = colorHex(color)
+  return { stroke: hex, fill: `${hex}1f` }
+}
+
+/** 전실(외곽 바닥) 색: 없으면 기본(vest-stroke·vest-fill), 있으면 그 색의 60% 선·15% 채움 */
+export function vestColor(color: Color | undefined): { stroke: string; fill: string } {
+  if (color === undefined) return { stroke: THEME['vest-stroke'] ?? '', fill: THEME['vest-fill'] ?? '' }
+  const hex = colorHex(color)
+  return { stroke: `${hex}99`, fill: `${hex}26` }
+}
+
+/** DOM 견본용 색: 키는 CSS 변수(다크 모드 따라감), '#RRGGBB'는 그 값 */
+export function colorCss(color: Color): { fill: string; stroke: string } {
+  if (isHexColor(color)) {
+    const hex = color.toLowerCase()
+    return { fill: `${hex}3d`, stroke: hex }
+  }
+  return { fill: `var(--obj-${color}-fill)`, stroke: `var(--obj-${color})` }
 }
 
 /**

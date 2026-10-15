@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { ringBBox, shapeRing } from '../../core/geom'
-import type { ColorKey, Shape } from '../../core/model'
+import type { Color, Shape } from '../../core/model'
+import { colorCss } from '../theme'
 
 const SVG_STYLE = { display: 'block', overflow: 'visible' } as const
 
@@ -8,10 +9,11 @@ const SVG_STYLE = { display: 'block', overflow: 'visible' } as const
  * 라이브러리 견본·새 도형 미리보기용 작은 SVG(시안 검토 "라이브러리 견본도 실제 모양으로").
  * 상자(size×size px) 안에 비율을 지켜 맞춥니다. 점유 면적 제외 물건은 캔버스와 같은 긴 대시(6-4).
  */
-export function ShapeSwatch(p: { shape: Shape; color: ColorKey; countsArea?: boolean; size: number }) {
+export function ShapeSwatch(p: { shape: Shape; color: Color; countsArea?: boolean; size: number }) {
+  const css = colorCss(p.color)
   const style = {
-    fill: `var(--obj-${p.color}-fill)`,
-    stroke: `var(--obj-${p.color})`,
+    fill: css.fill,
+    stroke: css.stroke,
     strokeWidth: 1.5,
     strokeDasharray: p.countsArea === false ? '6 4' : undefined,
     vectorEffect: 'non-scaling-stroke',

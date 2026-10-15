@@ -1,22 +1,14 @@
+import { colorHex, isHexColor, KEY_HEX } from './color'
 import { outerRing, worldRing } from './geom'
 import { COLOR_KEYS, round1 } from './model'
-import type { ColorKey, Item, Pt, Shape, Tent } from './model'
+import type { ColorKey, Inner, Item, Pt, Shape, Tent } from './model'
 
 /**
  * 썸네일용 물건 색. 디자인 시안 tokens.css의 obj-<키> 라이트 값입니다(OD-2, 순서는 COLOR_KEYS와 같음).
  * pen에 sky·brown·gray 조정을 요청해 두었으므로, 시안이 바뀌면 값만 바꿉니다.
  * 경고색(빨강·주황)은 넣지 않습니다(스펙 §5.2).
  */
-export const THUMB_COLORS: Record<ColorKey, string> = {
-  blue: '#4A7FD0',
-  teal: '#159C92',
-  green: '#6F9636',
-  purple: '#8A6AD4',
-  pink: '#C2559E',
-  gray: '#5B7386',
-  sky: '#2BA3C7',
-  brown: '#9A8449',
-}
+export const THUMB_COLORS: Record<ColorKey, string> = KEY_HEX
 
 type Box = { minX: number; minY: number; maxX: number; maxY: number }
 type Placement = { shape: Shape; x: number; y: number; rotation: number }
@@ -126,11 +118,23 @@ function placedEl(cls: string, p: Placement, paint: Paint): string {
 }
 
 /** 외곽은 월드 원점·회전 0에 놓입니다(스펙 §3). */
+/** 직접 고른 색(2026-10-15): 외곽 = 전실 바닥, 이너 = 면·선. 없으면 기본 */
+function outerPaint(tent: Tent): Paint {
+  return tent.color === undefined ? OUTER_PAINT : { ...OUTER_PAINT, fill: colorHex(tent.color), fillOpacity: 0.35 }
+}
+
+function innerPaint(inner: Inner): Paint {
+  if (inner.color === undefined) return INNER_PAINT
+  const c = colorHex(inner.color)
+  return { ...INNER_PAINT, fill: c, stroke: c }
+}
+
 function outerEl(tent: Tent): string {
   const o = tent.outer
-  if (o.kind === 'circle') return circleEl('tf-outer', 0, 0, o.d, OUTER_PAINT)
+  const paint = outerPaint(tent)
+  if (o.kind === 'circle') return circleEl('tf-outer', 0, 0, o.d, paint)
   if (tooFewPoints(o)) return ''
-  return polygonEl('tf-outer', outerRing(tent), OUTER_PAINT)
+  return polygonEl('tf-outer', outerRing(tent), paint)
 }
 
 function palette(over?: Partial<Record<ColorKey, string>>): Record<ColorKey, string> {
@@ -144,8 +148,9 @@ function palette(over?: Partial<Record<ColorKey, string>>): Record<ColorKey, str
   return out
 }
 
-/** 모르는 색 키(손상된 데이터)는 gray로 그립니다(스펙 §5.2). */
+/** 직접 고른 색('#RRGGBB')은 그대로, 모르는 색 키(손상된 데이터)는 gray로 그립니다(스펙 §5.2). */
 function colorOf(pal: Record<ColorKey, string>, key: string): string {
+  if (isHexColor(key)) return key.toLowerCase()
   return Object.prototype.hasOwnProperty.call(pal, key) ? pal[key as ColorKey] : pal.gray
 }
 
@@ -181,7 +186,7 @@ export function thumbnailSvg(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${num(size)}" height="${num(size)}" viewBox="${viewBoxOf(tent, opts?.extentCm)}" role="img" aria-label="${esc(tent.name)}">`,
   ]
   parts.push(outerEl(tent))
-  for (const inner of tent.inners) parts.push(placedEl('tf-inner', inner, INNER_PAINT))
+  for (const inner of tent.inners) parts.push(placedEl('tf-inner', inner, innerPaint(inner)))
   for (const item of src.items ?? []) parts.push(placedEl('tf-item', item, itemPaint(item, pal)))
   parts.push('</svg>')
   return parts.join('')

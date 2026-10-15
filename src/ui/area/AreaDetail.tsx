@@ -1,25 +1,26 @@
 import { useMemo } from 'react'
-import type { ColorKey } from '../../core/model'
+import type { Color } from '../../core/model'
+import { colorCss } from '../theme'
 import { formatM2, itemZoneAreas, type ItemZoneArea, type StatRow } from '../../core/stats'
 import { useStats, useZones } from '../../app/derived'
 import { useDoc } from '../../app/stores'
 import { ZoneStat, type ZoneTone } from './ZoneStat'
 import './area.css'
 
-function ZoneBlock(p: { row: StatRow; tone: ZoneTone; items: ItemZoneArea[]; colorOf: ReadonlyMap<string, ColorKey> }) {
+function ZoneBlock(p: { row: StatRow; tone: ZoneTone; items: ItemZoneArea[]; colorOf: ReadonlyMap<string, Color> }) {
   return (
     <div className="tf-area-detail__zone">
       <ZoneStat row={p.row} tone={p.tone} />
       {p.items.length > 0 && (
         <ul className="tf-area-detail__items" aria-label={`${p.row.name} 물건`}>
           {p.items.map((it) => {
-            const color = p.colorOf.get(it.itemId) ?? 'gray'
+            const css = colorCss(p.colorOf.get(it.itemId) ?? 'gray')
             return (
               <li key={it.itemId} className="tf-area-detail__item">
                 <span
                   className="tf-area-detail__swatch"
                   aria-hidden="true"
-                  style={{ background: `var(--obj-${color}-fill)`, borderColor: `var(--obj-${color})` }}
+                  style={{ background: css.fill, borderColor: css.stroke }}
                 />
                 <span className="tf-area-detail__iname">{it.name}</span>
                 <span className="tf-area-detail__ival">{it.excluded ? '제외' : formatM2(it.area)}</span>

@@ -68,6 +68,7 @@ export function resolveTentEntry(entry: TentFileEntry): { preset: TentPreset; is
       rotation: inner.rotation,
     }
     if (inner.template !== undefined) resolved.template = inner.template
+    if (inner.color !== undefined) resolved.color = inner.color
     return resolved
   })
 
@@ -77,6 +78,7 @@ export function resolveTentEntry(entry: TentFileEntry): { preset: TentPreset; is
     tent: { name: src.name, outer, inners },
   }
   if (src.outerTemplate !== undefined) preset.tent.outerTemplate = src.outerTemplate
+  if (src.color !== undefined) preset.tent.color = src.color
   if (entry.brand !== undefined) preset.brand = entry.brand
   if (entry.source !== undefined) preset.source = entry.source
   if (entry.checkedAt !== undefined) preset.checkedAt = entry.checkedAt

@@ -131,16 +131,24 @@
             ]
           },
           "color": {
-            "type": "string",
-            "enum": [
-              "blue",
-              "teal",
-              "green",
-              "purple",
-              "pink",
-              "gray",
-              "sky",
-              "brown"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "blue",
+                  "teal",
+                  "green",
+                  "purple",
+                  "pink",
+                  "gray",
+                  "sky",
+                  "brown"
+                ]
+              },
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
             ]
           },
           "countsArea": {

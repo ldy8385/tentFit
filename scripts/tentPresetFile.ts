@@ -45,8 +45,10 @@ export function entryFromTent(tent: Tent, opts: { brand: string; model: string }
           rotation: inner.rotation,
           ...(part.template !== undefined ? { template: part.template } : {}),
           ...(part.shape !== undefined ? { shape: part.shape } : {}),
+          ...(inner.color !== undefined ? { color: inner.color } : {}),
         }
       }),
+      ...(tent.color !== undefined ? { color: tent.color } : {}),
     },
   }
 }

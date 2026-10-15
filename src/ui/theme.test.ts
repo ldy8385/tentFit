@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { COLOR_KEYS } from '../core/model'
-import { THEME, cssVar, objColor } from './theme'
+import { colorCss, cssVar, innerColor, objColor, THEME, vestColor } from './theme'
 
 const tokensCss = readFileSync(new URL('./tokens.css', import.meta.url), 'utf8')
 
@@ -92,5 +92,23 @@ describe('cssVar (node — document 없음)', () => {
 
   it('없는 이름은 빈 문자열', () => {
     expect(cssVar('no-such-token')).toBe('')
+  })
+})
+
+describe('직접 고른 색(2026-10-15)', () => {
+  it('objColor: #RRGGBB면 테두리 그대로, 채움은 24% 불투명', () => {
+    expect(objColor('#12AB9F')).toEqual({ stroke: '#12ab9f', fill: '#12ab9f3d' })
+  })
+
+  it('innerColor·vestColor: 없으면 기본 토큰, 있으면 그 색(키도)', () => {
+    expect(innerColor(undefined)).toEqual({ stroke: THEME['inner-stroke'], fill: THEME['inner-fill'] })
+    expect(innerColor('#336699')).toEqual({ stroke: '#336699', fill: '#3366991f' })
+    expect(vestColor(undefined)).toEqual({ stroke: THEME['vest-stroke'], fill: THEME['vest-fill'] })
+    expect(vestColor('teal')).toEqual({ stroke: '#159c9299', fill: '#159c9226' })
+  })
+
+  it('colorCss: 키는 CSS 변수, #RRGGBB는 그 값', () => {
+    expect(colorCss('green')).toEqual({ fill: 'var(--obj-green-fill)', stroke: 'var(--obj-green)' })
+    expect(colorCss('#12ab9f')).toEqual({ fill: '#12ab9f3d', stroke: '#12ab9f' })
   })
 })

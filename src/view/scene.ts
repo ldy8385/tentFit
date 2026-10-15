@@ -8,7 +8,7 @@ import { GRID_STEP, validGridStep } from '../core/snap'
 import type { Stats } from '../core/stats'
 import type { Zones } from '../core/zones'
 import type { Mode } from '../store/ui'
-import { objColor } from '../ui/theme'
+import { innerColor, objColor, vestColor } from '../ui/theme'
 import { fitBBoxFor, type BBox, type Size, type View } from './viewport'
 
 /** 물건 라벨: 화면에서 도형의 짧은 쪽이 이 값(px)보다 작으면 숨깁니다(§4.6). */
@@ -133,6 +133,9 @@ export type InnerNode = {
   rotation: number
   /** 이너 이탈(§6.5) */
   escape: boolean
+  /** 면·선 색(이너 색, 없으면 기본) */
+  fill: string
+  stroke: string
   label: { text: string; x: number; y: number; visible: boolean }
 }
 
@@ -145,6 +148,8 @@ export type Scene = {
   outer: Shape
   inners: InnerNode[]
   pieces: PieceNode[]
+  /** 전실(바닥) 색(외곽 색, 없으면 기본) */
+  vest: { fill: string; stroke: string }
   items: ItemNode[]
 }
 
@@ -237,7 +242,15 @@ export function buildScene(input: SceneInput): Scene {
   }
 
   if (pending) {
-    return { grid, tentVisible: false, outer: layout.tent.outer, inners: [], pieces: [], items: layout.items.map((item) => itemNode(item, input, zoom)) }
+    return {
+      grid,
+      tentVisible: false,
+      outer: layout.tent.outer,
+      inners: [],
+      pieces: [],
+      vest: vestColor(layout.tent.color),
+      items: layout.items.map((item) => itemNode(item, input, zoom)),
+    }
   }
 
   const escapes = new Set(stats.innerEscapes)
@@ -261,6 +274,7 @@ export function buildScene(input: SceneInput): Scene {
       y: inner.y,
       rotation: inner.rotation,
       escape: escapes.has(inner.id),
+      ...innerColor(inner.color),
       label: { text: inner.name, x: at[0], y: at[1], visible: labelFits(inner.name, at, box, zoom) },
     }
   })
@@ -281,6 +295,7 @@ export function buildScene(input: SceneInput): Scene {
     outer: layout.tent.outer,
     inners,
     pieces,
+    vest: vestColor(layout.tent.color),
     items: layout.items.map((item) => itemNode(item, input, zoom)),
   }
 }

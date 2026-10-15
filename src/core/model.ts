@@ -86,8 +86,16 @@ export const PlacedSchema = z.object({
   rotation: RotationSchema,
 })
 
+export const ColorKeySchema = z.enum(COLOR_KEYS)
+/** 색상 선택기로 고른 색(소유자 요청 2026-10-15). '#RRGGBB' */
+export const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
+/** 색 = 8색 키 또는 '#RRGGBB' */
+export const ColorSchema = z.union([ColorKeySchema, z.string().regex(HEX_COLOR_RE)])
+
 export const InnerSchema = PlacedSchema.extend({
   template: ShapeTemplateSchema.optional(),
+  /** 이너 색(없으면 기본 이너 색) */
+  color: ColorSchema.optional(),
 })
 
 export const TentSchema = z.object({
@@ -95,13 +103,14 @@ export const TentSchema = z.object({
   outer: ShapeSchema,
   outerTemplate: ShapeTemplateSchema.optional(),
   inners: z.array(InnerSchema),
+  /** 외곽(전실 바닥) 색(없으면 기본 전실 색) */
+  color: ColorSchema.optional(),
 })
 
 export const ItemCategorySchema = z.enum(ITEM_CATEGORIES)
-export const ColorKeySchema = z.enum(COLOR_KEYS)
 
 export const ItemSchema = PlacedSchema.extend({
-  color: ColorKeySchema,
+  color: ColorSchema,
   category: ItemCategorySchema,
   countsArea: z.boolean(),
   groupId: IdSchema.optional(),
@@ -139,7 +148,7 @@ export const ItemPresetSchema = z.object({
   brand: z.string().min(1).optional(),
   category: ItemCategorySchema,
   shape: ShapeSchema,
-  color: ColorKeySchema,
+  color: ColorSchema,
   countsArea: z.boolean(),
 })
 
@@ -167,6 +176,7 @@ export const MyItemsSchema = z.object({
 const TentFileInnerSchema = PlacedSchema.extend({
   shape: ShapeSchema.optional(),
   template: ShapeTemplateSchema.optional(),
+  color: ColorSchema.optional(),
 }).refine((v) => v.shape !== undefined || v.template !== undefined, {
   message: 'shape나 template 중 하나는 있어야 해요',
   path: ['shape'],
@@ -178,6 +188,7 @@ const TentFileTentSchema = z
     outer: ShapeSchema.optional(),
     outerTemplate: ShapeTemplateSchema.optional(),
     inners: z.array(TentFileInnerSchema),
+    color: ColorSchema.optional(),
   })
   .refine((v) => v.outer !== undefined || v.outerTemplate !== undefined, {
     message: 'outer나 outerTemplate 중 하나는 있어야 해요',
@@ -206,6 +217,7 @@ export type Inner = z.infer<typeof InnerSchema>
 export type Tent = z.infer<typeof TentSchema>
 export type ItemCategory = z.infer<typeof ItemCategorySchema>
 export type ColorKey = z.infer<typeof ColorKeySchema>
+export type Color = z.infer<typeof ColorSchema>
 export type Item = z.infer<typeof ItemSchema>
 export type Group = z.infer<typeof GroupSchema>
 export type Layout = z.infer<typeof LayoutSchema>

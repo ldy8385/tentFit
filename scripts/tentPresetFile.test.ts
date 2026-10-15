@@ -30,6 +30,14 @@ describe('presets/tents.json 쓰기', () => {
     expect(entryFromTent(TENT, { brand: 'Snow Peak', model: 'Land Lock Pro.3' }).id).toBe('snow-peak/land-lock-pro-3')
   })
 
+  it('텐트 색(외곽·이너, 2026-10-15)도 적고 다시 읽으면 같음', () => {
+    const colored: Tent = { ...TENT, color: '#d0c090', inners: TENT.inners.map((i, k) => (k === 0 ? { ...i, color: 'teal' } : i)) }
+    const entry = entryFromTent(colored, { brand: 'Snow Peak', model: 'Land Lock' })
+    const { presets, issues } = parseTentPresetFile(JSON.parse(formatTentFile([entry])), { file: 'tents.json', requireBrand: true })
+    expect(issues).toEqual([])
+    expect(presets[0]!.tent).toEqual(colored)
+  })
+
   it('같은 id는 바꾸고 새 id는 끝에', () => {
     const a = entryFromTent(TENT, { brand: 'S', model: 'A' })
     expect(upsertTentEntry([a], { ...a, model: 'B' })).toEqual([{ ...a, model: 'B' }])

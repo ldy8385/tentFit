@@ -672,3 +672,21 @@ describe('상하좌우로만 이동 토글(텐트 시트)', () => {
     expect(within(editor()).queryByRole('button', { name: '상하좌우로만 이동' })).toBeNull()
   })
 })
+
+describe('TentEditor — 텐트 색(소유자 요청 2026-10-15)', () => {
+  it('외곽을 고르면 「전실 색」, 고른 색은 문서에, 「기본」으로 되돌림', () => {
+    const s = setup(TWO_INNERS, { target: 'outer' })
+    const group = screen.getByRole('group', { name: '전실 색' })
+    fireEvent.click(within(group).getByRole('button', { name: '청록' }))
+    expect(s.doc.getState().layout.tent.color).toBe('teal')
+    fireEvent.click(within(group).getByRole('button', { name: '기본' }))
+    expect(s.doc.getState().layout.tent.color).toBeUndefined()
+  })
+
+  it('이너를 고르면 「이너 색」(직접 고르기 포함)', () => {
+    const s = setup(TWO_INNERS, { target: TWO_INNERS.inners[0]!.id })
+    const group = screen.getByRole('group', { name: '이너 색' })
+    fireEvent.change(within(group).getByLabelText('직접 고르기'), { target: { value: '#336699' } })
+    expect(s.doc.getState().layout.tent.inners[0]!.color).toBe('#336699')
+  })
+})

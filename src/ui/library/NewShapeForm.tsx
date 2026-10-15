@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react'
-import { CATEGORY_LABELS, ITEM_CATEGORIES, LIMITS, round1, type ColorKey, type ItemCategory, type Shape } from '../../core/model'
+import { CATEGORY_LABELS, ITEM_CATEGORIES, LIMITS, round1, type Color, type ItemCategory, type Shape } from '../../core/model'
 import { nextColor } from '../../core/ops/items'
 import { addCustomItem } from '../../app/actions'
 import { useStores } from '../../app/stores'
@@ -36,7 +36,7 @@ export function NewShapeForm(p: { onDone(): void; onCancel(): void; inSheet?: bo
   const [w, setW] = useState(DEFAULT_W)
   const [h, setH] = useState(DEFAULT_H)
   const [d, setD] = useState(DEFAULT_D)
-  const [color, setColor] = useState<ColorKey>(() => nextColor(stores.doc.getState().layout))
+  const [color, setColor] = useState<Color>(() => nextColor(stores.doc.getState().layout))
   const [category, setCategory] = useState<ItemCategory>('ETC')
   const [countsArea, setCountsArea] = useState(true)
 

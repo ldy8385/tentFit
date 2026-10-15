@@ -6,6 +6,7 @@ import {
   LIMITS,
   newId,
   normAngle,
+  type Color,
   type ColorKey,
   type Item,
   type ItemCategory,
@@ -30,7 +31,7 @@ const SAME_SPOT = 0.05
 export type NewItemInput = {
   name: string
   shape: Shape
-  color: ColorKey
+  color: Color
   category: ItemCategory
   countsArea: boolean
   presetId?: string

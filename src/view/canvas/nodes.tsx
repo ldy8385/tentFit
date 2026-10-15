@@ -143,12 +143,12 @@ function ScreenLabel(props: { text: string; at: Pt; zoom: number; color: string 
   )
 }
 
-function PieceFill(props: { piece: PieceNode }): JSX.Element {
+function PieceFill(props: { piece: PieceNode; fill: string }): JSX.Element {
   const { rings } = props.piece
   return (
     <KShape
       listening={false}
-      fill={THEME['vest-fill']}
+      fill={props.fill}
       fillRule="evenodd"
       perfectDrawEnabled={false}
       sceneFunc={(ctx, shape) => {
@@ -180,15 +180,15 @@ export function TentContent(props: { scene: Scene; zoom: number; dim?: TentDim }
     <>
       <Group opacity={outerOpacity}>
         {scene.pieces.map((p) => (
-          <PieceFill key={p.key} piece={p} />
+          <PieceFill key={p.key} piece={p} fill={scene.vest.fill} />
         ))}
       </Group>
       {scene.inners.map((n) => (
         <Group key={n.id} id={`inner:${n.id}`} name="inner" x={n.x} y={n.y} rotation={n.rotation} opacity={innerOpacity(n.id)}>
           <Geom
             shape={n.shape}
-            fill={THEME['inner-fill']}
-            stroke={THEME['inner-stroke']}
+            fill={n.fill}
+            stroke={n.stroke}
             strokeWidth={INNER_STROKE_PX}
             strokeScaleEnabled={false}
             perfectDrawEnabled={false}
@@ -224,7 +224,7 @@ export function TentContent(props: { scene: Scene; zoom: number; dim?: TentDim }
           .filter((n) => n.label.visible)
           .map((n) => (
             <Group key={`label:${n.id}`} opacity={innerOpacity(n.id)}>
-              <ScreenLabel text={n.label.text} at={[n.label.x, n.label.y]} zoom={zoom} color={THEME['inner-stroke']} />
+              <ScreenLabel text={n.label.text} at={[n.label.x, n.label.y]} zoom={zoom} color={n.stroke} />
             </Group>
           ))}
     </>

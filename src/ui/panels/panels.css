@@ -89,7 +89,7 @@
 /* PC 패널(폭 288px 안팎)에서는 4개씩 두 줄, 시트에서는 폭이 되는 만큼 한 줄로 */
 .tf-swatches {
   display: grid;
-  grid-template-columns: repeat(4, 44px);
+  grid-template-columns: repeat(5, 44px);
 }
 
 .tf-item-fields[data-compact='true'] .tf-swatches {
@@ -114,6 +114,30 @@
   border-radius: var(--r-sm);
 }
 
+/* 직접 고르기(2026-10-15): 색상 선택기를 견본 위에 투명하게 덮어 누르면 바로 열림 */
+.tf-swatch--custom {
+  position: relative;
+}
+
+.tf-swatch__chip--custom {
+  border-color: var(--border-strong);
+  background: conic-gradient(#e5484d, #f5a524, #46a758, #3e63dd, #8e4ec6, #e5484d);
+}
+
+.tf-swatch__picker {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tf-swatch--custom[data-selected='true'] .tf-swatch__chip,
+.tf-swatch:focus-within .tf-swatch__chip--custom,
 .tf-swatch[aria-pressed='true'] .tf-swatch__chip {
   box-shadow:
     0 0 0 2px var(--bg-surface),

@@ -28,6 +28,7 @@ import {
   renameInnerAction,
   rotateInner90,
   rotateTentAction,
+  setTargetColorAction,
   setInnerRotation,
   setTargetDiameter,
   setTargetTemplate,
@@ -36,7 +37,7 @@ import {
   tentControlsEnabled,
   type EditResult,
 } from '../../app/tentActions'
-import { LIMITS, type Inner, type Layout, type Pt, type ShapeTemplate } from '../../core/model'
+import { LIMITS, type Color, type Inner, type Layout, type Pt, type ShapeTemplate } from '../../core/model'
 import { targetLocalRing, targetWorldRing, type TentTarget } from '../../core/ops/tent'
 import { ATTACH_SIDE_LABELS, attachSidesFor } from '../../core/templates'
 import { tableOrigin, tableToWorld, worldToTable } from '../../view/tentEdit'
@@ -49,7 +50,9 @@ import { applyDim } from '../../app/dimActions'
 import { saveMyTent } from '../../app/persist/storage'
 import { AxisLockToggle } from '../common/AxisLockToggle'
 import { KeepRatioToggle } from '../common/KeepRatioToggle'
+import { ColorSwatches } from '../panels/ColorSwatches'
 import { RadiusFields } from '../panels/RadiusFields'
+import { innerColor, THEME, vestColor } from '../theme'
 import { TentPresetForm } from './TentPresetForm'
 import { MenuButton } from '../shell/MenuButton'
 import { COORDS_LABEL, Disclosure, PolygonFields } from './PolygonFields'
@@ -152,7 +155,11 @@ export function TentEditor(p: {
               disabled={!enabled || tentLock === 'outer'}
               onClick={() => select('outer')}
             >
-              <span className="tf-tent__dot tf-tent__dot--outer" aria-hidden="true" />
+              <span
+                className="tf-tent__dot tf-tent__dot--outer"
+                aria-hidden="true"
+                style={tent.color === undefined ? undefined : { background: vestColor(tent.color).fill }}
+              />
               <span className="tf-tent__name">{p.outerLabel ?? '외곽'}</span>
               <span className="tf-tent__meta">{shapeSummary(tent.outer, tent.outerTemplate)}</span>
             </button>
@@ -167,7 +174,11 @@ export function TentEditor(p: {
               disabled={!enabled || tentLock === 'inners'}
               onClick={() => select({ innerId: inner.id })}
             >
-              <span className="tf-tent__dot tf-tent__dot--inner" aria-hidden="true" />
+              <span
+                className="tf-tent__dot tf-tent__dot--inner"
+                aria-hidden="true"
+                style={inner.color === undefined ? undefined : { background: innerColor(inner.color).fill, borderColor: innerColor(inner.color).stroke }}
+              />
               <span className="tf-tent__name">{inner.name}</span>
               <span className="tf-tent__meta">{shapeSummary(inner.shape, inner.template)}</span>
             </button>
@@ -306,6 +317,28 @@ function AttachWallRow(p: { innerId: string; layout: Layout; enabled: boolean })
   )
 }
 
+/** 텐트 색 줄: 외곽 = 「전실 색」(바닥), 이너 = 「이너 색」. 「기본」 = 고르지 않음 */
+function TentColorRow(p: { target: TentTarget; color: Color | undefined; enabled: boolean }): JSX.Element {
+  const stores = useStores()
+  const outer = p.target === 'outer'
+  const label = outer ? '전실 색' : '이너 색'
+  const def = outer ? vestColor(undefined) : innerColor(undefined)
+  const defHex = def.stroke.slice(0, 7)
+  return (
+    <div className="tf-tent__color">
+      <span className="tf-field__label">{label}</span>
+      <ColorSwatches
+        label={label}
+        value={p.color}
+        disabled={!p.enabled}
+        onChange={(c) => setTargetColorAction(stores, p.target, c)}
+        onDefault={() => setTargetColorAction(stores, p.target, null)}
+        defaultSwatch={{ fill: def.fill, stroke: outer ? THEME['tent-outline'] ?? def.stroke : def.stroke, hex: defHex }}
+      />
+    </div>
+  )
+}
+
 /** 선택한 대상(외곽 또는 이너 하나)의 편집 칸 */
 function TargetFields(p: {
   target: TentTarget
@@ -438,6 +471,10 @@ function TargetFields(p: {
           <p className="tf-hint">{p.outerLabel !== undefined ? '모양을 시계 방향으로 돌려요' : '외곽과 이너가 함께 시계 방향으로 돌아요(물건은 그대로)'}</p>
         </div>
       )}
+
+      {/* 텐트 색(2026-10-15). 물건 모양 편집(outerLabel '모양')은 물건 패널에서 색을 고릅니다. */}
+      {target === 'outer' && p.outerLabel === undefined && <TentColorRow target="outer" color={layout.tent.color} enabled={enabled} />}
+      {inner !== undefined && <TentColorRow target={{ innerId: inner.id }} color={inner.color} enabled={enabled} />}
 
       {inner !== undefined && (
         <>

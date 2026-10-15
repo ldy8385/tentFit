@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createLayout, type Inner, type Item, type Layout, type Shape, type Tent } from '../core/model'
 import { computeStats } from '../core/stats'
 import { buildZones } from '../core/zones'
-import { objColor } from '../ui/theme'
+import { objColor, THEME } from '../ui/theme'
 import {
   buildScene,
   GRID_MIN_SPACING_PX,
@@ -325,5 +325,18 @@ describe('buildScene — 외곽 없음(만들기 화면 단계 ① 처음, Plan 
 
   it('외곽이 있으면 tentVisible', () => {
     expect(buildScene(input(layoutWith(goldenTent(), []))).tentVisible).toBe(true)
+  })
+})
+
+describe('buildScene — 텐트 색(2026-10-15)', () => {
+  it('이너 면·선, 전실 색: 없으면 기본, 고르면 그 색', () => {
+    const base = goldenTent()
+    const plain = buildScene(input(layoutWith(base, [])))
+    expect(plain.vest).toEqual({ fill: THEME['vest-fill'], stroke: THEME['vest-stroke'] })
+    expect(plain.inners[0]).toMatchObject({ fill: THEME['inner-fill'], stroke: THEME['inner-stroke'] })
+    const colored = { ...base, color: '#d0c090', inners: base.inners.map((i) => ({ ...i, color: '#336699' })) }
+    const scene = buildScene(input(layoutWith(colored, [])))
+    expect(scene.vest).toEqual({ fill: '#d0c09026', stroke: '#d0c09099' })
+    expect(scene.inners[0]).toMatchObject({ fill: '#3366991f', stroke: '#336699' })
   })
 })

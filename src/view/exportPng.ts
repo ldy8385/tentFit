@@ -6,7 +6,7 @@ import type { MeasurementRow } from '../app/measureActions'
 import { formatPercent, type Stats } from '../core/stats'
 import { outlineBBox, ringBBox, shapeRing, transformRing, worldRing } from '../core/geom'
 import type { Layout, Pt } from '../core/model'
-import { THEME } from '../ui/theme'
+import { innerColor, THEME, vestColor } from '../ui/theme'
 
 export const PNG_LONG_EDGE = 2048
 const MAX_PIXELS = 16_700_000
@@ -71,10 +71,12 @@ export async function renderLayoutPng(layout: Layout, stats: Stats, opts?: { mea
     const label = (text: string, at: Pt, fill: string, px = 14) =>
       new Konva.Text({ x: at[0], y: at[1], text, fontSize: px * k, fontFamily: color('font-sans', 'sans-serif'), fill, offsetX: (text.length * px * 0.55 * k) / 2, offsetY: (px * k) / 2 })
     // 바닥(전실) → 이너 → 외곽선
-    world.add(poly(shapeRing(layout.tent.outer), { fill: color('vest-fill', '#F2EEE3') }))
+    // 직접 고른 텐트 색(2026-10-15)이 있으면 그 색, 없으면 기본 색
+    world.add(poly(shapeRing(layout.tent.outer), { fill: layout.tent.color === undefined ? color('vest-fill', '#F2EEE3') : vestColor(layout.tent.color).fill }))
     for (const inner of layout.tent.inners) {
-      world.add(poly(transformRing(shapeRing(inner.shape), inner.x, inner.y, inner.rotation), { fill: color('inner-fill', '#E3EAF0'), stroke: color('inner-stroke', '#4F6D84'), strokeWidth: 1.5 * u * k }))
-      world.add(label(inner.name, [inner.x, inner.y], color('inner-stroke', '#4F6D84'), 13 * u))
+      const ic = inner.color === undefined ? { fill: color('inner-fill', '#E3EAF0'), stroke: color('inner-stroke', '#4F6D84') } : innerColor(inner.color)
+      world.add(poly(transformRing(shapeRing(inner.shape), inner.x, inner.y, inner.rotation), { fill: ic.fill, stroke: ic.stroke, strokeWidth: 1.5 * u * k }))
+      world.add(label(inner.name, [inner.x, inner.y], ic.stroke, 13 * u))
     }
     world.add(poly(shapeRing(layout.tent.outer), { stroke: color('tent-outline', '#2C2A26'), strokeWidth: 2.5 * u * k }))
     // 물건(배열 순서 = 아래부터), 이름

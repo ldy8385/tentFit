@@ -6,6 +6,7 @@ import {
   newId,
   normAngle,
   round1,
+  type Color,
   type Inner,
   type Layout,
   type Pt,
@@ -342,6 +343,17 @@ export function setTargetShapeTemplate(d: Layout, target: TentTarget, t: ShapeTe
   const off = rotateAround(c, [0, 0], inner.rotation)
   moveInnerTo(d, inner.id, inner.x + off[0], inner.y + off[1])
   setInnerTemplate(d, inner.id, t)
+}
+
+/** 색(소유자 요청 2026-10-15): 외곽 = 전실 바닥 색, 이너 = 그 이너 색. null이면 지워 기본 색으로. 같으면 쓰지 않습니다. */
+export function setTargetColor(d: Layout, target: TentTarget, color: Color | null): void {
+  const owner: { color?: Color } | undefined = target === 'outer' ? d.tent : findInner(d.tent, target.innerId)
+  if (owner === undefined) return
+  if (color === null) {
+    if (owner.color !== undefined) delete owner.color
+  } else if (owner.color !== color) {
+    owner.color = color
+  }
 }
 
 /**

@@ -44,6 +44,7 @@ import {
   setTargetVertex,
   swapTentAction,
   tentControlsEnabled,
+  setTargetColorAction,
 } from './tentActions'
 
 const NOW = '2026-10-08T00:00:00.000Z'
@@ -803,5 +804,28 @@ describe('그리기 — 상하좌우로만', () => {
     appendDrawPoint(stores, [0, 0])
     appendDrawPoint(stores, [100, 30], { right: true })
     expect(ui().drawing?.points).toEqual([[0, 0], [100, 0]])
+  })
+})
+
+describe('setTargetColorAction(텐트 색, 소유자 요청 2026-10-15)', () => {
+  it('외곽·이너 색을 바꾸면 기록 한 칸, 같은 색이면 기록 없음, null이면 기본으로', () => {
+    ui().patch({ mode: 'tent' })
+    setTargetColorAction(stores, 'outer', '#d0c090')
+    expect(tent().color).toBe('#d0c090')
+    expect(canUndo()).toBe(true)
+    stores.doc.getState().undo()
+    expect(tent().color).toBeUndefined()
+    setTargetColorAction(stores, { innerId: IN1.id }, 'teal')
+    const after = stores.doc.getState().layout
+    setTargetColorAction(stores, { innerId: IN1.id }, 'teal')
+    expect(stores.doc.getState().layout).toBe(after)
+    setTargetColorAction(stores, { innerId: IN1.id }, null)
+    expect(tent().inners.find((i) => i.id === IN1.id)?.color).toBeUndefined()
+  })
+
+  it('측정 중이면 바꾸지 않음', () => {
+    ui().patch({ mode: 'tent', measuring: true })
+    setTargetColorAction(stores, 'outer', '#d0c090')
+    expect(tent().color).toBeUndefined()
   })
 })

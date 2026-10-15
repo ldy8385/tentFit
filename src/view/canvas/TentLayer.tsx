@@ -10,7 +10,7 @@ import { ringBBox } from '../../core/geom'
 import type { Layout, Pt } from '../../core/model'
 import { targetWorldOutline, targetWorldRing, type TentTarget } from '../../core/ops/tent'
 import type { PolygonFocus } from '../../store/ui'
-import { THEME } from '../../ui/theme'
+import { innerColor, THEME } from '../../ui/theme'
 import { INVALID_EDIT_STYLE, tentHandles } from '../tentEdit'
 import type { View } from '../viewport'
 import { FONT_FAMILY, HALO_PX } from './nodes'
@@ -158,7 +158,7 @@ export function TentLayer(props: TentLayerProps): JSX.Element | null {
           <Line
             points={points}
             closed
-            fill={preview !== null && isInner ? THEME['inner-fill'] : undefined}
+            fill={preview !== null && isInner ? innerColor(shown.tent.inners.find((i) => i.id === target.innerId)?.color).fill : undefined}
             stroke={THEME['select']}
             strokeWidth={SELECT_STROKE_PX}
             strokeScaleEnabled={false}

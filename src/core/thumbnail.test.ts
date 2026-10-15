@@ -247,3 +247,21 @@ describe('thumbnailSvg — 공통 축척 extentCm(§4.7-1 고르기 카드)', ()
     expect(thumbnailSvg({ tent: tent({ kind: 'polygon', points: [] }) }, { extentCm: 500 })).toContain('viewBox="-275 -275 550 550"')
   })
 })
+
+describe('thumbnailSvg — 직접 고른 색(2026-10-15)', () => {
+  it('물건 #RRGGBB, 외곽(전실)·이너 색을 그대로 씀', () => {
+    const t = tent(RECT_OUTER)
+    const colored = {
+      ...t,
+      color: '#d0c090',
+      inners: [{ id: 'i', name: '이너', shape: { kind: 'rect' as const, w: 100, h: 100 }, x: 0, y: 0, rotation: 0, color: '#336699' }],
+    }
+    const svg = thumbnailSvg({
+      tent: colored,
+      items: [{ id: 'm', name: '매트', shape: { kind: 'rect', w: 50, h: 20 }, x: 0, y: 0, rotation: 0, color: '#12ab9f', category: 'MAT', countsArea: true }],
+    })
+    expect(svg).toMatch(/class="tf-outer"[^>]*fill="#d0c090"/)
+    expect(svg).toMatch(/class="tf-inner"[^>]*fill="#336699"/)
+    expect(svg).toMatch(/class="tf-item"[^>]*fill="#12ab9f"/)
+  })
+})

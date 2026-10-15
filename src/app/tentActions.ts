@@ -3,7 +3,7 @@
 // 잘못된 결과 막기(§4.4-8·§6.9): 미리 produce로 만들어 보고, 이번 조작으로 "새로 생긴" 이슈가 있으면 커밋하지 않습니다(R11).
 import { produce } from 'immer'
 import { ringBBox } from '../core/geom'
-import { createLayout, LIMITS, newId, normAngle, round1, type Layout, type Pt, type Shape, type ShapeTemplate, type Tent } from '../core/model'
+import { createLayout, LIMITS, newId, normAngle, round1, type Color, type Layout, type Pt, type Shape, type ShapeTemplate, type Tent } from '../core/model'
 import {
   addInnerFromPolygon,
   addInnerFromTemplate,
@@ -24,6 +24,7 @@ import {
   swapTent,
   targetLocalRing,
   targetWorldRing,
+  setTargetColor,
   type TentTarget,
 } from '../core/ops/tent'
 import {
@@ -250,6 +251,12 @@ export function rotateTentAction(stores: Stores, deg: number): EditResult {
       rotateTent(d, deg)
     }),
   )
+}
+
+/** 텐트 색(소유자 요청 2026-10-15): 외곽 = 전실 바닥, 이너 = 그 이너. null = 기본 색. 같은 색이면 기록 없음. */
+export function setTargetColorAction(stores: Stores, target: TentTarget, color: Color | null): void {
+  if (!canEdit(stores, target)) return
+  stores.doc.getState().commit((d) => setTargetColor(d, target, color))
 }
 
 /** 회전 입력: normAngle(deg)가 되도록 차이만큼 돌립니다. 같은 각이면 기록 없음, 새로 겹치면 거부. */
