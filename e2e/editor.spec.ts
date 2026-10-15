@@ -377,3 +377,16 @@ test.describe('자석 맞춤·거리 재기', () => {
     expect((await getDoc(page)).layout).toEqual(before)
   })
 })
+
+test('[파일 → PNG로 저장]: 미리보기(긴 변 2048px)와 내려받기 파일 이름(2026-10-15)', async ({ page }) => {
+  await createItem(page, MAT_ITEM)
+  const name = (await getDoc(page)).layout.name
+  await page.getByRole('button', { name: '파일' }).click()
+  await page.getByRole('menuitem', { name: 'PNG로 저장' }).click()
+  const dialog = page.getByTestId('png-dialog')
+  const img = dialog.getByRole('img', { name: '배치 그림 미리보기' })
+  await expect(img).toBeVisible()
+  await expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(2048)
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('link', { name: '내려받기' }).click()])
+  expect(download.suggestedFilename()).toMatch(new RegExp(`^tentfit-${name.replace(/\s+/g, '-')}-\\d{8}\\.png$`))
+})

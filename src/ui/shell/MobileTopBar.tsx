@@ -41,6 +41,7 @@ export function MobileTopBar() {
           { label: measuring ? '거리 재기 끝내기' : '거리 재기', onSelect: () => (measuring ? endMeasuring(stores) : startMeasuring(stores)) },
           { label: '전체 백업(파일로 내려받기)', onSelect: () => downloadBackup() },
           { label: '파일 불러오기', onSelect: () => pickAndImport(stores) },
+          { label: 'PNG로 저장', onSelect: () => stores.ui.getState().patch({ editorDialog: 'png' }) },
         ]}
       />
       <LayoutNameField className="shell-name--mobile" />

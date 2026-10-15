@@ -101,6 +101,7 @@ export function TopBar() {
         items={[
           { label: '전체 백업(파일로 내려받기)', onSelect: () => downloadBackup() },
           { label: '파일 불러오기', onSelect: () => pickAndImport(stores) },
+          { label: 'PNG로 저장', onSelect: () => stores.ui.getState().patch({ editorDialog: 'png' }) },
         ]}
       />
       <MenuButton

@@ -16,7 +16,7 @@ export type Mode = 'place' | 'tent'
 export type MobileSheet = 'none' | 'selection' | 'library' | 'newShape' | 'area' | 'warnings' | 'tent'
 export type DesktopPanel = 'auto' | 'newShape' | 'warnings' // auto = 선택 있으면 속성, 없으면 빈 안내
 /** 편집기 위 대화상자(텐트 바꾸기). 고르기 화면의 내 배치 대화상자는 PickRoute 컴포넌트 상태입니다. */
-export type EditorDialog = 'swapTent' | null
+export type EditorDialog = 'swapTent' | 'png' | null
 export type Toast = { id: number; text: string }
 /** 자유 그리기 목표(설계 2026-10-12 §2.2): 외곽 새로·다시, 새 이너, 그 이너 다시 그리기 */
 export type DrawGoal = 'outer' | 'newInner' | { innerId: string }

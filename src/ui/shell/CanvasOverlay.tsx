@@ -16,6 +16,7 @@ import { openSwapTent, SwapTentDialog } from '../tent/SwapTentDialog'
 import { MeasurePanel } from '../area/MeasurePanel'
 import { BackdropControl } from './BackdropControl'
 import { ItemMakerHost } from './ItemMakerHost'
+import { PngDialog } from './PngDialog'
 import { emptyCardPlacement, tentScreenBox } from './emptyCardPlacement'
 import { FitIcon, MinusIcon, PlusIcon, PlusSquareIcon, PointerIcon } from './icons'
 import { scaleBar } from './scaleBar'
@@ -219,6 +220,7 @@ export function CanvasOverlay(p: { variant: Variant }) {
       </div>
       <SwapTentDialog />
       <ItemMakerHost />
+      <PngDialog />
     </div>
   )
 }

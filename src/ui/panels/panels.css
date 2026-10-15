@@ -268,3 +268,19 @@
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
 }
+
+/* PNG 미리보기(2026-10-15) */
+.tf-png__preview {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.tf-png__download {
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
+}
