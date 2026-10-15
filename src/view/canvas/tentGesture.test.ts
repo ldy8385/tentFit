@@ -208,6 +208,22 @@ describe('tentDragStep — 미리보기와 커밋할 값', () => {
     expect(tentDragStep(LAYOUT, drag, [347, -151], VIEW1, { alignTol: 0 }).preview.guides).toEqual([])
   })
 
+  it('대칭 맞춤(좌우, 2026-10-15): 반대편 꼭짓점의 대칭 자리에 붙고, 미리보기에 기준선·반대편 자리·짝 선', () => {
+    const skew = layoutOf({ name: '비뚠 텐트', outer: { kind: 'polygon', points: [[-500, -200], [520, -200], [500, 200], [-500, 200]] }, inners: [] })
+    const drag = tentDragFor({ kind: 'vertex', target: 'outer', index: 1, world: [520, -200] }, 3, 'mouse', [520, -200], VIEW1) as TentDrag
+    const r = tentDragStep(skew, drag, [503, -198], VIEW1, { alignTol: 5, symmetry: 'x' })
+    expect(r.commit).toMatchObject({ world: [500, -200] })
+    expect(r.preview.symmetry?.pair).toEqual({ a: [-500, -200], b: [500, -200] })
+    expect(r.preview.symmetry?.ghost).toEqual([-500, -200])
+    const axis = r.preview.symmetry!.axis
+    expect(axis.a[0]).toBe(0)
+    expect(axis.b[0]).toBe(0)
+    expect(axis.a[1]).toBeLessThan(-200)
+    expect(axis.b[1]).toBeGreaterThan(200)
+    // 대칭 맞춤을 끄면 정보 없음
+    expect(tentDragStep(skew, drag, [503, -198], VIEW1, { alignTol: 5 }).preview.symmetry).toBeNull()
+  })
+
   it('꼭짓점을 자기교차로 끌면 invalid·커밋 없음', () => {
     const drag = tentDragFor({ kind: 'vertex', target: 'outer', index: 0, world: [-500, -200] }, 3, 'mouse', [-500, -200], VIEW1) as TentDrag
     const r = tentDragStep(LAYOUT, drag, [0, 400], VIEW1)

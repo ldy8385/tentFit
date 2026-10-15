@@ -45,6 +45,9 @@ import {
   swapTentAction,
   tentControlsEnabled,
   setTargetColorAction,
+  symmetrizeTargetAction,
+  SYMMETRIZE_FAIL_MESSAGE,
+  targetSymmetric,
 } from './tentActions'
 
 const NOW = '2026-10-08T00:00:00.000Z'
@@ -829,3 +832,41 @@ describe('setTargetColorAction(텐트 색, 소유자 요청 2026-10-15)', () => 
     expect(tent().color).toBeUndefined()
   })
 })
+
+describe('symmetrizeTargetAction(한쪽 기준으로 대칭 맞추기, 2026-10-15)', () => {
+  it('왼쪽 기준이면 오른쪽이 왼쪽과 같아지고(기록 한 칸), 이미 대칭이면 그대로', () => {
+    ui().patch({ mode: 'tent' })
+    expect(targetSymmetric(layout(), 'outer', 'x')).toBe(true) // 예시 사각형
+    setTargetPolygonForTest()
+    expect(targetSymmetric(layout(), 'outer', 'x')).toBe(false)
+    const r = symmetrizeTargetAction(stores, 'outer', 'x', 'neg')
+    expect(r).toEqual({ ok: true })
+    expect(targetSymmetric(layout(), 'outer', 'x')).toBe(true)
+    const before = layout()
+    expect(symmetrizeTargetAction(stores, 'outer', 'x', 'neg')).toEqual({ ok: true })
+    expect(layout()).toBe(before)
+  })
+
+  it('기준선이 도형을 지나지 않으면 이유와 함께 거부(문서 그대로)', () => {
+    ui().patch({ mode: 'tent' })
+    stores.doc.getState().commit((d) => {
+      d.tent.outer = { kind: 'polygon', points: [[10, -50], [200, -50], [200, 50], [10, 50]] }
+      delete d.tent.outerTemplate
+    })
+    const before = layout()
+    const r = symmetrizeTargetAction(stores, 'outer', 'x', 'neg')
+    expect(r).toEqual({ ok: false, error: SYMMETRIZE_FAIL_MESSAGE })
+    expect(layout()).toBe(before)
+  })
+})
+
+function setTargetPolygonForTest(): void {
+  // 외곽 오른쪽 위 꼭짓점을 밖으로 밀어 비대칭으로
+  const o = tent().outer
+  if (o.kind !== 'rect') throw new Error('예시 외곽이 사각형이 아님')
+  const [w, h] = [o.w / 2, o.h / 2]
+  stores.doc.getState().commit((d) => {
+    d.tent.outer = { kind: 'polygon', points: [[-w, -h], [w + 40, -h], [w, h], [-w, h]] }
+    delete d.tent.outerTemplate
+  })
+}

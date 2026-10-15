@@ -5,6 +5,7 @@ import type { MeasureTarget } from '../core/measure'
 import type { Layout, Pt } from '../core/model'
 import { targetWorldRing, type TentTarget } from '../core/ops/tent'
 import { validGridStep } from '../core/snap'
+import type { SymAxis } from '../core/symmetry'
 import { clampZoom, fitView, zoomAt as zoomViewAt, type BBox, type Insets, type Size, type View } from '../view/viewport'
 
 export type PointerKind = 'mouse' | 'pen' | 'touch'
@@ -50,6 +51,8 @@ export type UiState = {
   gridVisible: boolean
   /** 격자 간격(cm, 1~1000, 확대·축소와 무관). 그리기·꼭짓점·물건 맞춤과 격자 표시가 함께 씁니다(소유자 요청 2026-10-15). */
   gridStep: number
+  /** 대칭 맞춤 축(소유자 요청 2026-10-15): 좌우('x') / 상하('y') / 끄기. 이 브라우저에 기억 */
+  symmetryAxis: 'off' | SymAxis
   /** 꼭짓점 정렬 안내선(반투명 점선)을 보일지(소유자 요청 2026-10-15, 끄면 이 브라우저에 기억) */
   guidesVisible: boolean
   /** 격자 간격 설정 창이 열렸는지(캔버스 칩 또는 휴대폰 ☰ 메뉴「격자 간격」) */
@@ -127,6 +130,7 @@ export type UiState = {
         | 'gridStep'
         | 'gridPanelOpen'
         | 'guidesVisible'
+        | 'symmetryAxis'
         | 'mobileSheet'
         | 'desktopPanel'
         | 'areaExpanded'
@@ -202,7 +206,7 @@ function vertexCountOf(layout: Layout, target: TentTarget): number | null {
 }
 
 export function createUiStore(
-  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'gridStep' | 'guidesVisible' | 'view' | 'size' | 'pointer'>>,
+  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'gridStep' | 'guidesVisible' | 'symmetryAxis' | 'view' | 'size' | 'pointer'>>,
 ): UiStore {
   // 토스트 번호. 지운 뒤에도 줄지 않아서, 같은 문구를 다시 띄워도 새 id가 됩니다.
   let toastSeq = 0
@@ -227,6 +231,7 @@ export function createUiStore(
       gridStep: validGridStep(init?.gridStep),
       gridPanelOpen: false,
       guidesVisible: init?.guidesVisible ?? true,
+      symmetryAxis: init?.symmetryAxis ?? 'x',
       pointer: init?.pointer ?? 'mouse',
       canvasPressed: false,
       revealRequest: 0,

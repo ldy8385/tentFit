@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
 import { createLayout } from '../core/model'
-import { loadGridStep, loadGuidesVisible, setGridStep, setGuidesVisible } from './gridActions'
+import { loadGridStep, loadGuidesVisible, loadSymmetryAxis, setGridStep, setGuidesVisible, setSymmetryAxis } from './gridActions'
 import { createStores } from './stores'
 
 const KEY = 'tentfit.gridStep'
@@ -47,5 +47,20 @@ describe('정렬 안내선 켜기·끄기(소유자 요청 2026-10-15)', () => {
     expect(s.ui.getState().guidesVisible).toBe(false)
     expect(setup().ui.getState().guidesVisible).toBe(false)
     expect(loadGuidesVisible()).toBe(false)
+  })
+})
+
+describe('대칭 맞춤 축(소유자 요청 2026-10-15: 좌우·상하 고르기)', () => {
+  afterEach(() => localStorage.removeItem('tentfit.symmetryAxis'))
+
+  it('기본 좌우, 끄기·상하로 바꾸면 기억', () => {
+    const s = setup()
+    expect(s.ui.getState().symmetryAxis).toBe('x')
+    setSymmetryAxis(s, 'y')
+    expect(setup().ui.getState().symmetryAxis).toBe('y')
+    setSymmetryAxis(s, 'off')
+    expect(loadSymmetryAxis()).toBe('off')
+    localStorage.setItem('tentfit.symmetryAxis', 'zz')
+    expect(loadSymmetryAxis()).toBe('x')
   })
 })

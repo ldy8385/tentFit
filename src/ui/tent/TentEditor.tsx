@@ -29,6 +29,8 @@ import {
   rotateInner90,
   rotateTentAction,
   setTargetColorAction,
+  symmetrizeTargetAction,
+  targetSymmetric,
   setInnerRotation,
   setTargetDiameter,
   setTargetTemplate,
@@ -50,6 +52,8 @@ import { applyDim } from '../../app/dimActions'
 import { saveMyTent } from '../../app/persist/storage'
 import { AxisLockToggle } from '../common/AxisLockToggle'
 import { KeepRatioToggle } from '../common/KeepRatioToggle'
+import { setSymmetryAxis } from '../../app/gridActions'
+import type { SymAxis } from '../../core/symmetry'
 import { ColorSwatches } from '../panels/ColorSwatches'
 import { RadiusFields } from '../panels/RadiusFields'
 import { innerColor, THEME, vestColor } from '../theme'
@@ -317,6 +321,68 @@ function AttachWallRow(p: { innerId: string; layout: Layout; enabled: boolean })
   )
 }
 
+const SYMMETRY_OPTIONS = [
+  { value: 'off', label: '끄기' },
+  { value: 'x', label: '좌우' },
+  { value: 'y', label: '상하' },
+] as const satisfies readonly { value: 'off' | SymAxis; label: string }[]
+
+const SYMMETRY_SIDES: Record<SymAxis, { neg: string; pos: string; name: string }> = {
+  x: { neg: '왼쪽', pos: '오른쪽', name: '좌우' },
+  y: { neg: '위쪽', pos: '아래쪽', name: '상하' },
+}
+
+/**
+ * 대칭 맞춤(소유자 요청 2026-10-15): 축 고르기(끄기·좌우·상하, 꼭짓점을 끌 때 기준선·반대편 자리 안내와 붙임), 지금 대칭인지,
+ * [왼쪽(위쪽)·오른쪽(아래쪽) 기준으로 맞추기]. 기준선은 도형 가운데(로컬 원점)입니다.
+ */
+function SymmetryRow(p: { target: TentTarget; layout: Layout; enabled: boolean }): JSX.Element {
+  const stores = useStores()
+  const axis = useUi((s) => s.symmetryAxis)
+  const sides = axis === 'off' ? null : SYMMETRY_SIDES[axis]
+  const symmetric = axis === 'off' ? false : targetSymmetric(p.layout, p.target, axis)
+  const run = (keep: 'neg' | 'pos') => {
+    if (axis === 'off') return
+    const r = symmetrizeTargetAction(stores, p.target, axis, keep)
+    if (!r.ok) stores.ui.getState().showToast(r.error)
+  }
+  return (
+    <div className="tf-tent__symmetry">
+      <span className="tf-field__label" aria-hidden="true">
+        대칭 맞춤
+      </span>
+      <SegmentedControl label="대칭 맞춤" options={SYMMETRY_OPTIONS} value={axis} disabled={!p.enabled} onChange={(v) => setSymmetryAxis(stores, v)} />
+      {sides !== null && (
+        <>
+          <p className="tf-hint">{symmetric ? `${sides.name} 대칭이에요` : `${sides.name} 대칭이 아니에요`}</p>
+          <div className="tf-row2">
+            <button
+              type="button"
+              className="tf-btn"
+              aria-label={`${sides.neg} 기준으로 맞추기`}
+              title={`${sides.neg} 절반을 반대편으로 뒤집어 맞춰요`}
+              disabled={!p.enabled || symmetric}
+              onClick={() => run('neg')}
+            >
+              {`${sides.neg} 기준`}
+            </button>
+            <button
+              type="button"
+              className="tf-btn"
+              aria-label={`${sides.pos} 기준으로 맞추기`}
+              title={`${sides.pos} 절반을 반대편으로 뒤집어 맞춰요`}
+              disabled={!p.enabled || symmetric}
+              onClick={() => run('pos')}
+            >
+              {`${sides.pos} 기준`}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 /** 텐트 색 줄: 외곽 = 「전실 색」(바닥), 이너 = 「이너 색」. 「기본」 = 고르지 않음 */
 function TentColorRow(p: { target: TentTarget; color: Color | undefined; enabled: boolean }): JSX.Element {
   const stores = useStores()
@@ -471,6 +537,8 @@ function TargetFields(p: {
           <p className="tf-hint">{p.outerLabel !== undefined ? '모양을 시계 방향으로 돌려요' : '외곽과 이너가 함께 시계 방향으로 돌아요(물건은 그대로)'}</p>
         </div>
       )}
+
+      {!isCircle && <SymmetryRow target={target} layout={layout} enabled={enabled} />}
 
       {/* 텐트 색(2026-10-15). 물건 모양 편집(outerLabel '모양')은 물건 패널에서 색을 고릅니다. */}
       {target === 'outer' && p.outerLabel === undefined && <TentColorRow target="outer" color={layout.tent.color} enabled={enabled} />}

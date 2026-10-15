@@ -690,3 +690,32 @@ describe('TentEditor — 텐트 색(소유자 요청 2026-10-15)', () => {
     expect(s.doc.getState().layout.tent.inners[0]!.color).toBe('#336699')
   })
 })
+
+describe('TentEditor — 대칭 맞춤(소유자 요청 2026-10-15: 좌우·상하 고르기)', () => {
+  const SKEW: Tent = { name: '비뚠', outer: { kind: 'polygon', points: [[-300, -150], [340, -150], [300, 150], [-300, 150]] }, inners: [] }
+  afterEach(() => localStorage.removeItem('tentfit.symmetryAxis'))
+
+  it('기본 좌우, 대칭이면 그렇다고 알리고 맞추기 버튼은 꺼짐', () => {
+    setup(TWO_INNERS, { target: 'outer' })
+    const group = screen.getByRole('radiogroup', { name: '대칭 맞춤' })
+    expect(within(group).getByRole('radio', { name: '좌우' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByText('좌우 대칭이에요')).toBeTruthy()
+    expect((screen.getByRole('button', { name: '왼쪽 기준으로 맞추기' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('비대칭이면 「왼쪽 기준으로 맞추기」로 대칭, 상하로 바꾸면 위쪽·아래쪽, 끄면 버튼 없음', () => {
+    const s = setup(SKEW, { target: 'outer' })
+    expect(screen.getByText('좌우 대칭이 아니에요')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '왼쪽 기준으로 맞추기' }))
+    expect(screen.getByText('좌우 대칭이에요')).toBeTruthy()
+    const outer = s.doc.getState().layout.tent.outer
+    const xs = outer.kind === 'polygon' ? outer.points.map((q) => q[0]) : []
+    expect(Math.max(...xs)).toBe(300)
+    fireEvent.click(screen.getByRole('radio', { name: '상하' }))
+    expect(s.ui.getState().symmetryAxis).toBe('y')
+    expect(screen.getByRole('button', { name: '위쪽 기준으로 맞추기' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '아래쪽 기준으로 맞추기' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: '끄기' }))
+    expect(screen.queryByRole('button', { name: /기준으로 맞추기$/ })).toBeNull()
+  })
+})

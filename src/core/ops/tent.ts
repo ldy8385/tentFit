@@ -315,12 +315,17 @@ export function setTargetPolygon(
   target: TentTarget,
   points: readonly Pt[],
   space: 'world' | 'local',
-  opts?: { keepRadii?: boolean },
+  opts?: { keepRadii?: boolean; radii?: readonly number[] },
 ): void {
   const ref = resolve(d, target)
   if (!ref) return
   const local = points.map((p) => roundPt(space === 'world' ? toLocal(ref, p) : [p[0], p[1]]))
-  const radii = opts?.keepRadii === true && cornerCount(ref.shape) === local.length ? radiiOf(ref.shape) : undefined
+  const radii =
+    opts?.radii !== undefined && opts.radii.length === local.length
+      ? [...opts.radii]
+      : opts?.keepRadii === true && cornerCount(ref.shape) === local.length
+        ? radiiOf(ref.shape)
+        : undefined
   const hasTemplate = target === 'outer' ? d.tent.outerTemplate !== undefined : findInner(d.tent, target.innerId)?.template !== undefined
   if (!hasTemplate && shapesEqual(ref.shape, polygonOf(local, radii), 0)) return
   ref.writePolygon(local, radii)

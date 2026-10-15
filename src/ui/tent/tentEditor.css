@@ -246,3 +246,14 @@
   color: var(--accent);
   font-weight: 700;
 }
+
+/* 대칭 맞춤(2026-10-15) */
+.tf-tent__symmetry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.tf-tent__symmetry .tf-hint {
+  margin: 0;
+}

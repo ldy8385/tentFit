@@ -9,12 +9,13 @@ import { Circle, Group, Line, Rect, Text } from 'react-konva'
 import { ringBBox } from '../../core/geom'
 import type { Layout, Pt } from '../../core/model'
 import { targetWorldOutline, targetWorldRing, type TentTarget } from '../../core/ops/tent'
+import type { SymAxis } from '../../core/symmetry'
 import type { PolygonFocus } from '../../store/ui'
 import { innerColor, THEME } from '../../ui/theme'
 import { INVALID_EDIT_STYLE, tentHandles } from '../tentEdit'
 import type { View } from '../viewport'
 import { FONT_FAMILY, HALO_PX } from './nodes'
-import type { TentPreview } from './tentGesture'
+import { symmetryAxisLine, type TentPreview } from './tentGesture'
 
 /** 꼭짓점 점 지름(화면 px, 보이는 점 11~12px) */
 export const VERTEX_DOT_PX = 12
@@ -117,6 +118,8 @@ export type TentLayerProps = {
   preview: TentPreview | null
   /** 꼭짓점 정렬 안내선(반투명 점선)을 그릴지(ui.guidesVisible) */
   showGuides?: boolean
+  /** 대칭 맞춤 축(끄기면 null): 기준선·반대편 자리를 그립니다(showGuides일 때) */
+  symmetryAxis?: SymAxis | null
   /** 패널에서 포커스한 변·꼭짓점 칸(ui.polygonFocus). 그 변을 굵게, 그 꼭짓점을 선택 모양으로 */
   focus?: PolygonFocus | null
 }
@@ -127,6 +130,10 @@ const GUIDE_COLOR = '#D6409F'
 const GUIDE_STROKE_PX = 1.5
 const GUIDE_DASH = [6, 4]
 const GUIDE_OPACITY = 0.7
+/** 대칭 기준선(긴 점선·더 옅게)·반대편 자리 동그라미(화면 px) */
+const AXIS_DASH = [10, 6]
+const AXIS_OPACITY = 0.4
+const GHOST_RADIUS_PX = 7
 
 export function TentLayer(props: TentLayerProps): JSX.Element | null {
   const { layout, vertexIndex, view, preview } = props
@@ -152,9 +159,51 @@ export function TentLayer(props: TentLayerProps): JSX.Element | null {
   const focusVertex = focus?.kind === 'vertex' ? focus.index : null
 
   const guides = props.showGuides === true ? (preview?.guides ?? []) : []
+  // 대칭 맞춤(2026-10-15): 끄는 중이면 미리보기의 기준선·반대편 자리·짝 선, 아니면 고른 대상의 기준선만
+  const axisOn = props.showGuides === true && props.symmetryAxis != null
+  const sym = axisOn ? (preview?.symmetry ?? null) : null
+  const symAxis = !axisOn || props.symmetryAxis == null ? null : (sym?.axis ?? (preview === null ? symmetryAxisLine(layout, target, props.symmetryAxis) : null))
 
   return (
     <Group listening={false} name="tent-edit">
+      {symAxis !== null && (
+        <Line
+          name="symmetry-axis"
+          points={[symAxis.a[0], symAxis.a[1], symAxis.b[0], symAxis.b[1]]}
+          stroke={GUIDE_COLOR}
+          strokeWidth={1}
+          dash={AXIS_DASH}
+          opacity={AXIS_OPACITY}
+          strokeScaleEnabled={false}
+          perfectDrawEnabled={false}
+        />
+      )}
+      {sym?.pair != null && (
+        <Line
+          name="symmetry-pair"
+          points={[sym.pair.a[0], sym.pair.a[1], sym.pair.b[0], sym.pair.b[1]]}
+          stroke={GUIDE_COLOR}
+          strokeWidth={GUIDE_STROKE_PX}
+          dash={GUIDE_DASH}
+          opacity={GUIDE_OPACITY}
+          strokeScaleEnabled={false}
+          perfectDrawEnabled={false}
+        />
+      )}
+      {sym !== null && (
+        <Circle
+          name="symmetry-ghost"
+          x={sym.ghost[0]}
+          y={sym.ghost[1]}
+          radius={GHOST_RADIUS_PX / zoom}
+          stroke={GUIDE_COLOR}
+          strokeWidth={GUIDE_STROKE_PX}
+          dash={[3, 3]}
+          opacity={GUIDE_OPACITY}
+          strokeScaleEnabled={false}
+          perfectDrawEnabled={false}
+        />
+      )}
       {/* 꼭짓점 정렬 안내선(2026-10-15): 다른 꼭짓점과 가로·세로 줄이 맞으면 반투명 점선 */}
       {guides.map((g, i) => (
         <Line

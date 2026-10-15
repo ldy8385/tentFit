@@ -28,6 +28,7 @@ import {
 } from '../../app/tentActions'
 import { LIMITS, normAngle, round1, type Item, type Layout, type Pt, type Shape } from '../../core/model'
 import { drawGridOrigin } from '../../core/polygonEdit'
+import type { SymAxis } from '../../core/symmetry'
 import { expandSelection } from '../../core/ops/groups'
 import { applyTransform, moveItems } from '../../core/ops/items'
 import { worldRing } from '../../core/geom'
@@ -687,6 +688,12 @@ class BoardController {
   }
 
   /** 끄는 중: 경계를 넘으면 제스처를 열고, 매 이동마다 미리보기를 그립니다(문서는 그대로). */
+  /** 대칭 맞춤 축(끄기면 null) */
+  private symmetryAxis(): SymAxis | null {
+    const a = this.stores.ui.getState().symmetryAxis
+    return a === 'off' ? null : a
+  }
+
   /** 꼭짓점 정렬 붙임 거리(cm): 자석 맞춤이 켜졌으면 화면 SNAP_PX, 꺼졌으면 0(정확히 맞을 때만 안내선) */
   private alignTol(): number {
     const ui = this.stores.ui.getState()
@@ -714,6 +721,7 @@ class BoardController {
       axisLock: this.axisLocked(),
       grid: this.vertexGrid(),
       alignTol: this.alignTol(),
+      symmetry: this.symmetryAxis(),
     })
     this.overlay.setState({ tentPreview: preview })
   }
@@ -733,6 +741,7 @@ class BoardController {
       axisLock: this.axisLocked(),
       grid: this.vertexGrid(),
       alignTol: this.alignTol(),
+      symmetry: this.symmetryAxis(),
     })
     this.overlay.setState({ tentPreview: null })
     this.closeGesture()
@@ -1001,7 +1010,19 @@ function TentEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | nul
   const preview = useStore(props.overlay, (s) => s.tentPreview)
   const focus = useUi((s) => s.polygonFocus)
   const guidesVisible = useUi((s) => s.guidesVisible)
-  return <TentLayer layout={layout} target={target} vertexIndex={vertexIndex} view={view} preview={preview} focus={focus} showGuides={guidesVisible} />
+  const symmetryAxis = useUi((s) => s.symmetryAxis)
+  return (
+    <TentLayer
+      layout={layout}
+      target={target}
+      vertexIndex={vertexIndex}
+      view={view}
+      preview={preview}
+      focus={focus}
+      showGuides={guidesVisible}
+      symmetryAxis={symmetryAxis === 'off' ? null : symmetryAxis}
+    />
+  )
 }
 
 /** 그리는 중 표시: 찍은 점·열린 선·고무줄(그때 보기로 계산 — 휠 이동에도 포인터를 따라감) */

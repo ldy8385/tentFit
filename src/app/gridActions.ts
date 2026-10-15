@@ -1,6 +1,7 @@
 // 격자 간격(소유자 요청 2026-10-15: "1cm~1000cm 까지, 확대축소와는 무관하게")·정렬 안내선 켜기·끄기.
 // 화면 상태(ui)만 바꾸고 문서·기록은 그대로입니다. 이 브라우저에 기억합니다(localStorage, 막혀 있거나 값이 잘못되면 기본값).
 import { GRID_STEP, GRID_STEP_RANGE } from '../core/snap'
+import type { SymAxis } from '../core/symmetry'
 import type { Stores } from './stores'
 
 const KEY = 'tentfit.gridStep'
@@ -47,6 +48,28 @@ export function setGuidesVisible(stores: Stores, on: boolean): void {
   stores.ui.getState().patch({ guidesVisible: on })
   try {
     localStorage.setItem(GUIDES_KEY, String(on))
+  } catch {
+    // 저장이 막힌 브라우저: 이번 화면에서만 씁니다.
+  }
+}
+
+const SYMMETRY_KEY = 'tentfit.symmetryAxis'
+
+/** 기억해 둔 대칭 맞춤 축(없거나 잘못되면 좌우) */
+export function loadSymmetryAxis(): 'off' | SymAxis {
+  try {
+    const v = localStorage.getItem(SYMMETRY_KEY)
+    return v === 'off' || v === 'y' || v === 'x' ? v : 'x'
+  } catch {
+    return 'x'
+  }
+}
+
+/** 대칭 맞춤 축 바꾸기(기억함) */
+export function setSymmetryAxis(stores: Stores, axis: 'off' | SymAxis): void {
+  stores.ui.getState().patch({ symmetryAxis: axis })
+  try {
+    localStorage.setItem(SYMMETRY_KEY, axis)
   } catch {
     // 저장이 막힌 브라우저: 이번 화면에서만 씁니다.
   }

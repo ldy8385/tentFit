@@ -51,6 +51,8 @@ import {
   type AttachSide,
   type TemplateKind,
 } from '../core/templates'
+import { radiiOf } from '../core/radii'
+import { isSymmetric, symmetrize, type SymAxis } from '../core/symmetry'
 import { innersOverlap, newTentIssues, type IssueCode } from '../core/validate'
 import { sameTentTarget, tentTargetBlocked, type DrawGoal, type UiState } from '../store/ui'
 import { getZones } from './derived'
@@ -466,6 +468,35 @@ export function centerTargetVertex(stores: Stores, target: TentTarget, index: nu
   const b = next[index] as Pt
   if (Math.abs(a[0] - b[0]) < 0.05 && Math.abs(a[1] - b[1]) < 0.05) return OK
   return applyLocalPolygon(stores, target, next)
+}
+
+/** 대칭 맞추기가 안 될 때 */
+export const SYMMETRIZE_FAIL_MESSAGE = '대칭 기준선(도형 가운데)이 도형을 한 번에 가로지르지 않아 맞출 수 없어요'
+
+/** 대상이 도형 가운데(로컬 원점) 기준 axis 대칭인지(원·없는 대상은 false) */
+export function targetSymmetric(layout: Layout, target: TentTarget, axis: SymAxis): boolean {
+  return isSymmetric(targetLocalRing(layout, target), axis)
+}
+
+/**
+ * 한쪽 기준으로 대칭 맞추기(소유자 요청 2026-10-15): keep 쪽 절반(neg = 왼쪽·위쪽, pos = 오른쪽·아래쪽)을 반대편으로 뒤집어 붙입니다.
+ * 이미 대칭이면 기록 없음. 안 되는 모양이면 이유를 돌려줍니다(문서 그대로).
+ */
+export function symmetrizeTargetAction(stores: Stores, target: TentTarget, axis: SymAxis, keep: 'neg' | 'pos'): EditResult {
+  const ring = editableRing(stores, target)
+  if (ring === null) return OK
+  const layout = stores.doc.getState().layout
+  if (isSymmetric(ring, axis)) return OK
+  const shape = target === 'outer' ? layout.tent.outer : layout.tent.inners.find((i) => i.id === target.innerId)?.shape
+  const r = symmetrize(ring, shape === undefined ? undefined : radiiOf(shape), axis, keep)
+  if (r === null) return { ok: false, error: SYMMETRIZE_FAIL_MESSAGE }
+  const rounded = r.points.map((p): Pt => [round1(p[0]), round1(p[1])])
+  if (minEdgeLength(rounded) < MIN_EDGE_CM) return { ok: false, error: ZERO_EDGE_MESSAGE }
+  return toResult(
+    attempt(stores, (d) => {
+      setTargetPolygon(d, target, r.points, 'local', { radii: r.radii })
+    }),
+  )
 }
 
 /** 꼭짓점 각도 범위(설계 §2.3-3) */
