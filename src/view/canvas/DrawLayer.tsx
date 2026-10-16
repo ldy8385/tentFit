@@ -2,13 +2,15 @@
 // 점 찍기·닫기 판정은 Board 컨트롤러가 drawGesture(순수)로 하고, 점은 화면 스토어(ui.drawing)에 있습니다.
 // Board가 경고 레이어 안 TentEditLayer 자리에 둡니다(그리는 중에는 선택 대상 핸들을 숨김 — 누르면 점이 되므로).
 // 점·고무줄 끝은 화면 크기가 고정되도록 Group을 1/zoom으로 줄여 그립니다(TentLayer와 같은 방식).
+// 선 길이(소유자 요청 2026-10-16): 찍은 변마다·지금 긋는 고무줄에 cm 숫자(고무줄은 진하게). 화면에서 짧은 선은 숨김.
 import type { JSX } from 'react'
-import { Circle, Group, Line } from 'react-konva'
-import type { Pt } from '../../core/model'
+import { Circle, Group, Line, Rect, Text } from 'react-konva'
+import { round1, type Pt } from '../../core/model'
 import type { Drawing } from '../../store/ui'
 import { THEME } from '../../ui/theme'
 import type { RubberBand } from './drawGesture'
 import { HALO_PX } from './nodes'
+import { MIN_LABEL_SPAN_PX } from '../dimLabels'
 
 /** 찍은 점 지름(화면 px) */
 export const DRAW_DOT_PX = 10
@@ -25,16 +27,64 @@ export type DrawLayerModel = {
   rubber: { points: number[]; closes: boolean } | null
   /** 탭하면 찍힐 자리(닫히는 고무줄이면 null) */
   preview: Pt | null
+  /** 선 길이 숫자(선 가운데, 월드 cm). current = 지금 긋는 고무줄 */
+  lengths: { at: Pt; text: string; current: boolean }[]
 }
 
-export function drawLayerModel(drawing: Drawing, rubber: RubberBand | null): DrawLayerModel {
+/** 선 길이 숫자들. zoom을 주면 화면에서 MIN_LABEL_SPAN_PX보다 짧은 선은 뺍니다. */
+function lineLengths(pts: readonly Pt[], rubber: RubberBand | null, zoom: number | undefined): DrawLayerModel['lengths'] {
+  const segs: [Pt, Pt, boolean][] = []
+  for (let i = 0; i + 1 < pts.length; i++) segs.push([pts[i] as Pt, pts[i + 1] as Pt, false])
+  if (rubber !== null && rubber.from !== null) segs.push([rubber.from, rubber.to, true])
+  return segs.flatMap(([a, b, current]) => {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+    if (zoom !== undefined && len * zoom < MIN_LABEL_SPAN_PX) return []
+    return [{ at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] as Pt, text: String(round1(len)), current }]
+  })
+}
+
+export function drawLayerModel(drawing: Drawing, rubber: RubberBand | null, zoom?: number): DrawLayerModel {
   const pts = drawing.points
   return {
     line: pts.flatMap((p) => [p[0], p[1]]),
     dots: pts.map((p, i) => ({ at: [p[0], p[1]], closeTarget: i === 0 && pts.length >= 3 })),
     rubber: rubber !== null && rubber.from !== null ? { points: [rubber.from[0], rubber.from[1], rubber.to[0], rubber.to[1]], closes: rubber.closes } : null,
     preview: rubber !== null && !rubber.closes ? [rubber.to[0], rubber.to[1]] : null,
+    lengths: lineLengths(pts, rubber, zoom),
   }
+}
+
+/** 선 길이 숫자(화면 크기 고정). 지금 긋는 선은 채운 상자, 찍은 변은 테두리만 */
+function LengthTag(props: { at: Pt; zoom: number; text: string; color: string; current: boolean }): JSX.Element {
+  const k = 1 / props.zoom
+  const w = [...props.text].length * 7 + 14
+  return (
+    <Group name="draw-length" x={props.at[0]} y={props.at[1]} scaleX={k} scaleY={k} listening={false}>
+      <Rect
+        x={-w / 2}
+        y={-10}
+        width={w}
+        height={20}
+        cornerRadius={10}
+        fill={props.current ? props.color : THEME['bg-surface']}
+        stroke={props.color}
+        strokeWidth={1}
+        perfectDrawEnabled={false}
+      />
+      <Text
+        x={-w / 2}
+        y={-10}
+        width={w}
+        height={20}
+        text={props.text}
+        fontSize={12}
+        fontStyle={props.current ? 'bold' : 'normal'}
+        fill={props.current ? THEME['text-inverse'] : props.color}
+        align="center"
+        verticalAlign="middle"
+      />
+    </Group>
+  )
 }
 
 function Dot(props: { at: Pt; zoom: number; color: string; size: number; filled: boolean }): JSX.Element {
@@ -55,7 +105,7 @@ function Dot(props: { at: Pt; zoom: number; color: string; size: number; filled:
 export function DrawLayer(props: { drawing: Drawing; rubber: RubberBand | null; zoom: number }): JSX.Element | null {
   const { drawing, rubber, zoom } = props
   if (!(zoom > 0)) return null
-  const m = drawLayerModel(drawing, rubber)
+  const m = drawLayerModel(drawing, rubber, zoom)
   const color = drawing.goal === 'outer' ? THEME['accent'] : THEME['info']
   return (
     <Group listening={false} name="tent-draw">
@@ -79,6 +129,9 @@ export function DrawLayer(props: { drawing: Drawing; rubber: RubberBand | null; 
         />
       ))}
       {m.preview !== null && <Dot at={m.preview} zoom={zoom} color={color} size={DRAW_DOT_PX} filled />}
+      {m.lengths.map((l, i) => (
+        <LengthTag key={`len${String(i)}`} at={l.at} zoom={zoom} text={l.text} color={color} current={l.current} />
+      ))}
     </Group>
   )
 }

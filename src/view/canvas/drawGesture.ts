@@ -29,7 +29,7 @@ export type RubberBand = { from: Pt | null; to: Pt; closes: boolean }
 /**
  * 고무줄: 마지막 점(없으면 null) → 포인터에서 찍힐 점(첫 점 근처면 첫 점). origin = 격자 원점.
  * step = 격자 간격, right = 상하좌우로만 — 탭과 같은 값을 넘겨야 "보인 곳 = 찍힌 곳".
- * 그리는 동안에는 길이를 보이지 않습니다(소유자 요청 2026-10-15: 모양을 닫은 뒤 치수 입력).
+ * 길이 숫자는 DrawLayer가 그립니다(소유자 요청 2026-10-16. 10-15에는 그리는 동안 숨겼음 — 치수 입력은 닫은 뒤 그대로).
  */
 export function rubberBand(
   drawing: Drawing,

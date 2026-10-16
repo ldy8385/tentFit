@@ -564,6 +564,24 @@ test.describe('텐트 편집 모드 — 자유 그리기·모양 바꾸기(Plan 
     expect((await getDoc(page)).canUndo).toBe(false)
   })
 
+  test('그리는 중 선 길이(2026-10-16): 찍은 변과 지금 긋는 선(포인터까지)에 cm 숫자', async ({ page }) => {
+    await tentEditor(page).getByRole('button', { name: '+ 이너', exact: true }).click()
+    await tentEditor(page).getByRole('menuitem', { name: '자유 그리기', exact: true }).click()
+    await drawPoints(page, [
+      [100, -100],
+      [250, -100],
+    ])
+    const to = await worldToClient(page, 250, 100)
+    await page.mouse.move(to.x, to.y)
+    const texts = () =>
+      page.evaluate(() =>
+        (window as unknown as { Konva: { stages: { find(s: string): { findOne(s: string): { text(): string } }[] }[] } }).Konva.stages[0]!
+          .find('.draw-length')
+          .map((g) => g.findOne('Text').text()),
+      )
+    await expect.poll(texts).toEqual(['150', '200'])
+  })
+
   test('그리는 중 Ctrl+Z는 점 하나만, Esc는 그리기 취소(문서 그대로)', async ({ page }) => {
     await tentEditor(page).getByRole('button', { name: '+ 이너', exact: true }).click()
     await tentEditor(page).getByRole('menuitem', { name: '자유 그리기', exact: true }).click()
