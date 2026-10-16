@@ -3,7 +3,7 @@
 // 끌기면 tentDragStep으로 미리보기와 커밋 값을 얻습니다. 문서는 Board가 손을 뗄 때 tentActions로 한 번만 바꿉니다.
 import type { Layout, Pt, Tent } from '../../core/model'
 import { mirrorPartners, mirrorVertexMove, targetFrame, targetLocalRing, targetWorldRing, type TentTarget } from '../../core/ops/tent'
-import { reflect, symmetrySnap, type SymAxis } from '../../core/symmetry'
+import { reflect, symmetryCenter, symmetrySnap, type SymAxis } from '../../core/symmetry'
 import { alignAxes, alignGuides, type AlignGuide } from '../../core/align'
 import { snapToGrid } from '../../core/polygonEdit'
 import { tentTargetBlocked, type PointerKind, type TentLock } from '../../store/ui'
@@ -209,10 +209,12 @@ export function tentDragStep(
   const sym = opts?.symmetry ?? null
   const frame = sym !== null ? targetFrame(layout, drag.target) : null
   const ring = frame !== null ? targetLocalRing(layout, drag.target) : []
+  // 기준선 자리 = 끌기 시작할 때 꼭짓점 상자의 가운데(끄는 동안 고정, 끌기 전에 보이던 선과 같음)
+  const c = sym !== null ? symmetryCenter(ring, sym) : 0
   const mate = sym !== null && frame !== null && opts?.symmetryMirror === true ? (mirrorPartners(layout, drag.target, sym)?.[drag.index] ?? null) : null
   const others = alignCandidates(layout, drag.target, drag.index, mate)
   const localOthers = ring.filter((_, i) => i !== drag.index)
-  const hit = sym !== null && frame !== null && mate === null && opts?.axisLock !== true ? symmetrySnap(frame.toLocal(raw), localOthers, sym, opts?.alignTol ?? 0) : null
+  const hit = sym !== null && frame !== null && mate === null && opts?.axisLock !== true ? symmetrySnap(frame.toLocal(raw), localOthers, sym, opts?.alignTol ?? 0, c) : null
   let world: Pt
   if (hit !== null && frame !== null) {
     world = frame.toWorld(hit.point)
@@ -231,11 +233,11 @@ export function tentDragStep(
   let symmetry: SymmetryPreview | null = null
   if (sym !== null && frame !== null) {
     const local = frame.toLocal(world)
-    const axis = axisLineLocal([...localOthers, local], sym)
+    const axis = axisLineLocal([...localOthers, local], sym, c)
     const pairWith = mirror?.world ?? (hit?.partner != null ? frame.toWorld(hit.partner) : null)
     symmetry = {
       axis: { a: frame.toWorld(axis.a), b: frame.toWorld(axis.b) },
-      ghost: mate === drag.index ? null : frame.toWorld(reflect(local, sym)),
+      ghost: mate === drag.index ? null : frame.toWorld(reflect(local, sym, c)),
       pair: pairWith !== null ? { a: pairWith, b: world } : null,
     }
   }
@@ -252,14 +254,14 @@ export function tentDragStep(
   return { preview: { target: drag.target, tent: r.tent, invalid, guides: alignGuides(world, others), symmetry }, commit }
 }
 
-/** 로컬 기준선(좌우 = x=0 세로선, 상하 = y=0 가로선): 점들의 범위보다 조금(10%, 최소 20cm) 길게 */
-function axisLineLocal(points: readonly Pt[], axis: SymAxis): AlignGuide {
+/** 로컬 기준선(좌우 = 세로선 x=c, 상하 = 가로선 y=c): 점들의 범위보다 조금(10%, 최소 20cm) 길게 */
+function axisLineLocal(points: readonly Pt[], axis: SymAxis, c: number): AlignGuide {
   const k = axis === 'x' ? 1 : 0
   const vs = points.map((p) => p[k])
   const lo = Math.min(...vs)
   const hi = Math.max(...vs)
   const pad = Math.max(20, (hi - lo) * 0.1)
-  return axis === 'x' ? { a: [0, lo - pad], b: [0, hi + pad] } : { a: [lo - pad, 0], b: [hi + pad, 0] }
+  return axis === 'x' ? { a: [c, lo - pad], b: [c, hi + pad] } : { a: [lo - pad, c], b: [hi + pad, c] }
 }
 
 /** 고른 대상의 대칭 기준선(월드). 끄지 않을 때도 보입니다. 원이면 null */
@@ -267,7 +269,7 @@ export function symmetryAxisLine(layout: Layout, target: TentTarget, axis: SymAx
   const frame = targetFrame(layout, target)
   const ring = targetLocalRing(layout, target)
   if (frame === null || ring.length < 3) return null
-  const l = axisLineLocal(ring, axis)
+  const l = axisLineLocal(ring, axis, symmetryCenter(ring, axis))
   return { a: frame.toWorld(l.a), b: frame.toWorld(l.b) }
 }
 

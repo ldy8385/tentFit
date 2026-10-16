@@ -340,7 +340,7 @@ const SYMMETRY_SIDES: Record<SymAxis, { neg: string; pos: string; name: string }
 
 /**
  * 대칭 맞춤(소유자 요청 2026-10-15): 축 고르기(끄기·좌우·상하, 꼭짓점을 끌 때 기준선·반대편 자리 안내와 붙임), 지금 대칭인지,
- * [왼쪽(위쪽)·오른쪽(아래쪽) 기준으로 맞추기]. 기준선은 도형 가운데(로컬 원점)입니다.
+ * [왼쪽(위쪽)·오른쪽(아래쪽) 기준으로 맞추기]. 기준선은 꼭짓점을 감싸는 상자의 가운데입니다(2026-10-16).
  */
 function SymmetryRow(p: { target: TentTarget; layout: Layout; enabled: boolean }): JSX.Element {
   const stores = useStores()

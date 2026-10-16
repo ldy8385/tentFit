@@ -17,7 +17,7 @@ import {
 import { cornerRing, outlineBBox, ringBBox, shapeRing, transformRing } from '../geom'
 import { cornerCount, radiiOf, withRadii } from '../radii'
 import { centerPolygon } from '../polygonEdit'
-import { reflect, symmetryPartners, type SymAxis } from '../symmetry'
+import { reflect, symmetryCenter, symmetryPartners, type SymAxis } from '../symmetry'
 import { newInnerSide, shapeFromTemplate, shapesEqual } from '../templates'
 import { innersOverlap, validateTent, type Issue } from '../validate'
 import type { Zones } from '../zones'
@@ -201,7 +201,7 @@ export function targetFrame(layout: Layout, target: TentTarget): { toLocal(p: Pt
 }
 
 /**
- * 대칭 맞춤 「자동 맞춤」(소유자 요청 2026-10-15): 대상이 axis 기준(로컬 원점) 대칭이면, 꼭짓점 index를 world로 옮길 때
+ * 대칭 맞춤 「자동 맞춤」(소유자 요청 2026-10-15): 대상이 axis 기준(꼭짓점 상자의 가운데) 대칭이면, 꼭짓점 index를 world로 옮길 때
  * 같이 옮길 반대편 짝. 기준선 위 점(짝 = 자기)은 world를 기준선 위로 고치고 짝은 null. 대칭이 아니거나 원이면 null.
  */
 export function mirrorVertexMove(
@@ -212,11 +212,13 @@ export function mirrorVertexMove(
   axis: SymAxis,
 ): { world: Pt; mirror: { index: number; world: Pt } | null } | null {
   const frame = targetFrame(layout, target)
-  const mate = frame === null ? undefined : symmetryPartners(targetLocalRing(layout, target), axis)?.[index]
+  const ring = targetLocalRing(layout, target)
+  const c = symmetryCenter(ring, axis)
+  const mate = frame === null ? undefined : symmetryPartners(ring, axis, c)?.[index]
   if (frame === null || mate === undefined) return null
   const local = frame.toLocal(world)
-  if (mate === index) return { world: frame.toWorld(axis === 'x' ? [0, local[1]] : [local[0], 0]), mirror: null }
-  return { world, mirror: { index: mate, world: frame.toWorld(reflect(local, axis)) } }
+  if (mate === index) return { world: frame.toWorld(axis === 'x' ? [c, local[1]] : [local[0], c]), mirror: null }
+  return { world, mirror: { index: mate, world: frame.toWorld(reflect(local, axis, c)) } }
 }
 
 /** 대칭 맞춤 「자동 맞춤」: 대칭이면 꼭짓점 짝 번호(기준선 위 점은 자기), 아니거나 원이면 null */

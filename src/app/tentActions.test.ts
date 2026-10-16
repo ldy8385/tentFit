@@ -848,10 +848,11 @@ describe('symmetrizeTargetAction(한쪽 기준으로 대칭 맞추기, 2026-10-1
     expect(layout()).toBe(before)
   })
 
-  it('기준선이 도형을 지나지 않으면 이유와 함께 거부(문서 그대로)', () => {
+  it('기준선(상자 가운데)이 도형을 여러 번 지나면(오목한 모양) 이유와 함께 거부(문서 그대로)', () => {
     ui().patch({ mode: 'tent' })
     stores.doc.getState().commit((d) => {
-      d.tent.outer = { kind: 'polygon', points: [[10, -50], [200, -50], [200, 50], [10, 50]] }
+      // 왼쪽으로 열린 ⊃자: 세로 기준선 x=0이 위·아래 팔을 따로 지남
+      d.tent.outer = { kind: 'polygon', points: [[-100, -100], [-100, -60], [50, -60], [50, 60], [-100, 60], [-100, 100], [100, 100], [100, -100]] }
       delete d.tent.outerTemplate
     })
     const before = layout()

@@ -359,16 +359,16 @@ test.describe('텐트 편집 모드', () => {
   })
 
   test('대칭 맞춤 안내(좌우, 2026-10-15): 대칭이 아니면 반대편 꼭짓점의 대칭 자리 가까이 끌 때 붙고 짝 선이 보임', async ({ page }) => {
-    // 먼저 자석 맞춤을 끄고 오른쪽 위 꼭짓점을 (340, −160)으로 밀어 비대칭으로(대칭 맞춤은 기본 끄기)
+    // 먼저 자석 맞춤을 끄고 오른쪽 위 꼭짓점을 (280, −160)으로 밀어 비대칭으로(대칭 맞춤은 기본 끄기, 상자 가운데는 그대로 x=0)
     await selectOuter(page)
     await setSnap(page, false)
-    await mouseDragHolding(page, await vertexClient(page, 'outer', 1), await worldToClient(page, 340, -160), async () => undefined)
-    await expect.poll(async () => (await vertexWorld(page, 'outer', 1))[0]).toBeGreaterThan(335)
+    await mouseDragHolding(page, await vertexClient(page, 'outer', 1), await worldToClient(page, 280, -160), async () => undefined)
+    await expect.poll(async () => (await vertexWorld(page, 'outer', 1))[0]).toBeLessThan(285)
     await setSnap(page, true)
     await page.getByRole('radiogroup', { name: '대칭 맞춤', exact: true }).getByRole('radio', { name: '좌우' }).click()
     await expect(page.getByText(/좌우 대칭이 아니라 반대편 자리만 보여요/)).toBeVisible()
     // 왼쪽 위(−310, −160)의 대칭 자리 (310, −160) 가까이
-    await mouseDragHolding(page, await vertexClient(page, 'outer', 1), await worldToClient(page, 313, -158), async () => {
+    await mouseDragHolding(page, await vertexClient(page, 'outer', 1), await worldToClient(page, 307, -158), async () => {
       const pair = await page.evaluate(() => (window as unknown as { Konva: { stages: { find(s: string): unknown[] }[] } }).Konva.stages[0]!.find('.symmetry-pair').length)
       expect(pair).toBe(1)
     })

@@ -510,7 +510,7 @@ export function centerTargetVertex(stores: Stores, target: TentTarget, index: nu
 /** 대칭 맞추기가 안 될 때 */
 export const SYMMETRIZE_FAIL_MESSAGE = '대칭 기준선(도형 가운데)이 도형을 한 번에 가로지르지 않아 맞출 수 없어요'
 
-/** 대상이 도형 가운데(로컬 원점) 기준 axis 대칭인지(원·없는 대상은 false) */
+/** 대상이 꼭짓점 상자의 가운데 기준 axis 대칭인지(원·없는 대상은 false) */
 export function targetSymmetric(layout: Layout, target: TentTarget, axis: SymAxis): boolean {
   return isSymmetric(targetLocalRing(layout, target), axis)
 }

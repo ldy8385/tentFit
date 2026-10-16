@@ -1,5 +1,6 @@
-// 대칭 맞춤(소유자 요청 2026-10-15): 좌우(세로 기준선 x=0) 또는 상하(가로 기준선 y=0). 기준선은 도형의 로컬 원점입니다
-// (예시 모양은 원점 가운데로 만들어지고, 그린 외곽도 처음 닫을 때 가운데가 원점). 순수 함수, 좌표는 대상의 로컬 cm.
+// 대칭 맞춤(소유자 요청 2026-10-15): 좌우(세로 기준선 x=c) 또는 상하(가로 기준선 y=c). 순수 함수, 좌표는 대상의 로컬 cm.
+// 기준선 자리 c = 꼭짓점을 감싸는 상자의 가운데(소유자 2026-10-16: 원점은 꼭짓점을 옮기면 가운데에서 어긋나므로).
+// 대칭인 도형이면 대칭축은 늘 그 상자의 가운데를 지나므로 판정도 이 자리 하나만 보면 됩니다.
 import type { Pt } from './model'
 
 /** 'x' = 좌우 대칭(x → −x), 'y' = 상하 대칭(y → −y) */
@@ -9,8 +10,9 @@ export type SymAxis = 'x' | 'y'
 const SAME_CM = 0.11
 const ON_AXIS_CM = 1e-6
 
-export function reflect(p: Pt, axis: SymAxis): Pt {
-  return axis === 'x' ? [-p[0], p[1]] : [p[0], -p[1]]
+/** 기준선(x=c 또는 y=c) 건너편 자리 */
+export function reflect(p: Pt, axis: SymAxis, c = 0): Pt {
+  return axis === 'x' ? [2 * c - p[0], p[1]] : [p[0], 2 * c - p[1]]
 }
 
 /** 기준선까지의 거리 좌표(좌우면 x, 상하면 y) */
@@ -18,17 +20,24 @@ function across(p: Pt, axis: SymAxis): number {
   return axis === 'x' ? p[0] : p[1]
 }
 
+/** 기준선 자리: 꼭짓점을 감싸는 상자의 가운데(좌우면 x, 상하면 y). 점이 없으면 0 */
+export function symmetryCenter(points: readonly Pt[], axis: SymAxis): number {
+  if (points.length === 0) return 0
+  const vs = points.map((p) => across(p, axis))
+  return (Math.min(...vs) + Math.max(...vs)) / 2
+}
+
 /**
- * 원점 기준 대칭이면 꼭짓점마다 짝 번호(partners[i] = i의 반대편 꼭짓점, 기준선 위 점은 자기 자신), 아니면 null.
+ * 기준선(c, 기본 = 상자 가운데) 기준 대칭이면 꼭짓점마다 짝 번호(partners[i] = i의 반대편 꼭짓점, 기준선 위 점은 자기 자신), 아니면 null.
  * 반사는 고리 순서를 뒤집으므로 짝 = (k − i) mod n 꼴만 봅니다(위치만 우연히 겹치는 경우를 거름).
  */
-export function symmetryPartners(points: readonly Pt[], axis: SymAxis): number[] | null {
+export function symmetryPartners(points: readonly Pt[], axis: SymAxis, c = symmetryCenter(points, axis)): number[] | null {
   const n = points.length
   if (n < 3) return null
   for (let k = 0; k < n; k++) {
     const partners = points.map((_, i) => (((k - i) % n) + n) % n)
     const ok = points.every((p, i) => {
-      const r = reflect(p, axis)
+      const r = reflect(p, axis, c)
       const q = points[partners[i] as number] as Pt
       return Math.abs(r[0] - q[0]) <= SAME_CM && Math.abs(r[1] - q[1]) <= SAME_CM
     })
@@ -37,29 +46,29 @@ export function symmetryPartners(points: readonly Pt[], axis: SymAxis): number[]
   return null
 }
 
-/** 원점 기준 대칭인지 */
-export function isSymmetric(points: readonly Pt[], axis: SymAxis): boolean {
-  return symmetryPartners(points, axis) !== null
+/** 기준선(c, 기본 = 상자 가운데) 기준 대칭인지 */
+export function isSymmetric(points: readonly Pt[], axis: SymAxis, c = symmetryCenter(points, axis)): boolean {
+  return symmetryPartners(points, axis, c) !== null
 }
 
 /**
- * 끄는 점 p를 대칭 자리에 붙입니다: 다른 꼭짓점의 반대편 자리(짝 = 그 꼭짓점) 또는 기준선 위(짝 없음) 중 tol 안에서 가장 가까운 곳.
+ * 끄는 점 p를 대칭 자리에 붙입니다: 다른 꼭짓점의 반대편 자리(짝 = 그 꼭짓점) 또는 기준선(c) 위(짝 없음) 중 tol 안에서 가장 가까운 곳.
  * 없으면 null.
  */
-export function symmetrySnap(p: Pt, others: readonly Pt[], axis: SymAxis, tol: number): { point: Pt; partner: Pt | null } | null {
+export function symmetrySnap(p: Pt, others: readonly Pt[], axis: SymAxis, tol: number, c = 0): { point: Pt; partner: Pt | null } | null {
   const lim = Math.max(tol, 0.05)
   let best: { point: Pt; partner: Pt | null } | null = null
   let bestD = lim
   for (const o of others) {
-    const m = reflect(o, axis)
+    const m = reflect(o, axis, c)
     const d = Math.hypot(m[0] - p[0], m[1] - p[1])
     if (d <= bestD) {
       best = { point: m, partner: [o[0], o[1]] }
       bestD = d
     }
   }
-  const da = Math.abs(across(p, axis))
-  if (da < bestD) best = { point: axis === 'x' ? [0, p[1]] : [p[0], 0], partner: null }
+  const da = Math.abs(across(p, axis) - c)
+  if (da < bestD) best = { point: axis === 'x' ? [c, p[1]] : [p[0], c], partner: null }
   return best
 }
 
@@ -94,11 +103,25 @@ function collinear(a: Pt, b: Pt, c: Pt): boolean {
 }
 
 /**
- * 한쪽 기준으로 대칭 맞추기: keep 쪽 절반(neg = 왼쪽·위쪽, pos = 오른쪽·아래쪽)을 기준선에서 잘라 반대편으로 뒤집어 붙입니다.
+ * 한쪽 기준으로 대칭 맞추기: keep 쪽 절반(neg = 왼쪽·위쪽, pos = 오른쪽·아래쪽)을 기준선(c, 기본 = 상자 가운데)에서 잘라
+ * 반대편으로 뒤집어 붙입니다.
  * 반지름은 남긴 꼭짓점과 그 짝에 같이, 기준선 위에서 일직선이 된 점은 뺍니다.
  * 기준선이 도형을 지나지 않거나(한쪽에만 있음) 여러 번 지나면(오목하게 휘어 남는 쪽이 둘로 갈림) null.
  */
 export function symmetrize(
+  points: readonly Pt[],
+  radii: readonly number[] | undefined,
+  axis: SymAxis,
+  keep: 'neg' | 'pos',
+  c = symmetryCenter(points, axis),
+): { points: Pt[]; radii: number[] } | null {
+  // 기준선이 원점에 오게 옮겨 자르고 뒤집은 뒤 되돌립니다.
+  const shift = (p: Pt, d: number): Pt => (axis === 'x' ? [p[0] + d, p[1]] : [p[0], p[1] + d])
+  const r = symmetrizeAtOrigin(points.map((p) => shift(p, -c)), radii, axis, keep)
+  return r === null ? null : { points: r.points.map((p) => shift(p, c)), radii: r.radii }
+}
+
+function symmetrizeAtOrigin(
   points: readonly Pt[],
   radii: readonly number[] | undefined,
   axis: SymAxis,
