@@ -329,7 +329,7 @@ function MakerCanvas(p: { desktop: boolean; step: 1 | 2; nameField: JSX.Element 
       </div>
       <div className="shell-overlay" style={style}>
         <ScaleBarView zoom={zoom} />
-        <CornerControls />
+        <CornerControls segmentChip />
         {p.desktop && <ZoomControls zoom={zoom} />}
         {p.desktop && drawing && <DrawTools variant="bar" />}
         <div className="shell-toast">

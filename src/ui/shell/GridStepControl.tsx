@@ -2,7 +2,7 @@
 // 휴대폰 편집 화면은 위쪽 가운데 요약 칩과 겹치므로 칩 없이 ☰ 메뉴「격자 간격」으로 같은 창을 엽니다(ui.gridPanelOpen).
 // 가는 선 = 간격, 굵은 선 = 그 10배. 그리기·꼭짓점·물건 맞춤이 같은 간격을 씁니다(app/gridActions).
 import type { JSX } from 'react'
-import { GRID_STEP_PRESETS, setGridStep } from '../../app/gridActions'
+import { GRID_STEP_PRESETS, setGridStep, setSegmentDims } from '../../app/gridActions'
 import { useStores, useUi } from '../../app/stores'
 import { GRID_STEP_RANGE } from '../../core/snap'
 import { NumberField } from '../fields/NumberField'
@@ -50,10 +50,25 @@ export function GridStepControl(p: { chip: boolean }): JSX.Element {
   )
 }
 
-/** 캔버스 오른쪽 위 묶음: [격자 ○cm] [배경 이미지]. gridChip=false면 격자 칩 없이 창만(휴대폰 편집 화면) */
-export function CornerControls(p: { gridChip?: boolean }): JSX.Element {
+/** 구간 치수 켜기·끄기 칩(2026-10-16). [보기] 메뉴가 없는 텐트 만들기 화면용, 값은 편집기 메뉴와 같음(기억함) */
+function SegmentDimsChip(): JSX.Element {
+  const stores = useStores()
+  const on = useUi((s) => s.segmentDims)
+  return (
+    <button type="button" className="tf-backdrop__toggle" aria-pressed={on} onClick={() => setSegmentDims(stores, !on)}>
+      구간 치수
+    </button>
+  )
+}
+
+/**
+ * 캔버스 오른쪽 위 묶음: [구간 치수] [격자 ○cm] [배경 이미지]. gridChip=false면 격자 칩 없이 창만(휴대폰 편집 화면),
+ * segmentChip은 [보기] 메뉴가 없는 텐트 만들기 화면에서만.
+ */
+export function CornerControls(p: { gridChip?: boolean; segmentChip?: boolean }): JSX.Element {
   return (
     <div className="tf-corner" data-canvas-ui="">
+      {p.segmentChip === true && <SegmentDimsChip />}
       <GridStepControl chip={p.gridChip ?? true} />
       <BackdropControl />
     </div>

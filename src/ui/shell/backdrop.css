@@ -84,6 +84,12 @@
   border-color: var(--accent);
 }
 
+/* 켜고 끄는 칩(구간 치수)이 켜졌을 때 */
+.tf-backdrop__toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .tf-backdrop__panel {
   display: flex;
   flex-direction: column;

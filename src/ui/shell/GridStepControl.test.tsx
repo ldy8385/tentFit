@@ -8,13 +8,14 @@ import { CornerControls } from './GridStepControl'
 afterEach(() => {
   cleanup()
   localStorage.removeItem('tentfit.gridStep')
+  localStorage.removeItem('tentfit.segmentDims')
 })
 
-function setup(gridChip = true): Stores {
+function setup(gridChip = true, segmentChip = false): Stores {
   const stores = createStores(createLayout({ name: 't', outer: { kind: 'rect', w: 600, h: 300 }, inners: [] }, { name: 'l' }))
   render(
     <StoresProvider stores={stores}>
-      <CornerControls gridChip={gridChip} />
+      <CornerControls gridChip={gridChip} segmentChip={segmentChip} />
     </StoresProvider>,
   )
   return stores
@@ -49,5 +50,25 @@ describe('격자 간격 칩(소유자 요청 2026-10-15)', () => {
   it('배경 이미지 칩도 같은 자리에', () => {
     setup()
     expect(screen.getByRole('button', { name: '배경 이미지' })).toBeTruthy()
+  })
+})
+
+// 텐트 만들기 화면은 [보기] 메뉴가 없어 구간 치수를 칩으로 켭니다(소유자 2026-10-16: "텐트 만들기 화면에서 보고있어")
+describe('구간 치수 칩', () => {
+  it('켜고 끄며 이 브라우저에 기억(편집기 [보기] 메뉴와 같은 값)', () => {
+    const s = setup(true, true)
+    const chip = screen.getByRole('button', { name: '구간 치수' })
+    expect(chip.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(chip)
+    expect(s.ui.getState().segmentDims).toBe(true)
+    expect(localStorage.getItem('tentfit.segmentDims')).toBe('true')
+    expect(screen.getByRole('button', { name: '구간 치수' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(chip)
+    expect(s.ui.getState().segmentDims).toBe(false)
+  })
+
+  it('편집기(메뉴가 있는 화면)에는 칩이 없음', () => {
+    setup()
+    expect(screen.queryByRole('button', { name: '구간 치수' })).toBeNull()
   })
 })
