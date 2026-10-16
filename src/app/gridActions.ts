@@ -54,6 +54,27 @@ export function setGuidesVisible(stores: Stores, on: boolean): void {
   }
 }
 
+const SEGMENT_DIMS_KEY = 'tentfit.segmentDims'
+
+/** 기억해 둔 구간 치수 켜기·끄기(없으면 끔) */
+export function loadSegmentDims(): boolean {
+  try {
+    return localStorage.getItem(SEGMENT_DIMS_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+/** 구간 치수 켜기·끄기(기억함) */
+export function setSegmentDims(stores: Stores, on: boolean): void {
+  stores.ui.getState().patch({ segmentDims: on })
+  try {
+    localStorage.setItem(SEGMENT_DIMS_KEY, String(on))
+  } catch {
+    // 저장이 막힌 브라우저: 이번 화면에서만 씁니다.
+  }
+}
+
 /**
  * 대칭 맞춤 축 바꾸기. **기억하지 않습니다**(소유자 요청 2026-10-16: 기본값은 끄기) — 배치를 열거나 바꿀 때마다
  * 끄기로 시작해, 켜기 전에는 꼭짓점이 혼자 움직입니다(「자동 맞춤」이 기본이라 켜진 채 열리면 짝이 같이 움직임).

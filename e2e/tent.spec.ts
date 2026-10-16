@@ -400,6 +400,22 @@ test.describe('텐트 편집 모드', () => {
     expect((await getDoc(page)).canUndo).toBe(true)
   })
 
+  test('구간 치수(2026-10-16): [보기]에서 켜면 전체 가로를 꼭짓점 자리로 나눈 숫자가 보이고, 끄면 사라짐', async ({ page }) => {
+    await selectOuter(page)
+    // 위 변 가운데 (0, −160)에 꼭짓점 → 가로 620이 310 / 310으로
+    await page.mouse.click(...xy(await worldToClient(page, 0, -160)))
+    await expect.poll(async () => (await getTent(page)).outer.kind).toBe('polygon')
+    const segs = page.getByTestId('dim-overlay').locator('[data-seg]')
+    await expect(segs).toHaveCount(0)
+    await page.getByRole('button', { name: '보기', exact: true }).click()
+    await page.getByRole('menuitemcheckbox', { name: '구간 치수' }).click()
+    await expect(segs).toHaveText(['310', '310'])
+    await expect(page.getByRole('button', { name: '가로 620cm 고치기' })).toBeVisible()
+    await page.getByRole('button', { name: '보기', exact: true }).click()
+    await page.getByRole('menuitemcheckbox', { name: '구간 치수' }).click()
+    await expect(segs).toHaveCount(0)
+  })
+
   test('자기교차가 되게 끄는 동안 「놓으면 취소돼요」, 놓으면 그대로·기록 없음', async ({ page }) => {
     const original = await getTent(page)
     await selectOuter(page)

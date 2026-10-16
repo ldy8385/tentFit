@@ -4,6 +4,7 @@
 // - 「비율 유지」(ui.keepRatio, 기본 켬)는 입력 상자·막대 안에서도 바꿀 수 있습니다. 반지름에는 쓰지 않습니다.
 // - 이 층의 누름은 캔버스 제스처로 가지 않습니다(Board가 [data-canvas-ui] 안의 포인터를 건너뜀).
 // - 끄는 중·변형 중·그리는 중·측정 중·잠긴 단계에는 숨깁니다.
+// - 구간 치수(ui.segmentDims, 2026-10-16)를 켜면 전체 길이를 꼭짓점 자리로 나눈 숫자가 치수선 안쪽에 한 줄 더(읽기 전용).
 import { useEffect, useRef, useState, type FocusEvent, type JSX } from 'react'
 import { flushSync } from 'react-dom'
 import { applyDim, type DimSubject } from '../../app/dimActions'
@@ -16,7 +17,7 @@ import { KeepRatioToggle } from '../../ui/common/KeepRatioToggle'
 import { checkNumber, INPUT_FONT_PX } from '../../ui/fields/numberInput'
 import { useVisualViewport } from '../../ui/fields/useVisualViewport'
 import { useIsDesktop } from '../../ui/shell/useIsDesktop'
-import { dimModel, type DimBounds, type DimLabel, type DimLine, type DimPlacement } from '../dimLabels'
+import { dimModel, type DimBounds, type DimLabel, type DimLine, type DimPlacement, type DimSeg } from '../dimLabels'
 import type { View } from '../viewport'
 import '../../ui/panels/panels.css'
 import './dimOverlay.css'
@@ -54,11 +55,30 @@ export function placeDims(ui: Pick<UiState, 'mode' | 'measuring' | 'drawing' | '
   return out
 }
 
-/** 읽기 전용 치수 층: 가로·세로 치수선과 숫자(누름은 캔버스로 그대로) */
-function ReadonlyDims(p: { dims: ReadonlyDim[]; view: View; area: DimBounds }): JSX.Element | null {
+/** 구간 치수 숫자(읽기 전용, 누름은 캔버스로). key = data-seg 값, who = 접근 이름 앞말(배치 모드의 「텐트」·「물건」) */
+function SegLabels(p: { segs: DimSeg[]; keyOf: (s: DimSeg) => string; who?: string }): JSX.Element {
+  return (
+    <>
+      {p.segs.map((s) => (
+        <span
+          key={p.keyOf(s)}
+          className="tf-dim tf-dim--readonly tf-dim--seg"
+          data-seg={p.keyOf(s)}
+          aria-label={`${p.who === undefined ? '' : `${p.who} `}${s.name} ${String(s.value)}cm`}
+          style={{ left: s.at[0], top: s.at[1] }}
+        >
+          {s.text}
+        </span>
+      ))}
+    </>
+  )
+}
+
+/** 읽기 전용 치수 층: 가로·세로 치수선과 숫자(누름은 캔버스로 그대로). segments = 구간 치수를 켰는지 */
+function ReadonlyDims(p: { dims: ReadonlyDim[]; view: View; area: DimBounds; segments: boolean }): JSX.Element | null {
   const models = p.dims.map((d) => {
-    const m = dimModel(d.shape, d.place, p.view, p.area)
-    return { d, lines: m.lines, labels: m.labels.filter((l) => l.id === 'w' || l.id === 'h') }
+    const m = dimModel(d.shape, d.place, p.view, p.area, { segments: p.segments })
+    return { d, lines: m.lines, labels: m.labels.filter((l) => l.id === 'w' || l.id === 'h'), segments: m.segments }
   })
   if (models.every((m) => m.labels.length === 0 && m.lines.length === 0)) return null
   return (
@@ -77,6 +97,9 @@ function ReadonlyDims(p: { dims: ReadonlyDim[]; view: View; area: DimBounds }): 
           </span>
         )),
       )}
+      {models.map((m) => (
+        <SegLabels key={m.d.key} segs={m.segments} keyOf={(s) => `${m.d.key}:${s.id}`} who={m.d.who} />
+      ))}
     </div>
   )
 }
@@ -154,6 +177,7 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element |
   const tentLock = useUi((s) => s.tentLock)
   const outerPending = useUi((s) => s.outerPending)
   const keepRatio = useUi((s) => s.keepRatio)
+  const segmentDims = useUi((s) => s.segmentDims)
   const size = useUi((s) => s.size)
   const insets = useUi((s) => s.insets)
   const desktop = useIsDesktop()
@@ -184,9 +208,9 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element |
   const area = { left: 0, top, right: size.width, bottom: size.height - insets.bottom }
   if (active === null) {
     const ro = p.busy || p.hidden ? [] : placeDims({ mode, measuring, drawing, selection }, layout)
-    return ro.length === 0 ? null : <ReadonlyDims dims={ro} view={view} area={area} />
+    return ro.length === 0 ? null : <ReadonlyDims dims={ro} view={view} area={area} segments={segmentDims} />
   }
-  const model = dimModel(active.shape, active.place, view, area)
+  const model = dimModel(active.shape, active.place, view, area, { segments: segmentDims })
   const radiusEdit = edit?.key.kind === 'radius'
   const circle = active.shape.kind === 'circle'
 
@@ -313,6 +337,7 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element |
   return (
     <div className="tf-dims" data-canvas-ui="" data-testid="dim-overlay" data-keep-ratio={keepRatio}>
       <DimLines lines={model.lines} />
+      <SegLabels segs={model.segments} keyOf={(s) => s.id} />
       {model.labels.map((l) =>
         edit !== null && desktop && l.id === edit.id && l.key.kind !== 'radius' ? null : (
           <button

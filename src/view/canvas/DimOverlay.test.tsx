@@ -20,8 +20,15 @@ afterEach(() => {
   media.restore()
 })
 
-function setup(opts: { mode?: 'tent' | 'place'; busy?: boolean } = {}): Stores {
-  const layout = createLayout(TENT, { name: 'l', id: 'L', now: '2026-10-15T00:00:00.000Z' })
+// 그림의 팔각형(가로 320 = 110/100/110, 세로 235 = 30/175/30)
+const OCT_TENT: Tent = {
+  name: 'oct',
+  outer: { kind: 'polygon', points: [[-160, -87.5], [-50, -117.5], [50, -117.5], [160, -87.5], [160, 87.5], [50, 117.5], [-50, 117.5], [-160, 87.5]] },
+  inners: [],
+}
+
+function setup(opts: { mode?: 'tent' | 'place'; busy?: boolean; tent?: Tent } = {}): Stores {
+  const layout = createLayout(opts.tent ?? TENT, { name: 'l', id: 'L', now: '2026-10-15T00:00:00.000Z' })
   layout.items = [MAT]
   const stores = createStores(layout, { mode: opts.mode ?? 'tent' })
   stores.ui.getState().setSize({ width: 2000, height: 1600 })
@@ -70,6 +77,31 @@ describe('DimOverlay', () => {
   it('배치 모드: 끄는 중이면 숨김', () => {
     setup({ mode: 'place', busy: true })
     expect(screen.queryByTestId('dim-overlay-readonly')).toBeNull()
+  })
+
+  it('구간 치수(2026-10-16): 켜면 전체 길이를 꼭짓점 자리로 나눈 숫자(읽기 전용), 끄면 없음', () => {
+    const s = setup({ tent: OCT_TENT })
+    const segs = () => [...screen.getByTestId('dim-overlay').querySelectorAll('[data-seg]')].map((e) => e.textContent)
+    expect(segs()).toEqual([])
+    act(() => s.ui.getState().patch({ segmentDims: true }))
+    // 줌 1: 세로 위·아래 30cm(화면 30px)는 숫자를 숨기고 줄만
+    expect(segs()).toEqual(['110', '100', '110', '175'])
+    expect(screen.getByLabelText('가로 구간 2 100cm').tagName).toBe('SPAN')
+    // 전체 치수는 그대로 누를 수 있음
+    expect(screen.getByRole('button', { name: '가로 320cm 고치기' })).toBeTruthy()
+  })
+
+  it('구간 치수: 배치 모드 읽기 전용 치수에도', () => {
+    const s = setup({ mode: 'place', tent: OCT_TENT })
+    act(() => s.ui.getState().patch({ segmentDims: true }))
+    const segs = [...screen.getByTestId('dim-overlay-readonly').querySelectorAll('[data-seg]')].map((e) => [e.getAttribute('data-seg'), e.textContent])
+    expect(segs).toEqual([
+      ['tent:sw0', '110'],
+      ['tent:sw1', '100'],
+      ['tent:sw2', '110'],
+      ['tent:sh1', '175'],
+    ])
+    expect(screen.getByLabelText('텐트 세로 구간 2 175cm')).toBeTruthy()
   })
 
   it('외곽을 고르면 가로·세로 숫자', () => {

@@ -102,6 +102,15 @@ describe('TopBar', () => {
     expect(localStorage.getItem('tentfit.guidesVisible')).toBe('false')
     localStorage.removeItem('tentfit.guidesVisible')
 
+    // 구간 치수(2026-10-16): 기본 끔, 켜면 이 브라우저에 기억
+    fireEvent.click(screen.getByRole('button', { name: '보기' }))
+    const segs = screen.getByRole('menuitemcheckbox', { name: '구간 치수' })
+    expect(segs.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(segs)
+    expect(stores.ui.getState().segmentDims).toBe(true)
+    expect(localStorage.getItem('tentfit.segmentDims')).toBe('true')
+    localStorage.removeItem('tentfit.segmentDims')
+
     const before = stores.ui.getState().view
     fireEvent.click(screen.getByRole('button', { name: '보기' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '맞춤 보기' }))
@@ -216,7 +225,7 @@ describe('MobileTopBar', () => {
 
     fireEvent.click(within(bar).getByRole('button', { name: '메뉴' }))
     const items = Array.from(screen.getByRole('menu').querySelectorAll('button'), (el) => el.textContent)
-    expect(items).toEqual(['처음 화면', '다시 실행', '격자 보이기', '격자 간격 (10cm)', '자석 맞춤', '정렬 안내선', '맞춤 보기', '거리 재기', '전체 백업(파일로 내려받기)', '파일 불러오기', 'PNG로 저장'])
+    expect(items).toEqual(['처음 화면', '다시 실행', '격자 보이기', '격자 간격 (10cm)', '자석 맞춤', '정렬 안내선', '구간 치수', '맞춤 보기', '거리 재기', '전체 백업(파일로 내려받기)', '파일 불러오기', 'PNG로 저장'])
     expect((screen.getByRole('menuitem', { name: '다시 실행' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '격자 보이기' }))
     expect(stores.ui.getState().gridVisible).toBe(false)
@@ -228,6 +237,11 @@ describe('MobileTopBar', () => {
     fireEvent.click(within(bar).getByRole('button', { name: '메뉴' }))
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '정렬 안내선' }))
     expect(stores.ui.getState().guidesVisible).toBe(false)
+    // 구간 치수 켜기(2026-10-16)
+    fireEvent.click(within(bar).getByRole('button', { name: '메뉴' }))
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '구간 치수' }))
+    expect(stores.ui.getState().segmentDims).toBe(true)
+    localStorage.removeItem('tentfit.segmentDims')
   })
 
   it('실행 취소 → 메뉴의 다시 실행으로 되돌린다', () => {

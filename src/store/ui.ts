@@ -60,6 +60,8 @@ export type UiState = {
   symmetryMode: SymmetryMode
   /** 꼭짓점 정렬 안내선(반투명 점선)을 보일지(소유자 요청 2026-10-15, 끄면 이 브라우저에 기억) */
   guidesVisible: boolean
+  /** 구간 치수(소유자 요청 2026-10-16): 전체 가로·세로를 꼭짓점 자리로 나눈 숫자를 치수선 안쪽에 한 줄 더. 기본 끔, 이 브라우저에 기억 */
+  segmentDims: boolean
   /** 격자 간격 설정 창이 열렸는지(캔버스 칩 또는 휴대폰 ☰ 메뉴「격자 간격」) */
   gridPanelOpen: boolean
   pointer: PointerKind // 마지막 pointerdown의 pointerType
@@ -135,6 +137,7 @@ export type UiState = {
         | 'gridStep'
         | 'gridPanelOpen'
         | 'guidesVisible'
+        | 'segmentDims'
         | 'symmetryAxis'
         | 'symmetryMode'
         | 'mobileSheet'
@@ -212,7 +215,7 @@ function vertexCountOf(layout: Layout, target: TentTarget): number | null {
 }
 
 export function createUiStore(
-  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'gridStep' | 'guidesVisible' | 'symmetryAxis' | 'symmetryMode' | 'view' | 'size' | 'pointer'>>,
+  init?: Partial<Pick<UiState, 'mode' | 'snapEnabled' | 'gridVisible' | 'gridStep' | 'guidesVisible' | 'segmentDims' | 'symmetryAxis' | 'symmetryMode' | 'view' | 'size' | 'pointer'>>,
 ): UiStore {
   // 토스트 번호. 지운 뒤에도 줄지 않아서, 같은 문구를 다시 띄워도 새 id가 됩니다.
   let toastSeq = 0
@@ -237,6 +240,7 @@ export function createUiStore(
       gridStep: validGridStep(init?.gridStep),
       gridPanelOpen: false,
       guidesVisible: init?.guidesVisible ?? true,
+      segmentDims: init?.segmentDims ?? false,
       symmetryAxis: init?.symmetryAxis ?? 'off',
       symmetryMode: init?.symmetryMode ?? 'mirror',
       pointer: init?.pointer ?? 'mouse',

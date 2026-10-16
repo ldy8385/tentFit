@@ -41,6 +41,13 @@
   cursor: default;
 }
 
+/* 구간 치수(2026-10-16): 전체 치수와 구분되게 테두리를 옅게, 글자를 가늘게 */
+.tf-dim--seg {
+  border-color: var(--border);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .tf-dims--readonly .tf-dims__svg {
   opacity: 0.7;
 }

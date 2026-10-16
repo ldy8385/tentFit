@@ -3,6 +3,8 @@
 // - 치수선: 도형 로컬 축(돌리면 같이 돎) 기준으로 가로는 아래, 세로는 오른쪽. 원은 지름 하나(가로 자리).
 //   회전 핸들이 위에 있으므로 가로 치수선은 아래에 둡니다(물건 선택 핸들과 겹치지 않게).
 // - 모서리 반지름: 반지름이 있는 꼭짓점마다 「R 10」, 뾰족한 꼭짓점 자리에서 바깥쪽으로.
+// - 구간 치수(소유자 요청 2026-10-16, 켤 때만): 꼭짓점 위치로 전체 가로·세로를 나눈 줄(「110 / 100 / 110」)을 도형 가까이,
+//   전체 치수선은 한 줄 바깥으로. 각 변의 길이가 아니라 전체를 나눈 값이라 구간을 더하면 전체입니다. 읽기 전용.
 // 화면에서 짧은 변·작은 도형은 숫자를 숨깁니다(겹쳐서 못 읽음).
 import type { DimKey } from '../core/dimEdit'
 import { dimValue } from '../core/dimEdit'
@@ -28,6 +30,10 @@ export const MIN_INSIDE_SPAN_PX = 160
 const LABEL_MARGIN_PX = 14
 /** 반지름 숫자를 꼭짓점에서 띄우는 거리(px) */
 export const RADIUS_LABEL_GAP_PX = 30
+/** 구간 치수를 켜면 전체 치수선이 구간 줄에서 바깥으로 물러나는 거리(px) */
+export const SEG_ROW_PX = 28
+/** 이보다 가까운(cm) 꼭짓점 위치는 한 자리로 칩니다(구간 치수) */
+export const SEG_MERGE_CM = 0.5
 
 export type DimPlacement = { x: number; y: number; rotation: number }
 
@@ -56,11 +62,55 @@ export function cornerLabel(shape: Shape, index: number): string {
   return pos === undefined ? `모서리 ${index + 1}` : `모서리 ${index + 1}(${pos})`
 }
 
-export type DimLine = { id: 'w' | 'h'; a: Pt; b: Pt; ext: Array<[Pt, Pt]> }
+/** id: 전체 치수선 'w'·'h', 구간 줄 'sw0'·'sh1'(축 + 왼쪽·위부터 번호) */
+export type DimLine = { id: string; a: Pt; b: Pt; ext: Array<[Pt, Pt]> }
 
-export type DimModel = { labels: DimLabel[]; lines: DimLine[] }
+/** 구간 치수 숫자(읽기 전용). id = 그 구간 줄의 id */
+export type DimSeg = { id: string; name: string; text: string; value: number; at: Pt }
 
-const EMPTY: DimModel = { labels: [], lines: [] }
+export type DimModel = { labels: DimLabel[]; lines: DimLine[]; segments: DimSeg[] }
+
+export type DimOptions = { segments?: boolean }
+
+const EMPTY: DimModel = { labels: [], lines: [], segments: [] }
+
+/** 구간을 자르는 안쪽 자리(축 방향 좌표, 작은 것부터). 0.5cm 안은 한 자리, 양 끝(lo·hi) 근처는 뺍니다. */
+function segmentCuts(corners: readonly Pt[], axis: 'w' | 'h', lo: number, hi: number): number[] {
+  const along = axis === 'w' ? 0 : 1
+  const ats = corners
+    .map((p) => p[along])
+    .filter((v) => v > lo + SEG_MERGE_CM && v < hi - SEG_MERGE_CM)
+    .sort((a, b) => a - b)
+  const cuts: number[] = []
+  for (const v of ats) {
+    const last = cuts[cuts.length - 1]
+    if (last === undefined || v - last >= SEG_MERGE_CM) cuts.push(v)
+  }
+  return cuts
+}
+
+/** 축 방향 좌표 at에서 외곽선의 가로지르는 좌표 중 dir 쪽 끝(dir > 0이면 가장 큰 값). 보조선은 여기서 시작합니다. */
+function outlineReach(corners: readonly Pt[], axis: 'w' | 'h', at: number, dir: number): number | null {
+  const along = axis === 'w' ? 0 : 1
+  let best: number | null = null
+  const take = (v: number) => {
+    if (best === null || dir * (v - best) > 0) best = v
+  }
+  for (let i = 0; i < corners.length; i++) {
+    const a = corners[i] as Pt
+    const b = corners[(i + 1) % corners.length] as Pt
+    const [ua, ub] = [a[along], b[along]]
+    if (at < Math.min(ua, ub) - SEG_MERGE_CM || at > Math.max(ua, ub) + SEG_MERGE_CM) continue
+    if (Math.abs(ub - ua) < 1e-9) {
+      take(a[1 - along])
+      take(b[1 - along])
+    } else {
+      const t = Math.min(1, Math.max(0, (at - ua) / (ub - ua)))
+      take(a[1 - along] + t * (b[1 - along] - a[1 - along]))
+    }
+  }
+  return best
+}
 
 function fmt(v: number): string {
   return String(round1(v))
@@ -85,7 +135,7 @@ function unit(dx: number, dy: number): Pt {
 export type DimBounds = { left: number; top: number; right: number; bottom: number }
 
 /** 도형 하나의 치수 표시(화면 px). 줌이 0 이하이거나 도형이 화면에서 너무 작으면 빈 모델. bounds를 주면 치수선을 보이는 쪽에 둡니다. */
-export function dimModel(shape: Shape, place: DimPlacement, view: View, bounds?: DimBounds): DimModel {
+export function dimModel(shape: Shape, place: DimPlacement, view: View, bounds?: DimBounds, opts?: DimOptions): DimModel {
   if (!(view.zoom > 0)) return EMPTY
   const toScreen = (local: readonly Pt[]): Pt[] =>
     transformRing(local.map((p): Pt => [p[0], p[1]]), place.x, place.y, place.rotation).map((p) => worldToScreen(view, p))
@@ -100,6 +150,8 @@ export function dimModel(shape: Shape, place: DimPlacement, view: View, bounds?:
 
   const labels: DimLabel[] = []
   const lines: DimLine[] = []
+  const segments: DimSeg[] = []
+  const corners0 = shape.kind === 'circle' ? [] : cornerRing(shape)
 
   // 치수선(로컬 축): 가로는 아래, 세로는 오른쪽이 기본. 보이는 영역(bounds) 밖이면 반대쪽 바깥 → 안쪽 아래·오른쪽 → 안쪽 위·왼쪽 순서로
   // 글자 자리가 보이는 첫 자리를 씁니다(도형이 화면을 가득 채우거나 시트가 아래를 가릴 때).
@@ -113,12 +165,17 @@ export function dimModel(shape: Shape, place: DimPlacement, view: View, bounds?:
       p[0] <= bounds.right - LABEL_MARGIN_PX &&
       p[1] >= bounds.top + LABEL_MARGIN_PX &&
       p[1] <= bounds.bottom - LABEL_MARGIN_PX)
-  /** 한 축 치수선: along = 선 방향 축, edges = [기본 쪽 가장자리, 반대쪽 가장자리], 각 후보는 [가장자리, 선 위치] */
-  const placeLine = (axis: 'w' | 'h'): { a: Pt; b: Pt; ext: Array<[Pt, Pt]> } => {
+  /**
+   * 한 축 치수선. 후보는 [가장자리, 선 위치]. 구간 치수가 있으면 구간 줄이 그 자리에 오고 전체 치수선은 한 줄(SEG_ROW_PX) 바깥으로.
+   * 구간 줄의 안쪽 자르는 자리에는 그 자리 외곽선(줄 쪽 끝)에서 줄까지 보조선을 긋습니다(도형을 가로지르지 않게).
+   */
+  const placeLine = (axis: 'w' | 'h'): { line: DimLine; segs: DimLine[]; stops: number[] } => {
     const lo = axis === 'w' ? box.minX : box.minY
     const hi = axis === 'w' ? box.maxX : box.maxY
     const far = axis === 'w' ? box.maxY : box.maxX
     const near = axis === 'w' ? box.minY : box.minX
+    const cuts = opts?.segments === true ? segmentCuts(corners0, axis, lo, hi) : []
+    const row = cuts.length > 0 ? SEG_ROW_PX * k : 0
     // 안쪽 자리는 도형이 화면에서 충분히 클 때만(작은 물건이면 숫자가 물건을 덮음)
     const spanPx = (far - near) * view.zoom
     const candidates: Array<[number, number]> = [
@@ -134,25 +191,59 @@ export function dimModel(shape: Shape, place: DimPlacement, view: View, bounds?:
     const pt = (u: number, v: number): Pt => (axis === 'w' ? [u, v] : [v, u])
     const build = ([edge, pos]: [number, number]) => {
       const dir = pos >= edge ? 1 : -1
+      const total = pos + dir * row
       const [a, b, e1a, e1b, e2a, e2b] = toScreen([
-        pt(lo, pos),
-        pt(hi, pos),
+        pt(lo, total),
+        pt(hi, total),
         pt(lo, edge + dir * s0),
-        pt(lo, pos + dir * o),
+        pt(lo, total + dir * o),
         pt(hi, edge + dir * s0),
-        pt(hi, pos + dir * o),
+        pt(hi, total + dir * o),
       ]) as [Pt, Pt, Pt, Pt, Pt, Pt]
-      return { a, b, ext: [[e1a, e1b], [e2a, e2b]] as Array<[Pt, Pt]> }
+      const line: DimLine = { id: axis, a, b, ext: [[e1a, e1b], [e2a, e2b]] }
+      const stops = [lo, ...cuts, hi]
+      const segs: DimLine[] = []
+      for (let i = 0; i + 1 < stops.length; i++) {
+        const [sa, sb] = toScreen([pt(stops[i] as number, pos), pt(stops[i + 1] as number, pos)]) as [Pt, Pt]
+        const cut = i > 0 ? cuts[i - 1] : undefined
+        // 보조선: 그 자리 외곽선의 줄 쪽 끝에서 줄 너머까지. 외곽선이 줄 너머에 있으면(안쪽 자리) 줄 위의 짧은 눈금만
+        const reach = cut === undefined ? null : outlineReach(corners0, axis, cut, dir)
+        const from = reach === null ? pos : reach + dir * s0
+        const ext: Array<[Pt, Pt]> =
+          cut === undefined
+            ? []
+            : [toScreen([pt(cut, dir * (from - pos) < 0 ? from : pos - dir * o), pt(cut, pos + dir * o)]) as [Pt, Pt]]
+        segs.push({ id: `s${axis}${String(i)}`, a: sa, b: sb, ext })
+      }
+      return { line, segs: cuts.length > 0 ? segs : [], stops }
     }
+    const mid = (l: DimLine): Pt => [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2]
     for (const c of candidates) {
-      const line = build(c)
-      if (visible([(line.a[0] + line.b[0]) / 2, (line.a[1] + line.b[1]) / 2])) return line
+      const built = build(c)
+      if (visible(mid(built.line)) && built.segs.every((l) => visible(mid(l)))) return built
     }
     return build(candidates[0] as [number, number])
   }
+  /** 구간 숫자: 화면에서 짧은 구간은 줄만 남기고 숫자를 숨깁니다. stops = 왼쪽(위) 끝부터 자르는 자리(cm) */
+  const pushSegs = (axis: 'w' | 'h', segs: DimLine[], stops: number[]) => {
+    segs.forEach((l, i) => {
+      lines.push(l)
+      if (Math.hypot(l.b[0] - l.a[0], l.b[1] - l.a[1]) < MIN_LABEL_SPAN_PX) return
+      const v = (stops[i + 1] as number) - (stops[i] as number)
+      segments.push({
+        id: l.id,
+        name: `${axis === 'w' ? '가로' : '세로'} 구간 ${String(i + 1)}`,
+        text: fmt(v),
+        value: round1(v),
+        at: [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2],
+      })
+    })
+  }
   if (widthPx >= MIN_LABEL_SPAN_PX) {
-    const { a, b, ext } = placeLine('w')
-    lines.push({ id: 'w', a, b, ext })
+    const { line, segs, stops } = placeLine('w')
+    const { a, b } = line
+    lines.push(line)
+    pushSegs('w', segs, stops)
     const w = dimValue(shape, { kind: 'w' }) ?? 0
     const circle = shape.kind === 'circle'
     labels.push({
@@ -165,14 +256,16 @@ export function dimModel(shape: Shape, place: DimPlacement, view: View, bounds?:
     })
   }
   if (shape.kind !== 'circle' && heightPx >= MIN_LABEL_SPAN_PX) {
-    const { a, b, ext } = placeLine('h')
-    lines.push({ id: 'h', a, b, ext })
+    const { line, segs, stops } = placeLine('h')
+    const { a, b } = line
+    lines.push(line)
+    pushSegs('h', segs, stops)
     const h = dimValue(shape, { kind: 'h' }) ?? 0
     labels.push({ id: 'h', key: { kind: 'h' }, name: '세로', text: fmt(h), value: round1(h), at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] })
   }
-  if (shape.kind === 'circle') return { labels, lines }
+  if (shape.kind === 'circle') return { labels, lines, segments }
 
-  const corners = toScreen(cornerRing(shape))
+  const corners = toScreen(corners0)
   const n = corners.length
   const outwardSign = signedArea(corners) > 0 ? 1 : -1
 
@@ -218,5 +311,5 @@ export function dimModel(shape: Shape, place: DimPlacement, view: View, bounds?:
       dir: d,
     })
   }
-  return { labels, lines }
+  return { labels, lines, segments }
 }
