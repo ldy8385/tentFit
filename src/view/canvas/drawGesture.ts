@@ -2,6 +2,7 @@
 // 점 찍기 여부는 판정기(gestures.ts)의 tap 출력으로만 정하고, 여기서는 그 탭을 닫기·점으로 해석합니다.
 // 점 추가 검증(맞춤·교차·길이 0)과 문구는 app/tentActions(appendDrawPoint·finishDrawing)가 합니다(같은 동작 두 벌 금지).
 // 고무줄은 탭과 같은 core.snapDrawPoint를 써서 "보인 곳 = 찍힌 곳"이 됩니다.
+import { alignGuides, type AlignGuide } from '../../core/align'
 import type { Pt } from '../../core/model'
 import { snapDrawPoint } from '../../core/polygonEdit'
 import { GRID_STEP } from '../../core/snap'
@@ -46,6 +47,50 @@ export function rubberBand(
   const first = pts[0]
   const to: Pt = closes && first !== undefined ? [first[0], first[1]] : snapDrawPoint(last, screenToWorld(view, pointerScreen), origin, step, right)
   return { from: last, to, closes }
+}
+
+/** 직각으로 보는 각도 차이(°) */
+const RIGHT_TOL_DEG = 0.5
+
+/** 직각 표시: 꼭짓점 at에서 두 변 쪽 단위 방향 u·v */
+export type RightMark = { at: Pt; u: Pt; v: Pt }
+
+function unitTo(from: Pt, to: Pt): Pt | null {
+  const l = Math.hypot(to[0] - from[0], to[1] - from[1])
+  return l > 0 ? [(to[0] - from[0]) / l, (to[1] - from[1]) / l] : null
+}
+
+/** b에서 a·c 쪽이 직각이면 표시, 아니면 null */
+function rightAt(a: Pt, b: Pt, c: Pt): RightMark | null {
+  const u = unitTo(b, a)
+  const v = unitTo(b, c)
+  if (u === null || v === null) return null
+  return Math.abs(u[0] * v[0] + u[1] * v[1]) <= Math.sin((RIGHT_TOL_DEG * Math.PI) / 180) ? { at: [b[0], b[1]], u, v } : null
+}
+
+/**
+ * 그리는 중 안내(소유자 요청 2026-10-16, 붙이지 않고 보이기만): 고무줄 끝(찍힐 자리)이 찍은 점·다른 꼭짓점(others, 월드)과
+ * 가로·세로 줄이 맞으면 안내선, 직전 변과 지금 긋는 선이 90°면 그 꼭짓점에 직각 표시. 닫히는 고무줄이면 마지막 점·첫 점의 직각만.
+ */
+export function drawGuides(drawing: Drawing, rubber: RubberBand | null, others: readonly Pt[]): { lines: AlignGuide[]; right: RightMark[] } {
+  const pts = drawing.points
+  if (rubber === null) return { lines: [], right: [] }
+  const right: RightMark[] = []
+  const n = pts.length
+  const prev = pts[n - 2]
+  const last = pts[n - 1]
+  if (prev !== undefined && last !== undefined) {
+    const r = rightAt(prev, last, rubber.to)
+    if (r !== null) right.push(r)
+  }
+  if (rubber.closes) {
+    const first = pts[0]
+    const second = pts[1]
+    const r = first !== undefined && second !== undefined && last !== undefined ? rightAt(last, first, second) : null
+    if (r !== null) right.push(r)
+    return { lines: [], right }
+  }
+  return { lines: alignGuides(rubber.to, [...pts, ...others]), right }
 }
 
 /** 누름이 탭/끌기 경계를 넘었는지(TAP_SLOP, max(|dx|,|dy|) — 판정기와 같은 식). 고무줄 표시에만 씁니다. */

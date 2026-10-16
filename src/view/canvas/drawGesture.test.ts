@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Drawing } from '../../store/ui'
 import type { View } from '../viewport'
-import { drawTapEffect, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
+import { drawGuides, drawTapEffect, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
 
 /** 화면 = 월드 × 2 + (100, 50) */
 const V: View = { zoom: 2, panX: 100, panY: 50 }
@@ -86,5 +86,39 @@ describe('rubberBand — 상하좌우로만', () => {
   it('right면 고무줄 끝도 가로·세로로만', () => {
     const r = rubberBand({ goal: 'outer', points: [[0, 0]] }, [300, 110], 'mouse', V, [0, 0], 10, true)
     expect(r.to).toEqual([100, 0])
+  })
+})
+
+// 그리는 중 안내(소유자 요청 2026-10-16: "다른 포인트들과 90도 각도나 수평·수직을 이루면 안내선, 안내선만 나와도 충분")
+describe('drawGuides', () => {
+  const D = (points: [number, number][]): Drawing => ({ goal: 'newInner', points })
+
+  it('찍힐 자리가 찍은 점·다른 꼭짓점과 가로·세로 줄이 맞으면 안내선(붙이지는 않음)', () => {
+    const g = drawGuides(D([[0, 0], [100, 0], [100, 80]]), { from: [100, 80], to: [0, 80], closes: false }, [[-50, 80]])
+    expect(g.lines).toEqual([
+      { a: [0, 0], b: [0, 80] },
+      { a: [-50, 80], b: [100, 80] },
+    ])
+    expect(drawGuides(D([[0, 0]]), { from: [0, 0], to: [37, 52], closes: false }, []).lines).toEqual([])
+  })
+
+  it('직전 변과 지금 긋는 선이 90°면 그 꼭짓점에 직각 표시(비스듬해도), 아니면 없음', () => {
+    const g = drawGuides(D([[0, 0], [30, 10]]), { from: [30, 10], to: [20, 40], closes: false }, [])
+    expect(g.right).toHaveLength(1)
+    const r = g.right[0]!
+    expect(r.at).toEqual([30, 10])
+    expect(r.u[0]).toBeCloseTo(-30 / Math.hypot(30, 10), 9)
+    expect(r.v[1]).toBeCloseTo(30 / Math.hypot(10, 30), 9)
+    expect(drawGuides(D([[0, 0], [30, 10]]), { from: [30, 10], to: [25, 40], closes: false }, []).right).toEqual([])
+    // 점이 하나뿐이면 각이 없음
+    expect(drawGuides(D([[0, 0]]), { from: [0, 0], to: [0, 50], closes: false }, []).right).toEqual([])
+  })
+
+  it('닫을 때는 마지막 점과 첫 점의 직각만(줄 안내선 없음), 고무줄이 없으면 아무것도 없음', () => {
+    const sq = D([[0, 0], [100, 0], [100, 100], [0, 100]])
+    const g = drawGuides(sq, { from: [0, 100], to: [0, 0], closes: true }, [])
+    expect(g.right.map((r) => r.at)).toEqual([[0, 100], [0, 0]])
+    expect(g.lines).toEqual([])
+    expect(drawGuides(sq, null, [])).toEqual({ lines: [], right: [] })
   })
 })

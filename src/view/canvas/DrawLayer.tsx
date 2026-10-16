@@ -3,13 +3,15 @@
 // Board가 경고 레이어 안 TentEditLayer 자리에 둡니다(그리는 중에는 선택 대상 핸들을 숨김 — 누르면 점이 되므로).
 // 점·고무줄 끝은 화면 크기가 고정되도록 Group을 1/zoom으로 줄여 그립니다(TentLayer와 같은 방식).
 // 선 길이(소유자 요청 2026-10-16): 찍은 변마다·지금 긋는 고무줄에 cm 숫자(고무줄은 진하게). 화면에서 짧은 선은 숨김.
+// 안내(소유자 요청 2026-10-16): 찍힐 자리가 다른 점과 가로·세로 줄이 맞으면 정렬 안내선, 직전 변과 90°면 직각 표시(붙이지 않음).
 import type { JSX } from 'react'
 import { Circle, Group, Line, Rect, Text } from 'react-konva'
 import { round1, type Pt } from '../../core/model'
 import type { Drawing } from '../../store/ui'
 import { THEME } from '../../ui/theme'
-import type { RubberBand } from './drawGesture'
+import type { RubberBand, drawGuides } from './drawGesture'
 import { HALO_PX } from './nodes'
+import { GUIDE_COLOR, GUIDE_DASH, GUIDE_OPACITY, GUIDE_STROKE_PX } from './TentLayer'
 import { MIN_LABEL_SPAN_PX } from '../dimLabels'
 
 /** 찍은 점 지름(화면 px) */
@@ -18,6 +20,8 @@ export const DRAW_DOT_PX = 10
 export const CLOSE_DOT_PX = 18
 const LINE_PX = 2
 const RUBBER_DASH = [6, 4]
+/** 직각 표시 한 변 길이(화면 px) */
+export const RIGHT_MARK_PX = 12
 
 export type DrawLayerModel = {
   /** 찍은 점을 잇는 열린 선(월드 cm, 평평한 배열) */
@@ -102,8 +106,10 @@ function Dot(props: { at: Pt; zoom: number; color: string; size: number; filled:
   )
 }
 
-export function DrawLayer(props: { drawing: Drawing; rubber: RubberBand | null; zoom: number }): JSX.Element | null {
+/** guides = 정렬 안내선·직각 표시(정렬 안내선을 끄면 null) */
+export function DrawLayer(props: { drawing: Drawing; rubber: RubberBand | null; zoom: number; guides?: ReturnType<typeof drawGuides> | null }): JSX.Element | null {
   const { drawing, rubber, zoom } = props
+  const s = RIGHT_MARK_PX / zoom
   if (!(zoom > 0)) return null
   const m = drawLayerModel(drawing, rubber, zoom)
   const color = drawing.goal === 'outer' ? THEME['accent'] : THEME['info']
@@ -129,6 +135,30 @@ export function DrawLayer(props: { drawing: Drawing; rubber: RubberBand | null; 
         />
       ))}
       {m.preview !== null && <Dot at={m.preview} zoom={zoom} color={color} size={DRAW_DOT_PX} filled />}
+      {props.guides?.lines.map((g, i) => (
+        <Line
+          key={`guide${String(i)}`}
+          name="draw-guide"
+          points={[g.a[0], g.a[1], g.b[0], g.b[1]]}
+          stroke={GUIDE_COLOR}
+          strokeWidth={GUIDE_STROKE_PX}
+          dash={GUIDE_DASH}
+          opacity={GUIDE_OPACITY}
+          strokeScaleEnabled={false}
+          perfectDrawEnabled={false}
+        />
+      ))}
+      {props.guides?.right.map((r, i) => (
+        <Line
+          key={`right${String(i)}`}
+          name="draw-right-angle"
+          points={[r.at[0] + r.u[0] * s, r.at[1] + r.u[1] * s, r.at[0] + (r.u[0] + r.v[0]) * s, r.at[1] + (r.u[1] + r.v[1]) * s, r.at[0] + r.v[0] * s, r.at[1] + r.v[1] * s]}
+          stroke={GUIDE_COLOR}
+          strokeWidth={GUIDE_STROKE_PX}
+          strokeScaleEnabled={false}
+          perfectDrawEnabled={false}
+        />
+      ))}
       {m.lengths.map((l, i) => (
         <LengthTag key={`len${String(i)}`} at={l.at} zoom={zoom} text={l.text} color={color} current={l.current} />
       ))}

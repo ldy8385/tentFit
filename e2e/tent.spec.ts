@@ -580,6 +580,19 @@ test.describe('텐트 편집 모드 — 자유 그리기·모양 바꾸기(Plan 
           .map((g) => g.findOne('Text').text()),
       )
     await expect.poll(texts).toEqual(['150', '200'])
+    // 안내(2026-10-16): (250,100)은 (250,−100)과 세로 줄이 맞고, 직전 변과 직각
+    const count = (name: string) =>
+      page.evaluate((n) => (window as unknown as { Konva: { stages: { find(s: string): unknown[] }[] } }).Konva.stages[0]!.find(n).length, name)
+    await expect.poll(() => count('.draw-right-angle')).toBe(1)
+    expect(await count('.draw-guide')).toBeGreaterThan(0)
+    // 정렬 안내선을 끄면 안내는 없고 길이는 그대로
+    await page.getByRole('button', { name: '보기', exact: true }).click()
+    await page.getByRole('menuitemcheckbox', { name: '정렬 안내선' }).click()
+    await page.mouse.move(to.x + 5, to.y)
+    await page.mouse.move(to.x, to.y)
+    await expect.poll(texts).toEqual(['150', '200'])
+    expect(await count('.draw-right-angle')).toBe(0)
+    expect(await count('.draw-guide')).toBe(0)
   })
 
   test('그리는 중 Ctrl+Z는 점 하나만, Esc는 그리기 취소(문서 그대로)', async ({ page }) => {

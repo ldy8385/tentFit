@@ -126,10 +126,10 @@ export type TentLayerProps = {
 
 /** 텐트 모드에서 Board가 경고 레이어 안 맨 위(경고 표시 위·Transformer 아래)에 그립니다. */
 /** 정렬 안내선 모양(화면 px). 선택 테두리(파랑·초록)와 헷갈리지 않게 자홍색 */
-const GUIDE_COLOR = '#D6409F'
-const GUIDE_STROKE_PX = 1.5
-const GUIDE_DASH = [6, 4]
-const GUIDE_OPACITY = 0.7
+export const GUIDE_COLOR = '#D6409F'
+export const GUIDE_STROKE_PX = 1.5
+export const GUIDE_DASH = [6, 4]
+export const GUIDE_OPACITY = 0.7
 /** 대칭 기준선(굵은 긴 점선)·짝 선·반대편 자리 동그라미(화면 px). 잘 보이게 정렬 안내선보다 굵고 진하게(소유자 요청 2026-10-15) */
 const AXIS_STROKE_PX = 2
 const AXIS_DASH = [12, 6]

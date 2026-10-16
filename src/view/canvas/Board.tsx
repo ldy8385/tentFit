@@ -31,7 +31,7 @@ import { LIMITS, normAngle, round1, type Item, type Layout, type Pt, type Shape 
 import { drawGridOrigin } from '../../core/polygonEdit'
 import type { SymAxis } from '../../core/symmetry'
 import { expandSelection } from '../../core/ops/groups'
-import { edgeNormal } from '../../core/ops/tent'
+import { edgeNormal, targetWorldRing, type TentTarget } from '../../core/ops/tent'
 import { applyTransform, moveItems } from '../../core/ops/items'
 import { worldRing } from '../../core/geom'
 import { buildSnapContext, snapMove, SNAP_PX, type Seg, type SnapContext, type SnapLock } from '../../core/snap'
@@ -43,7 +43,7 @@ import { buildScene } from '../scene'
 import { INVALID_EDIT_STYLE } from '../tentEdit'
 import { fitBBoxFor, screenToWorld, wheelAction, type View } from '../viewport'
 import { axisBoundPosition } from '../axisLock'
-import { drawTapEffect, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
+import { drawGuides, drawTapEffect, pressMoved, rubberBand, rubberVisible, tentDim } from './drawGesture'
 import { DimOverlay } from './DimOverlay'
 import { DrawLayer } from './DrawLayer'
 import { itemsInRect, rectFromCorners } from './marquee'
@@ -1055,17 +1055,29 @@ function TentEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | nul
   )
 }
 
-/** 그리는 중 표시: 찍은 점·열린 선·고무줄(그때 보기로 계산 — 휠 이동에도 포인터를 따라감) */
+/** 그리는 중 표시: 찍은 점·열린 선·고무줄(그때 보기로 계산 — 휠 이동에도 포인터를 따라감)과 정렬·직각 안내(정렬 안내선을 켰을 때) */
 function DrawEditLayer(props: { overlay: StoreApi<Overlay> }): JSX.Element | null {
   const drawing = useUi((s) => s.drawing)
   const view = useUi((s) => s.view)
   const outerPending = useUi((s) => s.outerPending)
-  const tent = useDoc((s) => s.layout.tent)
+  const layout = useDoc((s) => s.layout)
   const gridStep = useUi((s) => s.gridStep)
+  const guidesVisible = useUi((s) => s.guidesVisible)
   const ptr = useStore(props.overlay, (s) => s.drawPointer)
   if (drawing === null) return null
+  const tent = layout.tent
   const rubber = ptr === null ? null : rubberBand(drawing, ptr.screen, ptr.pointer, view, drawGridOrigin(tent, outerPending), gridStep, ptr.right)
-  return <DrawLayer drawing={drawing} rubber={rubber} zoom={view.zoom} />
+  const guides = guidesVisible ? drawGuides(drawing, rubber, tentVertexPoints(layout, outerPending)) : null
+  return <DrawLayer drawing={drawing} rubber={rubber} zoom={view.zoom} guides={guides} />
+}
+
+/** 그리기 안내가 맞춰 볼 텐트 꼭짓점(월드): 외곽(외곽 없음 단계면 빼고)과 모든 이너. 원은 꼭짓점이 없어 뺍니다. */
+function tentVertexPoints(layout: Layout, outerPending: boolean): Pt[] {
+  const targets: TentTarget[] = [
+    ...(outerPending || layout.tent.outer.kind === 'circle' ? [] : ['outer' as const]),
+    ...layout.tent.inners.filter((i) => i.shape.kind !== 'circle').map((i): TentTarget => ({ innerId: i.id })),
+  ]
+  return targets.flatMap((t) => targetWorldRing(layout, t))
 }
 
 /** 자석 맞춤 안내선: 붙은 대상 변을 점선으로(§4.6) */
