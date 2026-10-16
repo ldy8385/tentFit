@@ -10,7 +10,9 @@ import {
   addInnerFromTemplate,
   deleteInner,
   deleteVertex,
+  edgeMoves,
   insertVertex,
+  targetFlipped,
   moveInner,
   moveInnerTo,
   renameInner,
@@ -625,5 +627,84 @@ describe('예시·그린 이너, 대상 다각형, 모양 바꾸기, 절대 이�
     expect(targetLocalRing(l, 'outer')).toHaveLength(4)
     expect(targetLocalRing(layoutOf({ name: 'b', outer: { kind: 'circle', d: 300 }, inners: [] }), 'outer')).toEqual([])
     expect(targetLocalRing(l, { innerId: 'zz' })).toEqual([])
+  })
+})
+
+// 변 끌기(소유자 요청 2026-10-16): 변을 바깥쪽 법선 방향으로 평행 이동, 대칭 「자동 맞춤」이면 짝도
+describe('edgeMoves', () => {
+  // 외곽 rect 600×300: 꼭짓점 0(−300,−150) 1(300,−150) 2(300,150) 3(−300,150), 변 1 = 오른쪽 변
+  it('바깥쪽(+)·안쪽(−)으로 변의 두 꼭짓점만, 꼭짓점 순서가 반대여도 바깥은 바깥', () => {
+    const l = layoutOf()
+    expect(edgeMoves(l, 'outer', 1, 20, null)).toEqual([
+      { index: 1, world: [320, -150] },
+      { index: 2, world: [320, 150] },
+    ])
+    expect(edgeMoves(l, 'outer', 0, -30, null)).toEqual([
+      { index: 0, world: [-300, -120] },
+      { index: 1, world: [300, -120] },
+    ])
+    const ccw = layoutOf({ ...goldenTent(), outer: { kind: 'polygon', points: [[-300, -150], [-300, 150], [300, 150], [300, -150]] } })
+    delete ccw.tent.outerTemplate
+    // 변 2 = (300,150)→(300,−150) 오른쪽 변
+    expect(edgeMoves(ccw, 'outer', 2, 20, null)).toEqual([
+      { index: 2, world: [320, 150] },
+      { index: 3, world: [320, -150] },
+    ])
+  })
+
+  it('대칭 자동 맞춤(좌우): 대칭이면 반대편 짝 변도 거울로, 기준선을 가로지르는 변은 그대로 둘만', () => {
+    const l = layoutOf()
+    expect(edgeMoves(l, 'outer', 1, 20, 'x')).toEqual([
+      { index: 0, world: [-320, -150] },
+      { index: 1, world: [320, -150] },
+      { index: 2, world: [320, 150] },
+      { index: 3, world: [-320, 150] },
+    ])
+    expect(edgeMoves(l, 'outer', 0, 10, 'x')).toEqual([
+      { index: 0, world: [-300, -160] },
+      { index: 1, world: [300, -160] },
+    ])
+  })
+
+  it('기준선 위 꼭짓점은 기준선을 따라서만(대칭 유지), 대칭이 아니면 짝 없음', () => {
+    // 집 모양: 꼭대기 1(0,−100)이 기준선 위
+    const house = layoutOf({ ...goldenTent([]), outer: { kind: 'polygon', points: [[-100, -50], [0, -100], [100, -50], [100, 50], [-100, 50]] } })
+    delete house.tent.outerTemplate
+    const m = edgeMoves(house, 'outer', 1, 10, 'x')!
+    const byIndex = new Map(m.map((v) => [v.index, v.world]))
+    expect([...byIndex.keys()].sort()).toEqual([0, 1, 2])
+    expect(byIndex.get(1)![0]).toBe(0)
+    const v2 = byIndex.get(2)!
+    expect(byIndex.get(0)).toEqual([-v2[0], v2[1]])
+    // 대칭이 아니면(오른쪽 아래만 다름) 두 꼭짓점만
+    const skew = layoutOf({ ...goldenTent([]), outer: { kind: 'polygon', points: [[-100, -50], [100, -50], [120, 50], [-100, 50]] } })
+    delete skew.tent.outerTemplate
+    expect(edgeMoves(skew, 'outer', 0, 10, 'x')!.map((v) => v.index)).toEqual([0, 1])
+  })
+
+  it('돌린 이너는 월드에서 그 변의 바깥쪽으로, 원·없는 번호는 null', () => {
+    // 이너 300×300 @(150,0)를 90° 돌림: 로컬 변 1(오른쪽)이 월드 아래쪽
+    const l = layoutOf(goldenTent([rectInner('in1', 300, 300, 150, 0, { rotation: 90 })]))
+    const m = edgeMoves(l, { innerId: 'in1' }, 1, 20, null)!
+    expect(m.map((v) => v.index)).toEqual([1, 2])
+    for (const v of m) expect(v.world[1]).toBeCloseTo(170, 6)
+    expect(edgeMoves(l, 'outer', 9, 20, null)).toBeNull()
+    const circ = layoutOf({ ...goldenTent([]), outer: { kind: 'circle', d: 300 } })
+    delete circ.tent.outerTemplate
+    expect(edgeMoves(circ, 'outer', 0, 20, null)).toBeNull()
+  })
+})
+
+describe('targetFlipped', () => {
+  it('꼭짓점 순서 방향이 반대가 되면(변을 맞은편 너머로) true, 그대로·넓이 0이면 false', () => {
+    const l = layoutOf()
+    const apply = (offset: number) =>
+      produce(l, (d) => {
+        for (const m of edgeMoves(l, 'outer', 1, offset, null)!) setVertex(d, 'outer', m.index, m.world)
+      })
+    expect(targetFlipped(l, apply(-100), 'outer')).toBe(false)
+    expect(targetFlipped(l, apply(-600), 'outer')).toBe(false)
+    expect(targetFlipped(l, apply(-700), 'outer')).toBe(true)
+    expect(targetFlipped(l, l, { innerId: 'nope' })).toBe(false)
   })
 })

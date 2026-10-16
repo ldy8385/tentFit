@@ -22,6 +22,7 @@ import {
   commitInnerMove,
   finishDrawing,
   insertTargetVertex,
+  moveTargetEdge,
   selectTentTargetFromCanvas,
   setTargetVertex,
   tentControlsEnabled,
@@ -30,6 +31,7 @@ import { LIMITS, normAngle, round1, type Item, type Layout, type Pt, type Shape 
 import { drawGridOrigin } from '../../core/polygonEdit'
 import type { SymAxis } from '../../core/symmetry'
 import { expandSelection } from '../../core/ops/groups'
+import { edgeNormal } from '../../core/ops/tent'
 import { applyTransform, moveItems } from '../../core/ops/items'
 import { worldRing } from '../../core/geom'
 import { buildSnapContext, snapMove, SNAP_PX, type Seg, type SnapContext, type SnapLock } from '../../core/snap'
@@ -180,6 +182,8 @@ class BoardController {
   private readonly arbiter = new GestureArbiter()
   private space = false
   private hover = false
+  /** 변 위 hover 커서(2026-10-16): 지금 붙인 커서('' = 없음) */
+  private edgeCursor = ''
   /** 되돌린 제스처의 dragend·transformend가 커밋하지 못하게 합니다. 모든 포인터가 떨어진 뒤 풉니다. */
   private suppress = false
   private locked = false
@@ -375,6 +379,7 @@ class BoardController {
     this.altDown = e.altKey
     if (this.arbiter.pointerCount === 0) {
       this.hoverRubber(e)
+      this.hoverTentEdge(e)
       return
     }
     const p = this.local(e)
@@ -485,6 +490,7 @@ class BoardController {
     this.shiftDown = false
     this.altDown = false
     this.space = false
+    this.edgeCursor = ''
     if (this.host) this.host.style.cursor = ''
   }
 
@@ -517,6 +523,27 @@ class BoardController {
       return
     }
     this.showRubber(this.local(e), pointer)
+  }
+
+  /**
+   * 변 끌기(2026-10-16): 마우스·펜이 고른 대상의 변 위에 있으면 끌 수 있다는 커서(세로 변 ↔, 가로 변 ↕, 비스듬하면 이동).
+   * 꼭짓점·+ 자리, 그리는 중, 스페이스(화면 이동) 중에는 붙이지 않습니다.
+   */
+  private hoverTentEdge(e: PointerEvent): void {
+    const pointer = toPointerKind(e.pointerType)
+    const ui = this.stores.ui.getState()
+    let cursor = ''
+    if (pointer !== 'touch' && this.hover && !this.space && ui.mode === 'tent' && ui.drawing === null && ui.tentTarget !== null && tentControlsEnabled(ui)) {
+      const layout = this.stores.doc.getState().layout
+      const hit = classifyTentPress(layout, ui.tentTarget, ui.view, this.local(e), pointer, ui.tentLock, ui.outerPending)
+      if (hit.kind === 'edge') {
+        const n = edgeNormal(layout, hit.target, hit.edgeIndex)
+        cursor = n === null ? 'move' : Math.abs(n[0]) > 0.92 ? 'ew-resize' : Math.abs(n[1]) > 0.92 ? 'ns-resize' : 'move'
+      }
+    }
+    if (cursor === this.edgeCursor) return
+    this.edgeCursor = cursor
+    if (this.host && !this.space) this.host.style.cursor = cursor
   }
 
   /** 누르는 동안: 한 손가락·경계 안이면 고무줄을 포인터에, 경계를 넘거나(화면 이동) 두 손가락이면 숨깁니다. */
@@ -750,6 +777,7 @@ class BoardController {
     this.tentPrev = null
     if (commit === null) return
     if (commit.kind === 'vertex') setTargetVertex(this.stores, commit.target, commit.index, commit.world)
+    else if (commit.kind === 'edge') moveTargetEdge(this.stores, commit.target, commit.edgeIndex, commit.offset)
     else commitInnerMove(this.stores, commit.innerId, commit.dx, commit.dy)
   }
 

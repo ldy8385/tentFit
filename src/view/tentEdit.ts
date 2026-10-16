@@ -80,6 +80,27 @@ export function handleAt(handles: readonly TentHandle[], screen: Pt, view: View,
   return best
 }
 
+/**
+ * 변 끌기(소유자 요청 2026-10-16): 선택한 대상 하나의 변 중 화면 점에서 잡는 거리(VERTEX_GRAB_PX[pointer]) 안의 가장 가까운 변 번호.
+ * 꼭짓점·+ 핸들은 이 함수가 보지 않습니다(handleAt을 먼저 부르세요). 원·없는 이너·잡을 변이 없으면 null.
+ */
+export function edgeAt(layout: Layout, target: TentTarget, view: View, screen: Pt, pointer: PointerKind): number | null {
+  if (targetIsCircle(layout, target)) return null
+  const ring = targetWorldRing(layout, target).map((p) => worldToScreen(view, p))
+  const n = ring.length
+  if (n < 3) return null
+  let best: number | null = null
+  let bestD = VERTEX_GRAB_PX[pointer]
+  for (let i = 0; i < n; i++) {
+    const d = segmentDistance(screen, ring[i] as Pt, ring[(i + 1) % n] as Pt)
+    if (d <= bestD) {
+      best = i
+      bestD = d
+    }
+  }
+  return best
+}
+
 /** 점과 선분 사이 거리(cm) */
 function segmentDistance(p: Pt, a: Pt, b: Pt): number {
   const vx = b[0] - a[0]
@@ -142,6 +163,14 @@ export function tentDragDelta(input: { dx: number; dy: number; layout: Layout; t
   dy: number
 } {
   return { dx: input.dx, dy: input.dy }
+}
+
+/** 꼭짓점 여러 개(변 끌기)를 옮긴 미리보기 텐트와, 그 때문에 새로 생긴 이슈(R11). 문서는 바꾸지 않습니다. */
+export function previewVertexMoves(layout: Layout, target: TentTarget, moves: ReadonlyArray<{ index: number; world: Pt }>): { tent: Tent; issues: Issue[] } {
+  const next = produce(layout, (d) => {
+    for (const m of moves) setVertex(d, target, m.index, m.world)
+  })
+  return { tent: next.tent, issues: newTentIssues(layout.tent, next.tent) }
 }
 
 /** 꼭짓점 하나(대칭 맞춤이면 짝 mirror도)를 world로 옮긴 미리보기 텐트와, 그 때문에 새로 생긴 이슈(R11). 문서는 바꾸지 않습니다. */

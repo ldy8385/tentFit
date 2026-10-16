@@ -43,6 +43,8 @@ import {
   setTargetDiameter,
   setTargetTemplate,
   setTargetVertex,
+  moveTargetEdge,
+  EDGE_FLIP_MESSAGE,
   swapTentAction,
   tentControlsEnabled,
   setTargetColorAction,
@@ -269,6 +271,21 @@ describe('거부 판정 — 새로 생긴 이슈만(Review Focus 2, R11)', () =>
   it('좌표 범위(−10000~10000) 밖이면 범위 문구', () => {
     expect(setTargetVertex(stores, 'outer', 0, [10001, 0])).toEqual({ ok: false, error: '-10,000~10,000 사이로 입력해 주세요' })
     expect(canUndo()).toBe(false)
+  })
+
+  it('변 끌기(2026-10-16): 변 두 꼭짓점만 바깥쪽으로 평행 이동(기록 한 칸), 꼬이거나 범위 밖이면 거부', () => {
+    // 외곽 620×320, 변 1 = 오른쪽 변
+    expect(moveTargetEdge(stores, 'outer', 1, 20)).toEqual({ ok: true })
+    expect(tent().outer).toEqual({ kind: 'polygon', points: [[-310, -160], [330, -160], [330, 160], [-310, 160]] })
+    expect(canUndo()).toBe(true)
+    stores.doc.getState().undo()
+    const before = layout()
+    expect(moveTargetEdge(stores, 'outer', 1, -700)).toEqual({ ok: false, error: EDGE_FLIP_MESSAGE })
+    expect(moveTargetEdge(stores, 'outer', 1, -620)).toEqual({ ok: false, error: '외곽: 꼭짓점이 3개보다 적어요' })
+    expect(moveTargetEdge(stores, 'outer', 1, 10000)).toEqual({ ok: false, error: '-10,000~10,000 사이로 입력해 주세요' })
+    expect(layout()).toBe(before)
+    expect(moveTargetEdge(stores, 'outer', 9, 20)).toEqual({ ok: true })
+    expect(layout()).toBe(before)
   })
 })
 
@@ -881,6 +898,17 @@ describe('대칭 맞춤 「자동 맞춤」(2026-10-15): 꼭짓점 옮기기·�
     ui().patch({ symmetryMode: 'mirror', symmetryAxis: 'off' })
     setTargetVertex(stores, 'outer', 1, [350, -200])
     expect(pts()).toEqual([[-310, -160], [350, -200], [310, 160], [-310, 160]])
+  })
+
+  it('변 끌기(2026-10-16): 짝 변도 거울로(기록 한 칸), 「안내 표기」·끄기면 그 변만', () => {
+    ui().patch({ mode: 'tent', symmetryAxis: 'x', symmetryMode: 'mirror' })
+    expect(moveTargetEdge(stores, 'outer', 1, 20)).toEqual({ ok: true })
+    expect(pts()).toEqual([[-330, -160], [330, -160], [330, 160], [-330, 160]])
+    stores.doc.getState().undo()
+    expect(tent().outer.kind).toBe('rect')
+    ui().patch({ symmetryMode: 'guide' })
+    moveTargetEdge(stores, 'outer', 1, 20)
+    expect(pts()).toEqual([[-310, -160], [330, -160], [330, 160], [-310, 160]])
   })
 
   it('넣기: 짝 변에도 넣고(기준선을 지나는 변이면 하나만) 새 점을 고름', () => {

@@ -332,3 +332,77 @@ describe('tentDragStep — 상하좌우로만(axisLock)', () => {
     expect(locked.commit).toEqual({ kind: 'vertex', target: 'outer', index: drag.index, world: [500, -240] })
   })
 })
+
+// 변 끌기(소유자 요청 2026-10-16): 고른 대상의 변을 잡아 변에 수직으로만 평행 이동
+describe('변 끌기', () => {
+  const edgeDrag = (target: TentPressHit & { kind: 'edge' }, at: [number, number]) => tentDragFor(target, 3, 'mouse', at, VIEW1) as TentDrag
+
+  it('고른 대상의 변 위(꼭짓점·+ 자리 밖, 잡는 거리 안) = 변, 고르지 않았거나 멀면 예전대로', () => {
+    // 외곽 1000×400: 윗변 y=−200(+ 는 (0,−200)), 마우스 잡는 거리 8px
+    expect(classifyTentPress(LAYOUT, 'outer', VIEW1, [200, -195], 'mouse')).toEqual({ kind: 'edge', target: 'outer', edgeIndex: 0 })
+    expect(classifyTentPress(LAYOUT, 'outer', VIEW1, [200, -190], 'mouse')).toEqual({ kind: 'outer' })
+    expect(classifyTentPress(LAYOUT, null, VIEW1, [200, -195], 'mouse')).toEqual({ kind: 'outer' })
+    // 꼭짓점·+ 가 먼저
+    expect(classifyTentPress(LAYOUT, 'outer', VIEW1, [3, -200], 'mouse')).toMatchObject({ kind: 'plus' })
+    // 이너 a(−300,0 200×200)의 오른쪽 변 x=−200: 안쪽에서 눌러도 변(이너 면보다 먼저)
+    expect(classifyTentPress(LAYOUT, { innerId: 'a' }, VIEW1, [-205, 50], 'mouse')).toEqual({ kind: 'edge', target: { innerId: 'a' }, edgeIndex: 1 })
+    expect(classifyTentPress(LAYOUT, { innerId: 'a' }, VIEW1, [-250, 50], 'mouse')).toEqual({ kind: 'inner', innerId: 'a' })
+  })
+
+  it('누르면 잡고(화면 이동 아님), 탭이면 그 대상(꼭짓점 해제), 끌기 후보', () => {
+    const hit: TentPressHit = { kind: 'edge', target: 'outer', edgeIndex: 0 }
+    expect(pressGrabs(hit)).toBe(true)
+    expect(pressSelection(hit, { target: 'outer', vertexIndex: 2 })).toBeNull()
+    expect(tentTapEffect(hit)).toEqual({ kind: 'select', target: 'outer', vertexIndex: null })
+    expect(tentDragFor(hit, 3, 'mouse', [200, -200], VIEW1)).toMatchObject({ kind: 'edge', target: 'outer', edgeIndex: 0, startWorld: [200, -200] })
+  })
+
+  it('비스듬히 끌어도 변에 수직인 이동량만, 미리보기와 커밋(바깥 +)', () => {
+    const drag = edgeDrag({ kind: 'edge', target: 'outer', edgeIndex: 1 }, [500, 0])
+    const r = tentDragStep(LAYOUT, drag, [530, 70], VIEW1)
+    expect(r.commit).toEqual({ kind: 'edge', target: 'outer', edgeIndex: 1, offset: 30 })
+    expect(r.preview.invalid).toBe(false)
+    expect(r.preview.tent.outer).toMatchObject({ points: [[-500, -200], [530, -200], [530, 200], [-500, 200]] })
+    // 안쪽으로
+    expect(tentDragStep(LAYOUT, drag, [480, 0], VIEW1).commit).toMatchObject({ offset: -20 })
+    // 변을 따라만 끌면 이동 없음
+    expect(tentDragStep(LAYOUT, drag, [500, 90], VIEW1).commit).toBeNull()
+  })
+
+  it('맞춤: 세로 변은 x를 다른 꼭짓점 줄(안내선)이나 격자선에, 비스듬한 변은 이동량을 격자 간격 단위로', () => {
+    const drag = edgeDrag({ kind: 'edge', target: 'outer', edgeIndex: 1 }, [500, 0])
+    const grid = { origin: [-500, -200] as [number, number], step: 30 }
+    // x 353 → 이너 c 오른쪽 변 x 350(격자라면 340)
+    const al = tentDragStep(LAYOUT, drag, [353, 0], VIEW1, { grid, alignTol: 5 })
+    expect(al.commit).toMatchObject({ offset: -150 })
+    expect(al.preview.guides.length).toBeGreaterThan(0)
+    expect(al.preview.guides.every((g) => g.a[0] === 350 && g.b[0] === 350)).toBe(true)
+    // 줄이 멀면 격자선(x 433 → 430)
+    expect(tentDragStep(LAYOUT, drag, [433, 0], VIEW1, { grid, alignTol: 5 }).commit).toMatchObject({ offset: -70 })
+    // 비스듬한 변: 사다리꼴 오른쪽 변
+    const trap = layoutOf({ name: '사다리꼴', outer: { kind: 'polygon', points: [[-100, -100], [100, -100], [200, 100], [-200, 100]] }, inners: [] })
+    const sd = tentDragFor({ kind: 'edge', target: 'outer', edgeIndex: 1 }, 3, 'mouse', [150, 0], VIEW1) as TentDrag
+    const n = [200 / Math.hypot(100, 200), -100 / Math.hypot(100, 200)]
+    const step = tentDragStep(trap, sd, [150 + n[0]! * 23, 0 + n[1]! * 23], VIEW1, { grid: { origin: [0, 0], step: 10 } })
+    expect(step.commit).toMatchObject({ offset: 20 })
+  })
+
+  it('자동 맞춤: 대칭이면 짝 변도 미리보기에(기준선 표시), 「안내 표기」면 그 변만', () => {
+    const drag = edgeDrag({ kind: 'edge', target: 'outer', edgeIndex: 1 }, [500, 0])
+    const r = tentDragStep(LAYOUT, drag, [530, 0], VIEW1, { symmetry: 'x', symmetryMirror: true })
+    expect(r.commit).toEqual({ kind: 'edge', target: 'outer', edgeIndex: 1, offset: 30 })
+    expect(r.preview.tent.outer).toMatchObject({ points: [[-530, -200], [530, -200], [530, 200], [-530, 200]] })
+    expect(r.preview.symmetry).toMatchObject({ ghost: null, pair: null })
+    expect(r.preview.symmetry?.axis.a[0]).toBe(0)
+    const guide = tentDragStep(LAYOUT, drag, [530, 0], VIEW1, { symmetry: 'x' })
+    expect(guide.preview.tent.outer).toMatchObject({ points: [[-500, -200], [530, -200], [530, 200], [-500, 200]] })
+  })
+
+  it('맞은편 너머로 밀면(뒤집힘) invalid·커밋 없음, 이동량이 작으면 커밋 없음', () => {
+    const drag = edgeDrag({ kind: 'edge', target: 'outer', edgeIndex: 1 }, [500, 0])
+    const flip = tentDragStep(LAYOUT, drag, [-600, 0], VIEW1)
+    expect(flip.preview.invalid).toBe(true)
+    expect(flip.commit).toBeNull()
+    expect(tentDragStep(LAYOUT, drag, [500 + TENT_MOVE_EPS_CM / 2, 0], VIEW1).commit).toBeNull()
+  })
+})

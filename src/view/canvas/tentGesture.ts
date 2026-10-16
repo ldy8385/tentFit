@@ -2,7 +2,17 @@
 // Board(BoardController)가 pointerdown에서 classifyTentPress로 대상을 정하고, 탭이면 tentTapEffect,
 // 끌기면 tentDragStep으로 미리보기와 커밋 값을 얻습니다. 문서는 Board가 손을 뗄 때 tentActions로 한 번만 바꿉니다.
 import type { Layout, Pt, Tent } from '../../core/model'
-import { mirrorPartners, mirrorVertexMove, targetFrame, targetLocalRing, targetWorldRing, type TentTarget } from '../../core/ops/tent'
+import {
+  edgeMoves,
+  edgeNormal,
+  mirrorPartners,
+  mirrorVertexMove,
+  targetFlipped,
+  targetFrame,
+  targetLocalRing,
+  targetWorldRing,
+  type TentTarget,
+} from '../../core/ops/tent'
 import { reflect, symmetryCenter, symmetrySnap, type SymAxis } from '../../core/symmetry'
 import { alignAxes, alignGuides, type AlignGuide } from '../../core/align'
 import { snapToGrid } from '../../core/polygonEdit'
@@ -10,9 +20,11 @@ import { tentTargetBlocked, type PointerKind, type TentLock } from '../../store/
 import { TAP_SLOP } from '../gestures'
 import {
   VERTEX_GRAB_PX,
+  edgeAt,
   handleAt,
   previewInnerMove,
   previewVertexDrag,
+  previewVertexMoves,
   tentDragDelta,
   tentHandles,
   tentHitAt,
@@ -23,10 +35,11 @@ import { screenToWorld, type View } from '../viewport'
 /** 이보다 작게 움직였으면(cm, 저장 단위 0.1cm의 절반) 끌기를 커밋하지 않습니다(Board의 MOVE_EPS_CM과 같은 값). */
 export const TENT_MOVE_EPS_CM = 0.05
 
-/** 텐트 모드 누름 대상(R10): 선택한 대상의 꼭짓점·+ > 이너 면(위가 먼저) > 외곽(바닥·외곽선 근처) > 없음 */
+/** 텐트 모드 누름 대상(R10): 선택한 대상의 꼭짓점·+ > 선택한 대상의 변(2026-10-16) > 이너 면(위가 먼저) > 외곽(바닥·외곽선 근처) > 없음 */
 export type TentPressHit =
   | { kind: 'vertex'; target: TentTarget; index: number; world: Pt }
   | { kind: 'plus'; target: TentTarget; edgeIndex: number }
+  | { kind: 'edge'; target: TentTarget; edgeIndex: number }
   | { kind: 'inner'; innerId: string }
   | { kind: 'outer' }
   | { kind: 'none' }
@@ -52,6 +65,7 @@ export type TentDrag =
       startWorld: Pt
     }
   | { kind: 'inner'; innerId: string; pointerId: number; pointer: PointerKind; start: Pt; startWorld: Pt }
+  | { kind: 'edge'; target: TentTarget; edgeIndex: number; pointerId: number; pointer: PointerKind; start: Pt; startWorld: Pt }
 
 /** 끄는 중 화면에만 그리는 미리보기(문서 밖). invalid면 빨간 점선 + 「놓으면 취소돼요」 */
 /** guides = 꼭짓점 정렬 안내선(월드 cm, 2026-10-15). 이너 옮기기는 빈 배열 */
@@ -63,6 +77,8 @@ export type SymmetryPreview = { axis: AlignGuide; ghost: Pt | null; pair: AlignG
 export type TentDragCommit =
   | { kind: 'vertex'; target: TentTarget; index: number; world: Pt; mirror?: { index: number; world: Pt } }
   | { kind: 'inner'; innerId: string; dx: number; dy: number }
+  /** 변 끌기: 바깥쪽 법선 방향 이동량(cm, 음수면 안쪽). 짝 변은 반영할 때 tentActions.moveTargetEdge가 다시 계산 */
+  | { kind: 'edge'; target: TentTarget; edgeIndex: number; offset: number }
 
 export function sameTentTarget(a: TentTarget | null, b: TentTarget | null): boolean {
   if (a === null || b === null) return a === b
@@ -88,6 +104,8 @@ export function classifyTentPress(
     const h = handleAt(tentHandles(layout, target, view), screen, view, pointer)
     if (h?.kind === 'vertex') return { kind: 'vertex', target, index: h.index, world: h.world }
     if (h?.kind === 'plus') return { kind: 'plus', target, edgeIndex: h.edgeIndex }
+    const e = edgeAt(layout, target, view, screen, pointer)
+    if (e !== null) return { kind: 'edge', target, edgeIndex: e }
   }
   const grabWorld = view.zoom > 0 ? VERTEX_GRAB_PX[pointer] / view.zoom : 0
   return tentHitAt(layout, screenToWorld(view, screen), grabWorld, lock)
@@ -95,7 +113,7 @@ export function classifyTentPress(
 
 /** 노드처럼 잡는 누름인지(true면 판정기에 onNode = true). 바닥·외곽선·바깥은 끌면 화면 이동입니다(§4.4-2). */
 export function pressGrabs(hit: TentPressHit): boolean {
-  return hit.kind === 'vertex' || hit.kind === 'plus' || hit.kind === 'inner'
+  return hit.kind === 'vertex' || hit.kind === 'plus' || hit.kind === 'edge' || hit.kind === 'inner'
 }
 
 /**
@@ -122,6 +140,8 @@ export function tentTapEffect(hit: TentPressHit): TentTapEffect {
       return { kind: 'insert', target: hit.target, edgeIndex: hit.edgeIndex }
     case 'inner':
       return { kind: 'select', target: { innerId: hit.innerId }, vertexIndex: null }
+    case 'edge':
+      return { kind: 'select', target: hit.target, vertexIndex: null }
     case 'outer':
       return { kind: 'select', target: 'outer', vertexIndex: null }
     case 'none':
@@ -131,7 +151,7 @@ export function tentTapEffect(hit: TentPressHit): TentTapEffect {
   }
 }
 
-/** 끌기 후보(꼭짓점·이너 누름만). +·외곽·없음은 null */
+/** 끌기 후보(꼭짓점·변·이너 누름만). +·외곽·없음은 null */
 export function tentDragFor(
   hit: TentPressHit,
   pointerId: number,
@@ -154,6 +174,7 @@ export function tentDragFor(
     }
   }
   if (hit.kind === 'inner') return { kind: 'inner', innerId: hit.innerId, pointerId, pointer, start, startWorld }
+  if (hit.kind === 'edge') return { kind: 'edge', target: hit.target, edgeIndex: hit.edgeIndex, pointerId, pointer, start, startWorld }
   return null
 }
 
@@ -188,6 +209,7 @@ export function tentDragStep(
   },
 ): { preview: TentPreview; commit: TentDragCommit | null } {
   const w = screenToWorld(view, screen)
+  if (drag.kind === 'edge') return edgeDragStep(layout, drag, [w[0] - drag.startWorld[0], w[1] - drag.startWorld[1]], opts)
   // 상하좌우로만(Shift·[상하좌우] 토글): 누른 점 기준 이동량이 큰 축만 남깁니다.
   const [rx, ry] = opts?.axisLock === true ? lockToAxis(w[0] - drag.startWorld[0], w[1] - drag.startWorld[1]) : [w[0] - drag.startWorld[0], w[1] - drag.startWorld[1]]
   if (drag.kind === 'inner') {
@@ -212,7 +234,7 @@ export function tentDragStep(
   // 기준선 자리 = 끌기 시작할 때 꼭짓점 상자의 가운데(끄는 동안 고정, 끌기 전에 보이던 선과 같음)
   const c = sym !== null ? symmetryCenter(ring, sym) : 0
   const mate = sym !== null && frame !== null && opts?.symmetryMirror === true ? (mirrorPartners(layout, drag.target, sym)?.[drag.index] ?? null) : null
-  const others = alignCandidates(layout, drag.target, drag.index, mate)
+  const others = alignCandidates(layout, drag.target, [drag.index, mate])
   const localOthers = ring.filter((_, i) => i !== drag.index)
   const hit = sym !== null && frame !== null && mate === null && opts?.axisLock !== true ? symmetrySnap(frame.toLocal(raw), localOthers, sym, opts?.alignTol ?? 0, c) : null
   let world: Pt
@@ -254,6 +276,55 @@ export function tentDragStep(
   return { preview: { target: drag.target, tent: r.tent, invalid, guides: alignGuides(world, others), symmetry }, commit }
 }
 
+/**
+ * 변 끌기 한 점(소유자 요청 2026-10-16): 끈 거리 중 변에 수직인 성분만 씁니다(변 길이·기울기 그대로, 상하좌우로만은 쓰지 않음).
+ * 맞춤(자석 맞춤이 켜졌을 때): 가로·세로 변은 다른 꼭짓점 줄(안내선) > 격자선, 비스듬한 변은 이동량을 격자 간격 단위로.
+ * 「자동 맞춤」이고 대칭이면 짝 변도 미리보기에. 꼬이거나 뒤집히면(맞은편 너머) invalid이고 commit은 null.
+ */
+function edgeDragStep(
+  layout: Layout,
+  drag: Extract<TentDrag, { kind: 'edge' }>,
+  delta: Pt,
+  opts?: { grid?: { origin: Pt; step: number } | null; alignTol?: number; symmetry?: SymAxis | null; symmetryMirror?: boolean },
+): { preview: TentPreview; commit: TentDragCommit | null } {
+  const { target, edgeIndex } = drag
+  const n = edgeNormal(layout, target, edgeIndex)
+  const ring = targetWorldRing(layout, target)
+  const a = ring[edgeIndex]
+  if (n === null || a === undefined) return { preview: { target, tent: layout.tent, invalid: false, guides: [], symmetry: null }, commit: null }
+  const sym = opts?.symmetry ?? null
+  const mirrorAxis = sym !== null && opts?.symmetryMirror === true ? sym : null
+  let t = delta[0] * n[0] + delta[1] * n[1]
+  // 맞춤: 법선이 가로(세로 변)면 x, 세로(가로 변)면 y를 줄·격자에
+  const k: 0 | 1 | null = Math.abs(n[0]) > 1 - 1e-9 ? 0 : Math.abs(n[1]) > 1 - 1e-9 ? 1 : null
+  const exclude = (edgeMoves(layout, target, edgeIndex, t, mirrorAxis) ?? []).map((m) => m.index)
+  const others = alignCandidates(layout, target, exclude)
+  if (k !== null) {
+    const v = a[k] + t * (n[k] as number)
+    const p: Pt = k === 0 ? [v, a[1]] : [a[0], v]
+    const al = alignAxes(p, others, opts?.alignTol ?? 0, { x: k === 0, y: k === 1 })
+    const snapped = (k === 0 ? al.x : al.y) ?? (opts?.grid != null ? snapToGrid(p, opts.grid.origin, opts.grid.step)[k] : v)
+    t = (snapped - a[k]) / (n[k] as number)
+  } else if (opts?.grid != null && opts.grid.step > 0) {
+    t = Math.round(t / opts.grid.step) * opts.grid.step
+  }
+  const moves = edgeMoves(layout, target, edgeIndex, t, mirrorAxis) ?? []
+  const r = previewVertexMoves(layout, target, moves)
+  const invalid = r.issues.length > 0 || targetFlipped(layout, { tent: r.tent }, target)
+  const exists = target === 'outer' || innerExists(layout, target.innerId)
+  const commit: TentDragCommit | null = !invalid && Math.abs(t) >= TENT_MOVE_EPS_CM && exists ? { kind: 'edge', target, edgeIndex, offset: t } : null
+  // 안내선: 움직이는 축의 줄만(세로 변이면 세로선)
+  const guides =
+    k === null
+      ? []
+      : moves
+          .filter((m) => m.index === edgeIndex || m.index === (edgeIndex + 1) % ring.length)
+          .flatMap((m) => alignGuides(m.world, others))
+          .filter((g) => g.a[k] === g.b[k])
+  const axis = sym !== null ? symmetryAxisLine(layout, target, sym) : null
+  return { preview: { target, tent: r.tent, invalid, guides, symmetry: axis === null ? null : { axis, ghost: null, pair: null } }, commit }
+}
+
 /** 로컬 기준선(좌우 = 세로선 x=c, 상하 = 가로선 y=c): 점들의 범위보다 조금(10%, 최소 20cm) 길게 */
 function axisLineLocal(points: readonly Pt[], axis: SymAxis, c: number): AlignGuide {
   const k = axis === 'x' ? 1 : 0
@@ -273,8 +344,8 @@ export function symmetryAxisLine(layout: Layout, target: TentTarget, axis: SymAx
   return { a: frame.toWorld(l.a), b: frame.toWorld(l.b) }
 }
 
-/** 정렬 대상 꼭짓점(월드): 외곽·모든 이너의 꼭짓점에서 끄는 꼭짓점(과 같이 움직이는 짝)만 뺌. 원은 꼭짓점이 없으므로 뺍니다. */
-function alignCandidates(layout: Layout, target: TentTarget, index: number, mate: number | null = null): Pt[] {
+/** 정렬 대상 꼭짓점(월드): 외곽·모든 이너의 꼭짓점에서 끄는 꼭짓점(과 같이 움직이는 짝, 변 끌기면 움직이는 꼭짓점들)만 뺌. 원은 꼭짓점이 없으므로 뺍니다. */
+function alignCandidates(layout: Layout, target: TentTarget, exclude: readonly (number | null)[]): Pt[] {
   const targets: TentTarget[] = [
     ...(layout.tent.outer.kind === 'circle' ? [] : ['outer' as const]),
     ...layout.tent.inners.filter((i) => i.shape.kind !== 'circle').map((i): TentTarget => ({ innerId: i.id })),
@@ -283,7 +354,7 @@ function alignCandidates(layout: Layout, target: TentTarget, index: number, mate
   for (const t of targets) {
     const same = sameTentTarget(t, target)
     targetWorldRing(layout, t).forEach((p, i) => {
-      if (!(same && (i === index || i === mate))) out.push(p)
+      if (!(same && exclude.includes(i))) out.push(p)
     })
   }
   return out

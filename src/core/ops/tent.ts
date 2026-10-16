@@ -226,6 +226,90 @@ export function mirrorPartners(layout: Layout, target: TentTarget, axis: SymAxis
   return symmetryPartners(targetLocalRing(layout, target), axis)
 }
 
+/** 로컬 고리 변 edgeIndex(꼭짓점 e → e+1)의 바깥쪽 단위 법선. 없는 번호·길이 0이면 null */
+function localEdgeNormal(ring: readonly Pt[], edgeIndex: number): Pt | null {
+  const n = ring.length
+  if (n < 3 || !Number.isInteger(edgeIndex) || edgeIndex < 0 || edgeIndex >= n) return null
+  const a = ring[edgeIndex] as Pt
+  const b = ring[(edgeIndex + 1) % n] as Pt
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+  if (len === 0) return null
+  let area2 = 0
+  for (let i = 0; i < n; i++) {
+    const p = ring[i] as Pt
+    const q = ring[(i + 1) % n] as Pt
+    area2 += p[0] * q[1] - q[0] * p[1]
+  }
+  // 넓이 부호가 양이면 (dy, −dx)가 바깥쪽
+  const s = area2 >= 0 ? 1 : -1
+  return [(s * (b[1] - a[1])) / len, (s * -(b[0] - a[0])) / len]
+}
+
+/** 변 끌기: 대상 변 edgeIndex의 바깥쪽 단위 법선(월드). 원·없는 번호·길이 0이면 null */
+export function edgeNormal(layout: Layout, target: TentTarget, edgeIndex: number): Pt | null {
+  const frame = targetFrame(layout, target)
+  const n = frame === null ? null : localEdgeNormal(targetLocalRing(layout, target), edgeIndex)
+  if (frame === null || n === null) return null
+  const o = frame.toWorld([0, 0])
+  const w = frame.toWorld(n)
+  return [w[0] - o[0], w[1] - o[1]]
+}
+
+/**
+ * 변 끌기(소유자 요청 2026-10-16): 변 edgeIndex를 바깥쪽 법선 방향으로 offset(cm, 음수면 안쪽)만큼 평행 이동한 꼭짓점 자리(월드, 번호 순).
+ * 변 길이·기울기는 그대로이고 양옆 변이 늘거나 줄어듭니다. axis(대칭 「자동 맞춤」)가 있고 대상이 대칭이면 반대편 짝 꼭짓점도 거울로,
+ * 기준선 위 꼭짓점은 기준선을 따라서만 움직입니다(mirrorVertexMove와 같은 규칙). 원·없는 번호면 null.
+ */
+export function edgeMoves(
+  layout: Layout,
+  target: TentTarget,
+  edgeIndex: number,
+  offset: number,
+  axis: SymAxis | null,
+): Array<{ index: number; world: Pt }> | null {
+  const frame = targetFrame(layout, target)
+  const ring = targetLocalRing(layout, target)
+  const n = frame === null ? null : localEdgeNormal(ring, edgeIndex)
+  if (frame === null || n === null) return null
+  const ends = [edgeIndex, (edgeIndex + 1) % ring.length]
+  const c = axis === null ? 0 : symmetryCenter(ring, axis)
+  const partners = axis === null ? null : symmetryPartners(ring, axis, c)
+  const moved = new Map<number, Pt>()
+  for (const i of ends) {
+    const p = ring[i] as Pt
+    let q: Pt = [p[0] + n[0] * offset, p[1] + n[1] * offset]
+    const mate = partners?.[i]
+    if (axis !== null && mate === i) q = axis === 'x' ? [c, q[1]] : [q[0], c]
+    moved.set(i, q)
+  }
+  for (const i of ends) {
+    const mate = partners?.[i]
+    if (axis === null || mate === undefined || ends.includes(mate)) continue
+    moved.set(mate, reflect(moved.get(i) as Pt, axis, c))
+  }
+  return [...moved.entries()].sort((a, b) => a[0] - b[0]).map(([index, q]) => ({ index, world: frame.toWorld(q) }))
+}
+
+function signedArea2(ring: readonly Pt[]): number {
+  let s = 0
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i] as Pt
+    const q = ring[(i + 1) % ring.length] as Pt
+    s += p[0] * q[1] - q[0] * p[1]
+  }
+  return s
+}
+
+/**
+ * 변 끌기로 대상이 뒤집혔는지(변을 맞은편 너머로 옮겨 꼭짓점 순서 방향이 반대가 됨). 꼬이지 않아 검사에 걸리지 않으므로 따로 봅니다.
+ * 넓이가 0이 되는 경우는 넓이 검사가 맡으므로 false. 대상이 없거나 원이면 false.
+ */
+export function targetFlipped(before: Pick<Layout, 'tent'>, after: Pick<Layout, 'tent'>, target: TentTarget): boolean {
+  const a = signedArea2(targetLocalRing(before as Layout, target))
+  const b = signedArea2(targetLocalRing(after as Layout, target))
+  return a * b < 0
+}
+
 /** 월드 좌표를 대상의 로컬 좌표로: 이동을 빼고 반대로 돌립니다(transformRing의 역변환). */
 function toLocal(ref: TargetRef, world: Pt): Pt {
   return rotateAround([world[0] - ref.x, world[1] - ref.y], [0, 0], -ref.rotation)

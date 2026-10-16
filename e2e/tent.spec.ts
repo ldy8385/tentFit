@@ -388,6 +388,27 @@ test.describe('텐트 편집 모드', () => {
     await expect(page.getByText(/^좌우 대칭이에요/)).toBeVisible()
   })
 
+  test('변 끌기(2026-10-16): 고른 외곽의 변을 끌면 그 변만 수직으로 평행 이동(기록 1칸), 자동 맞춤이면 반대편 변도, Ctrl+Z로 원래', async ({ page }) => {
+    await selectOuter(page)
+    // 오른쪽 변(x=310) 위 (310, 80)을 잡아 비스듬히 (340, 120)로: 가로 성분만, 격자 10cm
+    await mouseDragHolding(page, await worldToClient(page, 310, 80), await worldToClient(page, 341, 120), async () => {
+      expect((await getDoc(page)).inGesture).toBe(true)
+    })
+    await expect.poll(async () => (await getTent(page)).outer).toEqual({
+      kind: 'polygon',
+      points: [[-310, -160], [340, -160], [340, 160], [-310, 160]],
+    })
+    expect((await getDoc(page)).inGesture).toBe(false)
+    await page.keyboard.press('ControlOrMeta+z')
+    await expect.poll(async () => (await getTent(page)).outer.kind).toBe('rect')
+    await page.getByRole('radiogroup', { name: '대칭 맞춤', exact: true }).getByRole('radio', { name: '좌우' }).click()
+    await mouseDragHolding(page, await worldToClient(page, 310, 80), await worldToClient(page, 341, 80), async () => undefined)
+    await expect.poll(async () => (await getTent(page)).outer).toEqual({
+      kind: 'polygon',
+      points: [[-340, -160], [340, -160], [340, 160], [-340, 160]],
+    })
+  })
+
   test('「+」을 누르면 그 변 가운데에 꼭짓점이 생기고 새 꼭짓점이 선택된다', async ({ page }) => {
     await selectOuter(page)
     // 1번 변(오른쪽 위 → 오른쪽 아래)의 가운데 (310, 0)

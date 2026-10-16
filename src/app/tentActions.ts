@@ -9,6 +9,7 @@ import {
   addInnerFromTemplate,
   deleteInner,
   deleteVertex,
+  edgeMoves,
   insertVertex,
   mirrorPartners,
   mirrorVertexMove,
@@ -24,6 +25,7 @@ import {
   setTargetShapeTemplate,
   setVertex,
   swapTent,
+  targetFlipped,
   targetLocalRing,
   targetWorldRing,
   setTargetColor,
@@ -324,6 +326,25 @@ export function setTargetVertex(stores: Stores, target: TentTarget, index: numbe
       if (linked?.mirror != null) setVertex(d, target, linked.mirror.index, linked.mirror.world)
     }),
   )
+}
+
+/** 변 끌기를 맞은편 너머로 해서 도형이 뒤집힐 때 */
+export const EDGE_FLIP_MESSAGE = '변을 맞은편 너머로 옮길 수 없어요'
+
+/**
+ * 변 끌기(소유자 요청 2026-10-16): 변 edgeIndex를 바깥쪽 법선 방향으로 offset(cm, 음수면 안쪽)만큼 평행 이동(기록 한 칸).
+ * 「자동 맞춤」이고 대칭이면 반대편 짝 변도 거울로. 꼬이거나·뒤집히거나·좌표 범위 밖이면 거부, 원·없는 번호면 그대로.
+ */
+export function moveTargetEdge(stores: Stores, target: TentTarget, edgeIndex: number, offset: number): EditResult {
+  const layout = stores.doc.getState().layout
+  const moves = edgeMoves(layout, target, edgeIndex, offset, mirrorAxis(stores))
+  if (moves === null) return OK
+  if (moves.some((m) => !inRange(m.world[0], LIMITS.coord) || !inRange(m.world[1], LIMITS.coord))) return rangeError(...LIMITS.coord)
+  const recipe = (d: Layout) => {
+    for (const m of moves) setVertex(d, target, m.index, m.world)
+  }
+  if (targetFlipped(layout, produce(layout, recipe), target)) return { ok: false, error: EDGE_FLIP_MESSAGE }
+  return toResult(attempt(stores, recipe))
 }
 
 /** 대칭 맞춤이 「자동 맞춤」이면 그 축, 아니면 null(대상이 대칭인지는 부르는 쪽이 짝으로 판단) */
