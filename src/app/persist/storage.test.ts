@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createLayout, type Layout, type Tent } from '../../core/model'
-import { clearLayoutRepo, getLastLayoutId, getLayout, listLayoutSummaries, putLayout, setLastLayoutId } from '../layoutRepo'
+import { clearLayoutRepo, deleteAllLayouts, getLastLayoutId, getLayout, listLayoutSummaries, putLayout, setLastLayoutId } from '../layoutRepo'
 import { memoryKv } from './kv'
 import {
   buildBackup,
   deleteMyItem,
+  deleteAllStoredLayouts,
   deleteMyTent,
   deleteStoredLayout,
   listMyItems,
@@ -112,6 +113,33 @@ describe('배치 지우기·내 도형(2026-10-15)', () => {
     expect(getLayout('a')).toBeUndefined()
     expect(kv.data.has('layout:a')).toBe(false)
     expect(getLastLayoutId()).toBeNull()
+  })
+
+  it('배치 전체 지우기: 메모리·저장소의 배치(저장 대기 중 포함)와 마지막 배치 기억이 빠지고, 내 텐트·복구 백업은 그대로(2026-10-16)', async () => {
+    const kv = memoryKv([['layout:a', layout('a')], ['layout:b', layout('b')], ['settings', { lastLayoutId: 'a' }], ['corrupt:z', { broken: true }]])
+    await initStorage(kv)
+    await saveMyTent(TENT)
+    putLayout(layout('c'))
+    await deleteAllStoredLayouts()
+    expect(listLayoutSummaries()).toEqual([])
+    expect([...kv.data.keys()].filter((k) => k.startsWith('layout:'))).toEqual([])
+    expect(getLastLayoutId()).toBeNull()
+    expect((kv.data.get('settings') as { lastLayoutId?: string }).lastLayoutId).toBeUndefined()
+    expect(listMyTents()).toHaveLength(1)
+    expect(kv.data.has('myTents')).toBe(true)
+    expect(kv.data.has('corrupt:z')).toBe(true)
+    await flushSaves()
+    expect([...kv.data.keys()].filter((k) => k.startsWith('layout:'))).toEqual([])
+  })
+
+  it('보관소 deleteAllLayouts는 이번에 연 배치 기억도 비운다', async () => {
+    const kv = memoryKv([['layout:a', layout('a')], ['layout:b', layout('b')]])
+    await initStorage(kv)
+    setLastLayoutId('b')
+    await deleteAllLayouts()
+    expect(getLastLayoutId()).toBeNull()
+    expect(getLayout('a')).toBeUndefined()
+    expect(getLayout('b')).toBeUndefined()
   })
 
   it('내 도형 저장(새 id·이름 겹치면 번호)·지우기, 다시 열면 불러오고 백업에도 들어감', async () => {

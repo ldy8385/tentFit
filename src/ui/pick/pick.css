@@ -503,7 +503,8 @@
 .tf-tentcard:focus-visible,
 .tf-makecard:focus-visible,
 .tf-mylayouts__new:focus-visible,
-.tf-mylayouts__row:focus-visible {
+.tf-mylayouts__row:focus-visible,
+.tf-mylayouts__delete-all:focus-visible {
   outline: 2px solid var(--select);
   outline-offset: 2px;
 }
@@ -556,6 +557,23 @@
 }
 
 .tf-mylayouts__delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* 목록 아래 [전체 지우기](2026-10-16): 오른쪽에 옅게, 올리면 위험 색 */
+.tf-mylayouts__delete-all {
+  justify-self: end;
+  min-height: 36px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.tf-mylayouts__delete-all:hover {
   color: var(--danger);
   border-color: var(--danger);
 }

@@ -417,6 +417,20 @@ test('내 배치에서 ×로 지우면 목록에서 빠짐(2026-10-15)', async (
   await expect(dialog.getByRole('button', { name: `${name} 지우기` })).toHaveCount(0)
 })
 
+test('내 배치 [전체 지우기]: 확인하면 모두 지워져 「내 배치」가 사라지고 새로고침해도 돌아오지 않음(2026-10-16)', async ({ page }) => {
+  await page.waitForTimeout(1200) // 자동 저장(1초 뒤)이 IndexedDB에 쓰이게
+  await page.goto('/#/pick')
+  await page.getByRole('button', { name: /내 배치/ }).click()
+  const dialog = page.getByTestId('my-layouts-dialog')
+  page.once('dialog', (d) => void d.accept())
+  await dialog.getByRole('button', { name: '전체 지우기' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /내 배치/ })).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByTestId('pick-screen')).toBeVisible()
+  await expect(page.getByRole('button', { name: /내 배치/ })).toHaveCount(0)
+})
+
 test('로고 tentFit = 처음 화면(텐트 고르기), [취소]로 보던 배치에 돌아옴', async ({ page }) => {
   const editUrl = page.url()
   await page.getByRole('button', { name: '처음 화면으로' }).click()

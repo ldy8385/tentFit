@@ -15,6 +15,7 @@ beforeEach(() => {
 
 afterEach(() => {
   media.restore()
+  vi.unstubAllGlobals()
 })
 
 const SUMMARIES: LayoutSummary[] = [
@@ -53,6 +54,29 @@ describe('MyLayoutsDialog', () => {
     const props = renderDialog()
     fireEvent.click(screen.getByRole('button', { name: '터널 4인 예시 배치' }))
     expect(props.onOpen).toHaveBeenCalledWith('a')
+  })
+
+  it('[전체 지우기]는 확인(배치 N개)하면 onDeleteAll, 확인을 취소하면 아무것도 안 함(2026-10-16)', () => {
+    // 이 환경(happy-dom)에는 window.confirm이 없어 심어 둡니다.
+    const confirm = vi.fn<(message?: string) => boolean>().mockReturnValueOnce(false).mockReturnValueOnce(true)
+    vi.stubGlobal('confirm', confirm)
+    const props = renderDialog({ onDeleteAll: vi.fn() })
+    const button = screen.getByRole('button', { name: '전체 지우기' })
+    fireEvent.click(button)
+    expect(props.onDeleteAll).not.toHaveBeenCalled()
+    fireEvent.click(button)
+    expect(props.onDeleteAll).toHaveBeenCalledTimes(1)
+    expect(confirm).toHaveBeenCalledWith('내 배치 2개를 모두 지울까요? 되돌릴 수 없어요.')
+  })
+
+  it('onDeleteAll이 없으면 [전체 지우기]가 없다', () => {
+    renderDialog()
+    expect(screen.queryByRole('button', { name: '전체 지우기' })).toBeNull()
+  })
+
+  it('배치가 없으면 [전체 지우기]가 없다', () => {
+    renderDialog({ summaries: [], onDeleteAll: vi.fn() })
+    expect(screen.queryByRole('button', { name: '전체 지우기' })).toBeNull()
   })
 
   it('[+ 새 배치]는 onNew, Esc·[닫기]는 onClose', () => {

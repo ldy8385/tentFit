@@ -46,6 +46,7 @@ beforeEach(() => {
 afterEach(() => {
   media.restore()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('PickRoute', () => {
@@ -140,6 +141,24 @@ describe('PickRoute', () => {
     render(<PickRoute />)
     fireEvent.click(await screen.findByRole('button', { name: '취소' }))
     expect(window.location.hash).toBe(editHash(a.id))
+  })
+
+  it('「내 배치」 [전체 지우기]: 확인하면 배치를 모두 지우고 대화상자를 닫으며 「내 배치」·[취소]가 사라진다(2026-10-16)', async () => {
+    const a = seedLayout()
+    seedLayout()
+    setPickReturn(a.id)
+    vi.stubGlobal('confirm', () => true) // 이 환경(happy-dom)에는 window.confirm이 없음
+    render(<PickRoute />)
+    expect(await screen.findByRole('button', { name: '취소' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '내 배치' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '전체 지우기' }))
+    })
+    expect(layoutCount()).toBe(0)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('button', { name: '내 배치' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '취소' })).toBeNull()
+    expect(getPickReturn()).toBeNull()
   })
 
   it('[직접 만들기]는 만들기 화면만 열고 배치는 만들지 않는다', async () => {

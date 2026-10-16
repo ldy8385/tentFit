@@ -10,7 +10,7 @@ import type { Tent, TentPreset } from '../core/model'
 import { TentMaker } from '../ui/tentMaker/TentMaker'
 import { MyLayoutsDialog } from '../ui/pick/MyLayoutsDialog'
 import { PickScreen } from '../ui/pick/PickScreen'
-import { createLayoutFromTent, deleteLayout, getLastLayoutId, getLayout, layoutCount, listLayoutSummaries } from './layoutRepo'
+import { createLayoutFromTent, deleteAllLayouts, deleteLayout, getLastLayoutId, getLayout, layoutCount, listLayoutSummaries } from './layoutRepo'
 import { editHash, PICK_HASH } from './router'
 import { loadTentCatalog, type TentCatalog } from './tentCatalog'
 
@@ -144,6 +144,14 @@ export function PickRoute(): JSX.Element {
           void deleteLayout(id).then(() => {
             if (pickReturn?.layoutId === id) pickReturn = null
             if (returnTo?.layoutId === id) setReturnTo(null)
+            setRemoved((n) => n + 1)
+          })
+        }}
+        onDeleteAll={() => {
+          void deleteAllLayouts().then(() => {
+            pickReturn = null
+            setReturnTo(null)
+            setDialogOpen(false)
             setRemoved((n) => n + 1)
           })
         }}

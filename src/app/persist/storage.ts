@@ -222,6 +222,20 @@ export async function deleteStoredLayout(id: string): Promise<void> {
   if (pendingLast === null) pendingLast = undefined
 }
 
+/**
+ * 배치를 모두 지웁니다(내 배치 [전체 지우기], 2026-10-16). 저장 대기 중인 배치와 마지막 배치 기억도 비웁니다.
+ * 내 텐트·내 도형·복구 백업(corrupt:)은 그대로입니다.
+ */
+export async function deleteAllStoredLayouts(): Promise<void> {
+  const ids = new Set([...listMemoryLayouts().map((l) => l.id), ...pendingLayouts.keys()])
+  for (const id of ids) deleteMemoryLayout(id)
+  pendingLayouts.clear()
+  restoredLast = null
+  pendingLast = undefined
+  notify()
+  await write([['settings', { lastLayoutId: undefined }]], [...ids].map((id) => `layout:${id}`))
+}
+
 // ── 내 도형(§5.5 myItems) ───────────────────────────────────────
 
 export function listMyItems(): ItemPreset[] {
