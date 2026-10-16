@@ -24,11 +24,14 @@ function idPart(text: string): string {
   return part || Date.now().toString(36)
 }
 
-/** 지금 텐트 → 파일 항목(id = '<제조사 조각>/<모델 조각>'. 같은 제조사·모델로 다시 저장하면 같은 id라 고쳐짐) */
-export function entryFromTent(tent: Tent, opts: { brand: string; model: string }): TentFileEntry {
+/**
+ * 지금 텐트 → 파일 항목. id를 주면 그 id(프리셋 고치기: 제조사·모델을 바꿔도 같은 항목, 2026-10-16),
+ * 없으면 '<제조사 조각>/<모델 조각>'(같은 제조사·모델로 다시 저장하면 같은 id라 고쳐짐).
+ */
+export function entryFromTent(tent: Tent, opts: { brand: string; model: string; id?: string }): TentFileEntry {
   const outer = shapePart(tent.outer, tent.outerTemplate)
   return {
-    id: `${idPart(opts.brand)}/${idPart(opts.model)}`,
+    id: opts.id ?? `${idPart(opts.brand)}/${idPart(opts.model)}`,
     brand: opts.brand,
     model: opts.model,
     tent: {

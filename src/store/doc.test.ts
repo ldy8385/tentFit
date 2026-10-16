@@ -218,6 +218,19 @@ describe('실행 취소 기록 범위 — tent·items·groups만(§8)', () => {
     expect(s(doc).layout.name).toBe('새 이름')
   })
 
+  it('setSourcePresetId도 기록 밖: 출처 프리셋을 바꾸거나 지워도 canUndo가 켜지지 않는다(2026-10-16)', () => {
+    const { doc, at } = setup()
+    at(7).setSourcePresetId('awesome-holiday/rito')
+    expect(s(doc).layout.sourcePresetId).toBe('awesome-holiday/rito')
+    expect(s(doc).layout.updatedAt).toBe(iso(7))
+    expect(s(doc).canUndo).toBe(false)
+    const before = s(doc).layout
+    s(doc).setSourcePresetId('awesome-holiday/rito')
+    expect(s(doc).layout).toBe(before)
+    s(doc).setSourcePresetId(undefined)
+    expect('sourcePresetId' in s(doc).layout).toBe(false)
+  })
+
   it('같은 이름으로 rename하면 아무것도 바꾸지 않는다', () => {
     const { doc } = setup()
     const before = s(doc).layout

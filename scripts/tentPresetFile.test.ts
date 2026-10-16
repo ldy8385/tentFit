@@ -25,6 +25,13 @@ describe('presets/tents.json 쓰기', () => {
     expect(text).toContain('      "tent": {\n        "name": "랜드락",')
   })
 
+  it('id를 주면 그 id 그대로 — 프리셋 고치기는 제조사·모델을 바꿔도 같은 항목(2026-10-16)', () => {
+    const entry = entryFromTent(TENT, { brand: 'Awesome Holiday', model: 'Lito D', id: 'awesome-holiday/rito' })
+    expect(entry.id).toBe('awesome-holiday/rito')
+    expect(entry.brand).toBe('Awesome Holiday')
+    expect(entry.model).toBe('Lito D')
+  })
+
   it('한글 제조사·모델도 그대로 id에(서로 다른 한글 제조사가 겹치지 않게), 기호는 -로', () => {
     expect(entryFromTent(TENT, { brand: '코베아', model: '고스트 3' }).id).toBe('코베아/고스트-3')
     expect(entryFromTent(TENT, { brand: 'Snow Peak', model: 'Land Lock Pro.3' }).id).toBe('snow-peak/land-lock-pro-3')

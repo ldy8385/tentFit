@@ -30,6 +30,8 @@ export type DocState = {
   commit(recipe: (d: Layout) => void, opts?: CommitOptions): boolean
   /** 배치 이름 바꾸기. 실행 취소 기록 밖입니다(§8). */
   rename(name: string): void
+  /** 이 배치 텐트의 출처 프리셋 id(없으면 지움). 실행 취소 기록 밖입니다(로컬 [텐트 프리셋으로 저장]이 고칠 프리셋, 2026-10-16). */
+  setSourcePresetId(id: string | undefined): void
   /** 제스처 중(inGesture)이면 무시하고 false. */
   undo(): boolean
   /** 제스처 중(inGesture)이면 무시하고 false. */
@@ -121,6 +123,18 @@ export function createDocStore(initial: Layout, opts: { now?: () => number; hist
         set({
           layout: produce(layout, (d) => {
             d.name = name
+            d.updatedAt = new Date(now()).toISOString()
+          }),
+        })
+      },
+
+      setSourcePresetId(id) {
+        const layout = get().layout
+        if (layout.sourcePresetId === id) return
+        set({
+          layout: produce(layout, (d) => {
+            if (id === undefined) delete d.sourcePresetId
+            else d.sourcePresetId = id
             d.updatedAt = new Date(now()).toISOString()
           }),
         })
