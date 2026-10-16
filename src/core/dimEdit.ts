@@ -4,15 +4,25 @@
 // - 비율 유지 끔: 그 변·그 축만. 사각형·원·육각형 가로세로·사다리꼴 앞뒤변·육각형 윗아랫변은 템플릿 값으로,
 //   그 밖의 변·축은 자유 다각형(템플릿 버림)으로 바꿉니다(꼭짓점 끌기와 같은 규칙, §4.4-6).
 // - 모서리 반지름: 비율 유지와 상관없이 그 꼭짓점만. 변 길이로 줄어드는 값은 실제로 쓰는 값(effectiveRadii)으로 저장합니다.
+// - 구간(소유자 요청 2026-10-16): 꼭짓점 자리로 전체 가로·세로를 나눈 한 칸. 비율 유지와 상관없이 그 구간만 바꾸고 나머지 구간은 그대로
+//   (전체가 그만큼 늘거나 줄어듦). 꼭짓점 상자 가운데 기준: 가운데를 지나는 구간은 양쪽이 반씩, 한쪽 구간은 가운데에서 먼 쪽 꼭짓점들이
+//   통째로 밀립니다. 대칭 「자동 맞춤」이고 대칭이면 반대편 짝 구간도 같이. 자유 다각형이 됩니다.
 import { cornerRing, effectiveRadii, outlineBBox, ringBBox } from './geom'
 import { LIMITS, type Pt, type Shape, type ShapeTemplate } from './model'
 import { edgeLengths, MIN_EDGE_CM, setAnyEdgeLength } from './polygonEdit'
 import { normalizeShape } from './ops/util'
 import { radiiOf, withRadii } from './radii'
+import { symmetryCenter, symmetryPartners, type SymAxis } from './symmetry'
 import { shapeFromTemplate } from './templates'
 import { ringIssue } from './validate'
 
-export type DimKey = { kind: 'edge'; index: number } | { kind: 'w' } | { kind: 'h' } | { kind: 'radius'; index: number }
+/** seg = 구간 치수 한 칸(axis 방향, 왼쪽·위부터 index번) */
+export type DimKey =
+  | { kind: 'edge'; index: number }
+  | { kind: 'w' }
+  | { kind: 'h' }
+  | { kind: 'radius'; index: number }
+  | { kind: 'seg'; axis: 'w' | 'h'; index: number }
 
 /** 도형과(있으면) 그 도형을 만든 템플릿 */
 export type ShapeSpec = { shape: Shape; template?: ShapeTemplate }
@@ -35,9 +45,41 @@ export function outlineSize(shape: Shape): { w: number; h: number } {
   return { w: b.maxX - b.minX, h: b.maxY - b.minY }
 }
 
-/** 지금 치수 값. 그 키가 없는 도형(원의 변·반지름, 범위 밖 번호)이면 null */
+/** 이보다 가까운(cm) 꼭짓점 자리는 한 자리로 칩니다(구간 치수) */
+export const SEG_MERGE_CM = 0.5
+
+/** 구간을 자르는 안쪽 자리(축 방향 좌표, 작은 것부터). 0.5cm 안은 한 자리(첫 값), 양 끝(lo·hi) 근처는 뺍니다. */
+export function segmentCuts(corners: readonly Pt[], axis: 'w' | 'h', lo: number, hi: number): number[] {
+  const along = axis === 'w' ? 0 : 1
+  const ats = corners
+    .map((p) => p[along])
+    .filter((v) => v > lo + SEG_MERGE_CM && v < hi - SEG_MERGE_CM)
+    .sort((a, b) => a - b)
+  const cuts: number[] = []
+  for (const v of ats) {
+    const last = cuts[cuts.length - 1]
+    if (last === undefined || v - last >= SEG_MERGE_CM) cuts.push(v)
+  }
+  return cuts
+}
+
+/** 구간 경계 [왼쪽(위) 끝, 자르는 자리…, 오른쪽(아래) 끝](끝은 보이는 윤곽 기준). 원이거나 자르는 자리가 없으면 null */
+export function segmentStops(shape: Shape, axis: 'w' | 'h'): number[] | null {
+  if (shape.kind === 'circle') return null
+  const b = outlineBBox(shape)
+  const [lo, hi] = axis === 'w' ? [b.minX, b.maxX] : [b.minY, b.maxY]
+  const cuts = segmentCuts(cornerRing(shape), axis, lo, hi)
+  return cuts.length === 0 ? null : [lo, ...cuts, hi]
+}
+
+/** 지금 치수 값. 그 키가 없는 도형(원의 변·반지름, 범위 밖 번호, 구간 없음)이면 null */
 export function dimValue(shape: Shape, key: DimKey): number | null {
   if (key.kind === 'w' || key.kind === 'h') return outlineSize(shape)[key.kind]
+  if (key.kind === 'seg') {
+    const stops = segmentStops(shape, key.axis)
+    if (stops === null || !Number.isInteger(key.index) || key.index < 0 || key.index >= stops.length - 1) return null
+    return (stops[key.index + 1] as number) - (stops[key.index] as number)
+  }
   if (shape.kind === 'circle') return null
   const corners = cornerRing(shape)
   if (!Number.isInteger(key.index) || key.index < 0 || key.index >= corners.length) return null
@@ -277,6 +319,56 @@ function axisOnly(spec: ShapeSpec, axis: 'w' | 'h', value: number): DimResult {
   return scaleAxis(spec, axis, value)
 }
 
+/** 구간 쪽을 가르는 가운데 여유(cm): 구간 끝이 가운데에서 이 안이면 가운데에 닿은 것으로 봅니다 */
+const SEG_CENTER_TOL = 0.05
+
+/** 축 방향 좌표 u인 꼭짓점이 속한 경계 번호(그 자리 묶음의 첫 경계). 양 끝 근처(0.5cm 안)는 끝 경계 */
+function stopGroup(u: number, stops: readonly number[]): number {
+  const last = stops.length - 1
+  if (u >= (stops[last] as number) - SEG_MERGE_CM) return last
+  let g = 0
+  for (let k = 1; k < last; k++) if (u >= (stops[k] as number) - 1e-9) g = k
+  return g
+}
+
+/**
+ * 구간 index를 value로: 그 구간 너머 꼭짓점들을 축 방향으로 통째로 밉니다(나머지 구간 그대로). 가운데(꼭짓점 상자) 기준으로
+ * 가운데를 지나는 구간은 양쪽이 반씩, 한쪽 구간은 가운데에서 먼 쪽이. mirror가 이 축의 대칭이고 도형이 대칭이면 짝 구간도 같이.
+ * 한 축으로만 미는 것이라 꼬이거나 뒤집히지 않습니다.
+ */
+function segmentOnly(spec: ShapeSpec, key: { kind: 'seg'; axis: 'w' | 'h'; index: number }, value: number, mirror: SymAxis | null): DimResult {
+  const { shape } = spec
+  const stops = segmentStops(shape, key.axis)
+  const current = dimValue(shape, key)
+  if (shape.kind === 'circle' || stops === null || current === null) return { ok: false, reason: 'invalid' }
+  const corners = cornerRing(shape)
+  const radii = radiiOf(shape)
+  const along = key.axis === 'w' ? 0 : 1
+  const sym: SymAxis = key.axis === 'w' ? 'x' : 'y'
+  const c = symmetryCenter(corners, sym)
+  const groups = corners.map((p) => stopGroup(p[along], stops))
+  const last = stops.length - 2
+  const mate = last - key.index
+  const moved = mirror === sym && mate !== key.index && symmetryPartners(corners, sym, c) !== null ? [key.index, mate] : [key.index]
+  /** 구간 i가 d만큼 늘 때 경계 묶음 g가 움직이는 거리 */
+  const shift = (i: number, g: number, d: number): number => {
+    if ((stops[i + 1] as number) <= c + SEG_CENTER_TOL) return g <= i ? -d : 0
+    if ((stops[i] as number) >= c - SEG_CENTER_TOL) return g > i ? d : 0
+    return g <= i ? -d / 2 : d / 2
+  }
+  const make = (d: number): PolygonCandidate => ({
+    points: corners.map((p, k): Pt => {
+      const off = moved.reduce((s, i) => s + shift(i, groups[k] as number, d), 0)
+      return along === 0 ? [p[0] + off, p[1]] : [p[0], p[1] + off]
+    }),
+    radii,
+  })
+  return fitPolygon(candidates1(make, value - current, 0.01), (sh) => {
+    const m = dimValue(sh, key)
+    return m === null ? null : Math.abs(m - value)
+  })
+}
+
 /** 모서리 반지름들을 실제로 되는 값으로 바꿔 씁니다(템플릿 유지) */
 function withEffectiveRadii(spec: ShapeSpec, radii: readonly number[]): DimResult {
   const { shape } = spec
@@ -288,10 +380,10 @@ function withEffectiveRadii(spec: ShapeSpec, radii: readonly number[]): DimResul
 }
 
 /**
- * 치수 하나를 value로. 변·가로·세로는 1~5000, 반지름은 0~5000(0 = 뾰족). keepRatio는 변·가로·세로에만 씁니다.
- * 결과 도형은 반올림 전이고, 템플릿이 남으면 그 템플릿으로 다시 만든 도형입니다.
+ * 치수 하나를 value로. 변·가로·세로·구간은 1~5000, 반지름은 0~5000(0 = 뾰족). keepRatio는 변·가로·세로에만 씁니다.
+ * mirror = 대칭 「자동 맞춤」 축(구간에만 씀, 없으면 null). 결과 도형은 반올림 전이고, 템플릿이 남으면 그 템플릿으로 다시 만든 도형입니다.
  */
-export function editDim(spec: ShapeSpec, key: DimKey, value: number, keepRatio: boolean): DimResult {
+export function editDim(spec: ShapeSpec, key: DimKey, value: number, keepRatio: boolean, mirror: SymAxis | null = null): DimResult {
   if (key.kind === 'radius') {
     if (!Number.isFinite(value) || value < 0 || value > LEN_MAX) return { ok: false, reason: 'range' }
     if (spec.shape.kind === 'circle' || dimValue(spec.shape, key) === null) return { ok: false, reason: 'invalid' }
@@ -302,6 +394,7 @@ export function editDim(spec: ShapeSpec, key: DimKey, value: number, keepRatio: 
   if (!inLen(value)) return { ok: false, reason: 'range' }
   const current = dimValue(spec.shape, key)
   if (current === null || !(current > 0)) return { ok: false, reason: 'invalid' }
+  if (key.kind === 'seg') return segmentOnly(spec, key, value, mirror)
   if (keepRatio) return scaleUniform(spec, value / current, { key, value })
   return key.kind === 'edge' ? edgeOnly(spec, key.index, value) : axisOnly(spec, key.kind, value)
 }

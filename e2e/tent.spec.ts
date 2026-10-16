@@ -437,6 +437,29 @@ test.describe('텐트 편집 모드', () => {
     await expect(segs).toHaveCount(0)
   })
 
+  test('구간 치수를 눌러 고치면 그 구간만 바뀌고(가운데 기준) 전체가 그만큼 늘어남', async ({ page }) => {
+    await selectOuter(page)
+    await page.mouse.click(...xy(await worldToClient(page, 0, -160)))
+    await expect.poll(async () => (await getTent(page)).outer.kind).toBe('polygon')
+    await page.getByRole('button', { name: '보기', exact: true }).click()
+    await page.getByRole('menuitemcheckbox', { name: '구간 치수' }).click()
+    await page.keyboard.press('Escape')
+    const segs = page.getByTestId('dim-overlay').locator('[data-seg]')
+    await expect(segs).toHaveText(['310', '310'])
+    // 오른쪽 구간(가운데 0 ~ 310)은 가운데 한쪽이라 오른쪽 꼭짓점만 밀림
+    await page.getByRole('button', { name: '가로 구간 2 310cm 고치기' }).click()
+    const input = page.getByRole('textbox', { name: '가로 구간 2' })
+    await input.fill('330')
+    await input.press('Enter')
+    await expect(segs).toHaveText(['310', '330'])
+    await expect(page.getByRole('button', { name: '가로 640cm 고치기' })).toBeVisible()
+    const tent = await getTent(page)
+    const xs = tent.outer.kind === 'polygon' ? tent.outer.points.map((p) => p[0]) : []
+    expect(Math.min(...xs)).toBe(-310)
+    expect(Math.max(...xs)).toBe(330)
+    expect((await getDoc(page)).canUndo).toBe(true)
+  })
+
   test('자기교차가 되게 끄는 동안 「놓으면 취소돼요」, 놓으면 그대로·기록 없음', async ({ page }) => {
     const original = await getTent(page)
     await selectOuter(page)

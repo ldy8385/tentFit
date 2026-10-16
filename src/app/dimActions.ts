@@ -6,7 +6,7 @@ import { LIMITS, type Layout } from '../core/model'
 import { setItemShape } from '../core/ops/items'
 import { setTargetSpec, type TentTarget } from '../core/ops/tent'
 import type { Stores } from './stores'
-import { canEditTentTarget, HEXAGON_EDGE_MESSAGE, PENTAGON_TIP_MESSAGE, tryTentEdit, ZERO_EDGE_MESSAGE, type EditResult } from './tentActions'
+import { canEditTentTarget, HEXAGON_EDGE_MESSAGE, mirrorAxis, PENTAGON_TIP_MESSAGE, tryTentEdit, ZERO_EDGE_MESSAGE, type EditResult } from './tentActions'
 
 export type DimSubject = { kind: 'tent'; target: TentTarget } | { kind: 'item'; id: string }
 
@@ -71,7 +71,8 @@ function editable(stores: Stores, subject: DimSubject): boolean {
 }
 
 /**
- * 치수 하나를 value로(변·가로·세로 1~5000, 반지름 0~5000). keepRatio = 「비율 유지」(변·가로·세로만).
+ * 치수 하나를 value로(변·가로·세로·구간 1~5000, 반지름 0~5000). keepRatio = 「비율 유지」(변·가로·세로만).
+ * 구간은 텐트 대상이고 대칭 「자동 맞춤」이면 반대편 짝 구간도 같이(대상이 대칭일 때, core가 판단).
  * 같은 값(±0.05cm)이면 기록 없음. 실패면 입력칸 아래에 보일 문구.
  */
 export function applyDim(stores: Stores, subject: DimSubject, key: DimKey, value: number, keepRatio: boolean): EditResult {
@@ -80,7 +81,8 @@ export function applyDim(stores: Stores, subject: DimSubject, key: DimKey, value
   if (spec === null) return OK
   const current = dimValue(spec.shape, key)
   if (current !== null && Number.isFinite(value) && Math.abs(current - value) < SAME_CM) return OK
-  return commit(stores, subject, editDim(spec, key, value, keepRatio), key.kind === 'radius')
+  const mirror = subject.kind === 'tent' ? mirrorAxis(stores) : null
+  return commit(stores, subject, editDim(spec, key, value, keepRatio, mirror), key.kind === 'radius')
 }
 
 /** 모든 모서리를 같은 반지름으로(0 = 모두 뾰족). */

@@ -4,7 +4,8 @@
 // - 「비율 유지」(ui.keepRatio, 기본 켬)는 입력 상자·막대 안에서도 바꿀 수 있습니다. 반지름에는 쓰지 않습니다.
 // - 이 층의 누름은 캔버스 제스처로 가지 않습니다(Board가 [data-canvas-ui] 안의 포인터를 건너뜀).
 // - 끄는 중·변형 중·그리는 중·측정 중·잠긴 단계에는 숨깁니다.
-// - 구간 치수(ui.segmentDims, 2026-10-16)를 켜면 전체 길이를 꼭짓점 자리로 나눈 숫자가 치수선 안쪽에 한 줄 더(읽기 전용).
+// - 구간 치수(ui.segmentDims, 2026-10-16)를 켜면 전체 길이를 꼭짓점 자리로 나눈 숫자가 치수선 안쪽에 한 줄 더.
+//   편집 대상이면 눌러 그 구간만 고칩니다(가운데 기준, 비율 유지 안 씀). 배치 모드 읽기 전용 치수에서는 누를 수 없습니다.
 import { useEffect, useRef, useState, type FocusEvent, type JSX } from 'react'
 import { flushSync } from 'react-dom'
 import { applyDim, type DimSubject } from '../../app/dimActions'
@@ -55,7 +56,7 @@ export function placeDims(ui: Pick<UiState, 'mode' | 'measuring' | 'drawing' | '
   return out
 }
 
-/** 구간 치수 숫자(읽기 전용, 누름은 캔버스로). key = data-seg 값, who = 접근 이름 앞말(배치 모드의 「텐트」·「물건」) */
+/** 배치 모드 구간 치수 숫자(읽기 전용, 누름은 캔버스로). key = data-seg 값, who = 접근 이름 앞말(「텐트」·「물건」) */
 function SegLabels(p: { segs: DimSeg[]; keyOf: (s: DimSeg) => string; who?: string }): JSX.Element {
   return (
     <>
@@ -212,9 +213,10 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element |
   }
   const model = dimModel(active.shape, active.place, view, area, { segments: segmentDims })
   const radiusEdit = edit?.key.kind === 'radius'
+  const segEdit = edit?.key.kind === 'seg'
   const circle = active.shape.kind === 'circle'
 
-  const open = (l: DimLabel) => {
+  const open = (l: Pick<DimLabel, 'key' | 'id' | 'name' | 'at' | 'dir' | 'value'>) => {
     closedRef.current = false
     // 휴대폰 키보드는 누른 그 순간(같은 이벤트 처리 안)에 포커스해야 올라옵니다.
     flushSync(() =>
@@ -264,7 +266,8 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element |
   }
 
   const editingLabel = edit !== null ? model.labels.find((l) => l.id === edit.id) : undefined
-  const editing = edit !== null ? (editingLabel?.at ?? edit.at) : null
+  const editingSeg = edit !== null ? model.segments.find((sg) => sg.id === edit.id) : undefined
+  const editing = edit !== null ? (editingLabel?.at ?? editingSeg?.at ?? edit.at) : null
   const cornerDir = editingLabel?.dir ?? edit?.dir
   // 모서리 둥글기 창은 모서리 옆에(가리지 않게), 그 밖의 숫자는 그 숫자 자리에
   const popStyle =
@@ -315,7 +318,7 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element |
           />
           <span className="tf-dimedit__unit">{radiusEdit ? 'cm (0 = 뾰족)' : 'cm'}</span>
         </span>
-        {!radiusEdit && !circle && <KeepRatioToggle className="tf-dimedit__ratio" />}
+        {!radiusEdit && !segEdit && !circle && <KeepRatioToggle className="tf-dimedit__ratio" />}
         {!desktop && (
           <span className="tf-dimbar__actions">
             <button type="button" className="tf-btn tf-btn--primary" onClick={apply}>
@@ -337,7 +340,23 @@ export function DimOverlay(p: { busy: boolean; hidden: boolean }): JSX.Element |
   return (
     <div className="tf-dims" data-canvas-ui="" data-testid="dim-overlay" data-keep-ratio={keepRatio}>
       <DimLines lines={model.lines} />
-      <SegLabels segs={model.segments} keyOf={(s) => s.id} />
+      {model.segments.map((sg) =>
+        edit !== null && desktop && sg.id === edit.id ? null : (
+          <button
+            key={sg.id}
+            type="button"
+            className="tf-dim tf-dim--seg"
+            data-seg={sg.id}
+            data-kind="seg"
+            data-active={edit?.id === sg.id}
+            aria-label={`${sg.name} ${String(sg.value)}cm 고치기`}
+            style={{ left: sg.at[0], top: sg.at[1] }}
+            onClick={() => open(sg)}
+          >
+            {sg.text}
+          </button>
+        ),
+      )}
       {model.labels.map((l) =>
         edit !== null && desktop && l.id === edit.id && l.key.kind !== 'radius' ? null : (
           <button

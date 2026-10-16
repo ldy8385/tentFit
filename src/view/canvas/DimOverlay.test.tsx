@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { StoresProvider, createStores, type Stores } from '../../app/stores'
+import { segmentStops } from '../../core/dimEdit'
 import { createLayout, type Item, type Shape, type Tent } from '../../core/model'
 import { installFakeMatchMedia, type FakeMedia } from '../../ui/shell/fakeMatchMedia'
 import { DESKTOP_QUERY } from '../../ui/shell/useIsDesktop'
@@ -79,16 +80,44 @@ describe('DimOverlay', () => {
     expect(screen.queryByTestId('dim-overlay-readonly')).toBeNull()
   })
 
-  it('구간 치수(2026-10-16): 켜면 전체 길이를 꼭짓점 자리로 나눈 숫자(읽기 전용), 끄면 없음', () => {
+  it('구간 치수(2026-10-16): 켜면 전체 길이를 꼭짓점 자리로 나눈 숫자(편집 대상이면 누를 수 있음), 끄면 없음', () => {
     const s = setup({ tent: OCT_TENT })
     const segs = () => [...screen.getByTestId('dim-overlay').querySelectorAll('[data-seg]')].map((e) => e.textContent)
     expect(segs()).toEqual([])
     act(() => s.ui.getState().patch({ segmentDims: true }))
     // 줌 1: 세로 위·아래 30cm(화면 30px)는 숫자를 숨기고 줄만
     expect(segs()).toEqual(['110', '100', '110', '175'])
-    expect(screen.getByLabelText('가로 구간 2 100cm').tagName).toBe('SPAN')
+    expect(screen.getByRole('button', { name: '가로 구간 2 100cm 고치기' })).toBeTruthy()
     // 전체 치수는 그대로 누를 수 있음
     expect(screen.getByRole('button', { name: '가로 320cm 고치기' })).toBeTruthy()
+  })
+
+  const segValues = (st: Stores, axis: 'w' | 'h') => {
+    const stops = segmentStops(outer(st), axis)!
+    return stops.slice(1).map((v, i) => Math.round((v - stops[i]!) * 10) / 10)
+  }
+
+  it('구간 숫자를 눌러 고침(2026-10-16): 그 구간만(가운데 기준), 비율 유지 스위치 없음, 실행 취소 1칸', () => {
+    const s = setup({ tent: OCT_TENT })
+    act(() => s.ui.getState().patch({ segmentDims: true }))
+    fireEvent.click(screen.getByRole('button', { name: /^가로 구간 2 / }))
+    expect(screen.queryByRole('switch', { name: '비율 유지' })).toBeNull()
+    const input = screen.getByRole('textbox', { name: '가로 구간 2' })
+    expect((input as HTMLInputElement).value).toBe('100')
+    fireEvent.change(input, { target: { value: '120' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(segValues(s, 'w')).toEqual([110, 120, 110])
+    expect(segValues(s, 'h')).toEqual([30, 175, 30])
+    expect(screen.getByRole('button', { name: '가로 340cm 고치기' })).toBeTruthy()
+    act(() => s.doc.getState().undo())
+    expect(segValues(s, 'w')).toEqual([110, 100, 110])
+  })
+
+  it('구간: 대칭 「자동 맞춤」이면 반대편 짝 구간도 같이', () => {
+    const s = setup({ tent: OCT_TENT })
+    act(() => s.ui.getState().patch({ segmentDims: true, symmetryAxis: 'x', symmetryMode: 'mirror' }))
+    editTo('가로 구간 3', '130')
+    expect(segValues(s, 'w')).toEqual([130, 100, 130])
   })
 
   it('구간 치수: 배치 모드 읽기 전용 치수에도', () => {

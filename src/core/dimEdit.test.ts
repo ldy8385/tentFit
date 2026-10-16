@@ -1,9 +1,10 @@
 // 도형 위 치수 편집 계산(소유자 요청 2026-10-14): 변·가로·세로·모서리 반지름, 비율 유지 켬 = 전체 같은 배율, 끔 = 그 변·축만.
 import { describe, expect, it } from 'vitest'
-import { dimValue, editDim, outlineSize, setAllRadii, type DimKey, type ShapeSpec } from './dimEdit'
+import { dimValue, editDim, outlineSize, segmentStops, setAllRadii, type DimKey, type ShapeSpec } from './dimEdit'
 import { cornerRing, ringBBox } from './geom'
 import type { Pt, Shape } from './model'
 import { edgeLengths, setAnyEdgeLength } from './polygonEdit'
+import { withRadii } from './radii'
 import { shapeFromTemplate } from './templates'
 
 const E = (index: number): DimKey => ({ kind: 'edge', index })
@@ -212,5 +213,96 @@ describe('반올림해도 입력한 값 그대로(소유자 피드백 2026-10-14
   it('둥근 모서리 바깥 상자는 원의 식으로 정확히(현 근사 오차 없음)', () => {
     const diamond: Shape = { kind: 'polygon', points: [[0, -50], [50, 0], [0, 50], [-50, 0]], radii: [0, 10, 0, 0] }
     expect(outlineSize(diamond).w).toBeCloseTo(50 + 50 - 10 * Math.SQRT2 + 10, 9)
+  })
+})
+
+describe('구간 치수 고치기(소유자 요청 2026-10-16, 가운데 기준)', () => {
+  const S = (axis: 'w' | 'h', index: number): DimKey => ({ kind: 'seg', axis, index })
+  // 좌우 대칭 오각 지붕: 가로 구간 110 / 100 / 110, 세로 구간 60 / 100
+  const roof: Pt[] = [
+    [-160, 0],
+    [-50, -60],
+    [50, -60],
+    [160, 0],
+    [160, 100],
+    [-160, 100],
+  ]
+  const ROOF: Shape = { kind: 'polygon', points: roof }
+  const segs = (s: Shape, axis: 'w' | 'h') => {
+    const stops = segmentStops(s, axis)
+    return stops === null ? null : stops.slice(1).map((v, i) => Math.round((v - (stops[i] as number)) * 10) / 10)
+  }
+
+  it('구간 값: 꼭짓점 자리로 전체를 나눈 값, 자르는 자리가 없으면(사각형·원) 없음', () => {
+    expect(segs(ROOF, 'w')).toEqual([110, 100, 110])
+    expect(segs(ROOF, 'h')).toEqual([60, 100])
+    expect([0, 1, 2].map((i) => dimValue(ROOF, S('w', i)))).toEqual([110, 100, 110])
+    expect(dimValue(ROOF, S('w', 3))).toBeNull()
+    expect(segmentStops({ kind: 'rect', w: 200, h: 60 }, 'w')).toBeNull()
+    expect(segmentStops({ kind: 'circle', d: 80 }, 'w')).toBeNull()
+    expect(dimValue({ kind: 'rect', w: 200, h: 60 }, S('w', 0))).toBeNull()
+  })
+
+  it('0.5cm 안으로 붙은 꼭짓점은 한 자리(같이 움직임)', () => {
+    const near: Shape = { kind: 'polygon', points: [[-100, 0], [0, -50], [0.3, -50], [100, 0], [100, 50], [-100, 50]] }
+    expect(segs(near, 'w')).toEqual([100, 100])
+    const r = ok(editDim({ shape: near }, S('w', 1), 120, false))
+    expect(cornerRing(r.shape).map((p) => p[0])).toEqual([-100, 0, 0.3, 120, 120, -100])
+  })
+
+  it('가운데를 지나는 구간: 양쪽이 반씩 벌어져 나머지 구간·대칭 그대로', () => {
+    const r = ok(editDim({ shape: ROOF }, S('w', 1), 120, false))
+    expect(cornerRing(r.shape)).toEqual([[-170, 0], [-60, -60], [60, -60], [170, 0], [170, 100], [-170, 100]])
+    expect(segs(r.shape, 'w')).toEqual([110, 120, 110])
+  })
+
+  it('가운데 한쪽 구간: 가운데에서 먼 쪽 꼭짓점만 밀림(오른쪽 늘리기·왼쪽 줄이기)', () => {
+    const right = ok(editDim({ shape: ROOF }, S('w', 2), 130, false))
+    expect(cornerRing(right.shape)).toEqual([[-160, 0], [-50, -60], [50, -60], [180, 0], [180, 100], [-160, 100]])
+    const left = ok(editDim({ shape: ROOF }, S('w', 0), 90, false))
+    expect(cornerRing(left.shape)).toEqual([[-140, 0], [-50, -60], [50, -60], [160, 0], [160, 100], [-140, 100]])
+    expect(segs(left.shape, 'w')).toEqual([90, 100, 110])
+  })
+
+  it('세로 구간: 위쪽 구간이면 위 꼭짓점이 밀리고 가로 자리는 그대로', () => {
+    const r = ok(editDim({ shape: ROOF }, S('h', 0), 80, false))
+    expect(cornerRing(r.shape)).toEqual([[-160, 0], [-50, -80], [50, -80], [160, 0], [160, 100], [-160, 100]])
+    expect(segs(r.shape, 'h')).toEqual([80, 100])
+  })
+
+  it('대칭 「자동 맞춤」(같은 방향)이고 대칭이면 반대편 짝 구간도 같이', () => {
+    const r = ok(editDim({ shape: ROOF }, S('w', 2), 130, false, 'x'))
+    expect(segs(r.shape, 'w')).toEqual([130, 100, 130])
+    // 다른 방향 맞춤이면 그 구간만
+    expect(segs(ok(editDim({ shape: ROOF }, S('w', 2), 130, false, 'y')).shape, 'w')).toEqual([110, 100, 130])
+    // 대칭이 아니면 그 구간만
+    const lop: Shape = { kind: 'polygon', points: [[-160, 0], [-50, -60], [80, -60], [160, 0], [160, 100], [-160, 100]] }
+    expect(segs(ok(editDim({ shape: lop }, S('w', 2), 100, false, 'x')).shape, 'w')).toEqual([110, 130, 100])
+  })
+
+  it('비율 유지는 쓰지 않고, 템플릿 도형은 자유 다각형이 됨(반지름은 그대로)', () => {
+    const t = { kind: 'trapezoid' as const, front: 300, back: 200, depth: 100, offset: 0 }
+    const spec: ShapeSpec = { shape: withRadii(shapeFromTemplate(t), [5, 5, 5, 5]), template: t }
+    const before = segs(spec.shape, 'w')!
+    const r = ok(editDim(spec, S('w', 1), (before[1] as number) + 20, true))
+    expect(r.template).toBeUndefined()
+    expect(r.shape.kind).toBe('polygon')
+    expect(segs(r.shape, 'w')).toEqual([before[0], (before[1] as number) + 20, before[2]])
+    expect(r.shape.kind === 'polygon' ? r.shape.radii : undefined).toEqual([5, 5, 5, 5])
+  })
+
+  it('반올림해도 입력한 값 그대로', () => {
+    const r = ok(editDim({ shape: ROOF }, S('w', 2), 123.4, false))
+    expect(segs(r.shape, 'w')).toEqual([110, 100, 123.4])
+    for (const [x, y] of cornerRing(r.shape)) {
+      expect(Math.round(x * 10) / 10).toBe(x)
+      expect(Math.round(y * 10) / 10).toBe(y)
+    }
+  })
+
+  it('범위 밖·없는 구간은 거부', () => {
+    expect(editDim({ shape: ROOF }, S('w', 1), 0.5, false)).toEqual({ ok: false, reason: 'range' })
+    expect(editDim({ shape: ROOF }, S('w', 3), 100, false)).toEqual({ ok: false, reason: 'invalid' })
+    expect(editDim({ shape: { kind: 'rect', w: 200, h: 60 } }, S('w', 0), 100, false)).toEqual({ ok: false, reason: 'invalid' })
   })
 })

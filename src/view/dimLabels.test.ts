@@ -113,6 +113,18 @@ describe('dimModel 구간 치수', () => {
     expect(m.labels.find((l) => l.id === 'h')!.text).toBe('235')
   })
 
+  it('구간마다 고칠 때 쓰는 치수 키와 값(core dimValue와 같음)', () => {
+    const m = dimModel(OCT, AT0, V, undefined, { segments: true })
+    expect(m.segments.map((s) => [s.id, s.key, s.value])).toEqual([
+      ['sw0', { kind: 'seg', axis: 'w', index: 0 }, 110],
+      ['sw1', { kind: 'seg', axis: 'w', index: 1 }, 100],
+      ['sw2', { kind: 'seg', axis: 'w', index: 2 }, 110],
+      ['sh0', { kind: 'seg', axis: 'h', index: 0 }, 30],
+      ['sh1', { kind: 'seg', axis: 'h', index: 1 }, 175],
+      ['sh2', { kind: 'seg', axis: 'h', index: 2 }, 30],
+    ])
+  })
+
   it('구간 줄이 도형 가까이(지금 치수선 자리), 전체 치수선은 한 줄 바깥으로', () => {
     // 아래 끝 y=117.5 → 화면 635
     const m = dimModel(OCT, AT0, V, undefined, { segments: true })

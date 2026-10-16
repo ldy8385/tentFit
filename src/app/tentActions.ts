@@ -348,7 +348,7 @@ export function moveTargetEdge(stores: Stores, target: TentTarget, edgeIndex: nu
 }
 
 /** 대칭 맞춤이 「자동 맞춤」이면 그 축, 아니면 null(대상이 대칭인지는 부르는 쪽이 짝으로 판단) */
-function mirrorAxis(stores: Stores): SymAxis | null {
+export function mirrorAxis(stores: Stores): SymAxis | null {
   const ui = stores.ui.getState()
   return ui.symmetryAxis !== 'off' && ui.symmetryMode === 'mirror' ? ui.symmetryAxis : null
 }
