@@ -3,7 +3,7 @@ import { createContext, useContext, type JSX, type ReactNode } from 'react'
 import { useStore } from 'zustand'
 import type { Layout } from '../core/model'
 import { createDocStore, type DocState, type DocStore } from '../store/doc'
-import { loadGridStep, loadGuidesVisible, loadSymmetryAxis, loadSymmetryMode } from './gridActions'
+import { loadGridStep, loadGuidesVisible, loadSymmetryMode } from './gridActions'
 import { createUiStore, type Mode, type PointerKind, type UiState, type UiStore } from '../store/ui'
 
 export type Stores = { doc: DocStore; ui: UiStore }
@@ -47,7 +47,7 @@ export function initialPointer(): PointerKind {
  */
 export function createStores(layout: Layout, opts?: { mode?: Mode }): Stores {
   const doc = createDocStore(layout)
-  const ui = createUiStore({ pointer: initialPointer(), gridStep: loadGridStep(), guidesVisible: loadGuidesVisible(), symmetryAxis: loadSymmetryAxis(), symmetryMode: loadSymmetryMode(), ...(opts?.mode !== undefined ? { mode: opts.mode } : {}) })
+  const ui = createUiStore({ pointer: initialPointer(), gridStep: loadGridStep(), guidesVisible: loadGuidesVisible(), symmetryMode: loadSymmetryMode(), ...(opts?.mode !== undefined ? { mode: opts.mode } : {}) })
   doc.subscribe((state, prev) => {
     if (state.layout === prev.layout) return
     const s = ui.getState()

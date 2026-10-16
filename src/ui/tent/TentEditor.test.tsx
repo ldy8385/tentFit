@@ -694,7 +694,6 @@ describe('TentEditor — 텐트 색(소유자 요청 2026-10-15)', () => {
 describe('TentEditor — 대칭 맞춤(소유자 요청 2026-10-15: 좌우·상하 고르기)', () => {
   const SKEW: Tent = { name: '비뚠', outer: { kind: 'polygon', points: [[-300, -150], [340, -150], [300, 150], [-300, 150]] }, inners: [] }
   afterEach(() => {
-    localStorage.removeItem('tentfit.symmetryAxis')
     localStorage.removeItem('tentfit.symmetryMode')
   })
 

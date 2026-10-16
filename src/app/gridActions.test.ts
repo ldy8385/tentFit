@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
 import { createLayout } from '../core/model'
-import { loadGridStep, loadGuidesVisible, loadSymmetryAxis, loadSymmetryMode, setGridStep, setGuidesVisible, setSymmetryAxis, setSymmetryMode } from './gridActions'
+import { loadGridStep, loadGuidesVisible, loadSymmetryMode, setGridStep, setGuidesVisible, setSymmetryAxis, setSymmetryMode } from './gridActions'
 import { createStores } from './stores'
 
 const KEY = 'tentfit.gridStep'
@@ -52,19 +52,22 @@ describe('정렬 안내선 켜기·끄기(소유자 요청 2026-10-15)', () => {
 
 describe('대칭 맞춤 축(소유자 요청 2026-10-15: 좌우·상하 고르기)', () => {
   afterEach(() => {
-    localStorage.removeItem('tentfit.symmetryAxis')
     localStorage.removeItem('tentfit.symmetryMode')
   })
 
-  it('기본 끄기, 좌우·상하로 바꾸면 기억(잘못된 값은 끄기)', () => {
+  // 소유자 요청 2026-10-16: 기본값은 끄기 — 고른 축을 기억하지 않아 새로 열 때마다 끄기로 시작
+  it('기본 끄기, 좌우·상하로 바꿔도 기억하지 않아 새로 열면 끄기', () => {
     const s = setup()
     expect(s.ui.getState().symmetryAxis).toBe('off')
     setSymmetryAxis(s, 'y')
-    expect(setup().ui.getState().symmetryAxis).toBe('y')
-    setSymmetryAxis(s, 'x')
-    expect(loadSymmetryAxis()).toBe('x')
-    localStorage.setItem('tentfit.symmetryAxis', 'zz')
-    expect(loadSymmetryAxis()).toBe('off')
+    expect(s.ui.getState().symmetryAxis).toBe('y')
+    expect(setup().ui.getState().symmetryAxis).toBe('off')
+    expect(localStorage.getItem('tentfit.symmetryAxis')).toBeNull()
+  })
+
+  it('예전에 기억해 둔 축이 있어도 끄기로 시작', () => {
+    localStorage.setItem('tentfit.symmetryAxis', 'x')
+    expect(setup().ui.getState().symmetryAxis).toBe('off')
   })
 
   it('방식: 기본 자동 맞춤, 안내 표기로 바꾸면 기억(잘못된 값은 자동 맞춤)', () => {
