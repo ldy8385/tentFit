@@ -10,7 +10,8 @@
         "outer": { "kind": "polygon", "points": [[-82.4, -115], [-82.4, 115], [17.6, 115], [82.6, 0], [17.6, -115]] },
         "inners": [
           { "id": "0d09528c-1413-4a2d-9d80-fe550a88e124", "name": "이너", "x": -32.9, "y": 0.2, "rotation": 0, "template": { "kind": "rect", "w": 90, "h": 220 } }
-        ]
+        ],
+        "color": "pink"
       }
     },
     {
@@ -29,7 +30,8 @@
             "rotation": 0,
             "template": { "kind": "trapezoid", "front": 243, "back": 123, "depth": 103, "offset": 0 }
           }
-        ]
+        ],
+        "color": "sky"
       }
     },
     {
@@ -41,7 +43,8 @@
         "outerTemplate": { "kind": "hexagon", "w": 280, "h": 230, "edge": 140 },
         "inners": [
           { "id": "328af745-0c07-45fe-b303-a8bd22001c2e", "name": "이너", "x": 0, "y": 0, "rotation": 90, "template": { "kind": "rect", "w": 220, "h": 130 } }
-        ]
+        ],
+        "color": "brown"
       }
     },
     {
@@ -51,7 +54,41 @@
       "tent": {
         "name": "Lito/Lito D",
         "outerTemplate": { "kind": "rect", "w": 220, "h": 100 },
-        "inners": []
+        "inners": [],
+        "color": "gray"
+      }
+    },
+    {
+      "id": "awesome-holiday/ethos",
+      "brand": "Awesome Holiday",
+      "model": "Ethos",
+      "tent": {
+        "name": "ethos",
+        "outerTemplate": { "kind": "pentagon", "w": 295, "h": 100, "tip": 55, "dir": "right" },
+        "inners": [
+          { "id": "b0748cf2-92dc-4acf-8b7c-67a3c8a25014", "name": "이너", "x": -26.9, "y": 0, "rotation": 0, "template": { "kind": "rect", "w": 220, "h": 90 } }
+        ],
+        "color": "sky"
+      }
+    },
+    {
+      "id": "awesome-holiday/nimbus-ul",
+      "brand": "Awesome Holiday",
+      "model": "Nimbus ul",
+      "tent": {
+        "name": "Nimbus ul",
+        "outer": { "kind": "polygon", "points": [[-61.6, -117.5], [38.4, -117.5], [148.4, -87.5], [148.4, 87.5], [38.4, 117.5], [-61.6, 117.5], [-171.6, 87.5], [-171.6, -87.5]] },
+        "inners": [
+          {
+            "id": "347fa1d9-537d-4f21-9893-2ec3e7a39c2a",
+            "name": "이너",
+            "shape": { "kind": "polygon", "points": [[-70.3, -71.1], [94.7, -71.1], [124.4, 29.1], [-100.6, 29.1]] },
+            "x": -95.3,
+            "y": 11.9,
+            "rotation": 270
+          }
+        ],
+        "color": "gray"
       }
     }
   ]
