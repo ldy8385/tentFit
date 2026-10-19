@@ -255,9 +255,56 @@ export function edgeNormal(layout: Layout, target: TentTarget, edgeIndex: number
   return [w[0] - o[0], w[1] - o[1]]
 }
 
+/** 변 끌기: 이웃 변과 끄는 변이 이루는 각이 이보다 작으면(거의 일직선·아주 뾰족) 그 끝점은 미끄러지지 않고 법선으로 */
+const EDGE_SLIDE_MIN_SIN = Math.sin(Math.PI / 12)
+
+/**
+ * 변 끌기 한 끝점이 변의 법선 이동 1cm당 움직이는 양(로컬). along(이웃 변 방향, 기준선 위 점이면 기준선 방향)을 따라
+ * 변의 선이 1cm 밀린 자리까지. along이 법선과 거의 수직이면 법선 그대로(기준선 위 점은 법선의 기준선 성분만).
+ */
+function slideRate(along: Pt, n: Pt, onAxis: boolean): Pt {
+  const len = Math.hypot(along[0], along[1])
+  const u: Pt = len === 0 ? [0, 0] : [along[0] / len, along[1] / len]
+  const dot = u[0] * n[0] + u[1] * n[1]
+  if (Math.abs(dot) >= EDGE_SLIDE_MIN_SIN) return [u[0] / dot, u[1] / dot]
+  return onAxis ? [u[0] * dot, u[1] * dot] : n
+}
+
+/** 변 끌기 두 끝점(edgeIndex, edgeIndex+1)의 1cm당 이동(로컬): 시작점은 앞 변, 끝점은 뒤 변을 따라. 기준선 위 점은 기준선을 따라. */
+function localEndRates(ring: readonly Pt[], edgeIndex: number, n: Pt, axis: SymAxis | null, partners: readonly number[] | null): [Pt, Pt] {
+  const len = ring.length
+  const a = edgeIndex
+  const b = (edgeIndex + 1) % len
+  const rate = (i: number, neighbor: number): Pt => {
+    const onAxis = axis !== null && partners?.[i] === i
+    const p = ring[i] as Pt
+    const q = ring[neighbor] as Pt
+    const along: Pt = onAxis ? (axis === 'x' ? [0, 1] : [1, 0]) : [p[0] - q[0], p[1] - q[1]]
+    return slideRate(along, n, onAxis)
+  }
+  return [rate(a, (a - 1 + len) % len), rate(b, (b + 1) % len)]
+}
+
+/** 변 끌기: 변이 바깥으로 1cm 갈 때 두 끝점([edgeIndex, edgeIndex+1])이 움직이는 양(월드 벡터). edgeMoves와 같은 규칙. 원·없는 번호면 null */
+export function edgeEndRates(layout: Layout, target: TentTarget, edgeIndex: number, axis: SymAxis | null): [Pt, Pt] | null {
+  const frame = targetFrame(layout, target)
+  const ring = targetLocalRing(layout, target)
+  const n = frame === null ? null : localEdgeNormal(ring, edgeIndex)
+  if (frame === null || n === null) return null
+  const partners = axis === null ? null : symmetryPartners(ring, axis, symmetryCenter(ring, axis))
+  const o = frame.toWorld([0, 0])
+  const toWorldVec = (v: Pt): Pt => {
+    const w = frame.toWorld(v)
+    return [w[0] - o[0], w[1] - o[1]]
+  }
+  const [ra, rb] = localEndRates(ring, edgeIndex, n, axis, partners)
+  return [toWorldVec(ra), toWorldVec(rb)]
+}
+
 /**
  * 변 끌기(소유자 요청 2026-10-16): 변 edgeIndex를 바깥쪽 법선 방향으로 offset(cm, 음수면 안쪽)만큼 평행 이동한 꼭짓점 자리(월드, 번호 순).
- * 변 길이·기울기는 그대로이고 양옆 변이 늘거나 줄어듭니다. axis(대칭 「자동 맞춤」)가 있고 대상이 대칭이면 반대편 짝 꼭짓점도 거울로,
+ * 2026-10-19부터 두 끝점은 이웃 변을 따라 미끄러집니다 — 변 기울기와 이웃 변의 기울기가 그대로(사다리꼴 옆 변은 가로로).
+ * 이웃 변이 끄는 변과 거의 일직선이면 그 끝점은 법선으로. axis(대칭 「자동 맞춤」)가 있고 대상이 대칭이면 반대편 짝 꼭짓점도 거울로,
  * 기준선 위 꼭짓점은 기준선을 따라서만 움직입니다(mirrorVertexMove와 같은 규칙). 원·없는 번호면 null.
  */
 export function edgeMoves(
@@ -274,14 +321,16 @@ export function edgeMoves(
   const ends = [edgeIndex, (edgeIndex + 1) % ring.length]
   const c = axis === null ? 0 : symmetryCenter(ring, axis)
   const partners = axis === null ? null : symmetryPartners(ring, axis, c)
+  const rates = localEndRates(ring, edgeIndex, n, axis, partners)
   const moved = new Map<number, Pt>()
-  for (const i of ends) {
+  ends.forEach((i, k) => {
     const p = ring[i] as Pt
-    let q: Pt = [p[0] + n[0] * offset, p[1] + n[1] * offset]
+    const r = rates[k] as Pt
+    let q: Pt = [p[0] + r[0] * offset, p[1] + r[1] * offset]
     const mate = partners?.[i]
     if (axis !== null && mate === i) q = axis === 'x' ? [c, q[1]] : [q[0], c]
     moved.set(i, q)
-  }
+  })
   for (const i of ends) {
     const mate = partners?.[i]
     if (axis === null || mate === undefined || ends.includes(mate)) continue

@@ -3,6 +3,7 @@
 // 끌기면 tentDragStep으로 미리보기와 커밋 값을 얻습니다. 문서는 Board가 손을 뗄 때 tentActions로 한 번만 바꿉니다.
 import type { Layout, Pt, Tent } from '../../core/model'
 import {
+  edgeEndRates,
   edgeMoves,
   edgeNormal,
   mirrorPartners,
@@ -276,10 +277,19 @@ export function tentDragStep(
   return { preview: { target: drag.target, tent: r.tent, invalid, guides: alignGuides(world, others), symmetry }, commit }
 }
 
+/** 이동 벡터가 가로(0)·세로(1)인지. 0 길이·비스듬하면 null */
+function axisOf(v: Pt): 0 | 1 | null {
+  if (Math.abs(v[1]) < 1e-9 && Math.abs(v[0]) > 1e-9) return 0
+  if (Math.abs(v[0]) < 1e-9 && Math.abs(v[1]) > 1e-9) return 1
+  return null
+}
+
 /**
- * 변 끌기 한 점(소유자 요청 2026-10-16): 끈 거리 중 변에 수직인 성분만 씁니다(변 길이·기울기 그대로, 상하좌우로만은 쓰지 않음).
- * 맞춤(자석 맞춤이 켜졌을 때): 가로·세로 변은 다른 꼭짓점 줄(안내선) > 격자선, 비스듬한 변은 이동량을 격자 간격 단위로.
- * 「자동 맞춤」이고 대칭이면 짝 변도 미리보기에. 꼬이거나 뒤집히면(맞은편 너머) invalid이고 commit은 null.
+ * 변 끌기 한 점(소유자 요청 2026-10-16): 끈 거리 중 변에 수직인 성분만 씁니다(변 기울기 그대로, 상하좌우로만은 쓰지 않음).
+ * 2026-10-19부터 끝점은 이웃 변을 따라 미끄러지므로(edgeMoves) 사다리꼴 옆 변은 가로로 움직이고, 변은 늘 포인터를 지납니다.
+ * 맞춤(자석 맞춤이 켜졌을 때): 가로·세로 변은 다른 꼭짓점 줄(안내선) > 격자선, 비스듬한 변은 가로·세로로 미끄러지는 첫 끝점의
+ * 이동량을 격자 간격 단위로(그런 끝점이 없으면 변의 이동량을). 「자동 맞춤」이고 대칭이면 짝 변도 미리보기에.
+ * 꼬이거나 뒤집히면(맞은편 너머) invalid이고 commit은 null.
  */
 function edgeDragStep(
   layout: Layout,
@@ -306,7 +316,12 @@ function edgeDragStep(
     const snapped = (k === 0 ? al.x : al.y) ?? (opts?.grid != null ? snapToGrid(p, opts.grid.origin, opts.grid.step)[k] : v)
     t = (snapped - a[k]) / (n[k] as number)
   } else if (opts?.grid != null && opts.grid.step > 0) {
-    t = Math.round(t / opts.grid.step) * opts.grid.step
+    const step = opts.grid.step
+    const slide = (edgeEndRates(layout, target, edgeIndex, mirrorAxis) ?? []).map((r) => {
+      const ax = axisOf(r)
+      return ax === null ? null : r[ax]
+    }).find((v) => v != null)
+    t = slide == null ? Math.round(t / step) * step : (Math.round((t * slide) / step) * step) / slide
   }
   const moves = edgeMoves(layout, target, edgeIndex, t, mirrorAxis) ?? []
   const r = previewVertexMoves(layout, target, moves)
@@ -323,6 +338,19 @@ function edgeDragStep(
           .filter((g) => g.a[k] === g.b[k])
   const axis = sym !== null ? symmetryAxisLine(layout, target, sym) : null
   return { preview: { target, tent: r.tent, invalid, guides, symmetry: axis === null ? null : { axis, ghost: null, pair: null } }, commit }
+}
+
+/** 변 위 PC 커서(2026-10-19): 두 끝점이 모두 가로로 움직이면 ↔, 세로면 ↕, 그 밖(비스듬함·원·없는 번호)은 이동 */
+export function edgeDragCursor(layout: Layout, target: TentTarget, edgeIndex: number, axis: SymAxis | null): 'ew-resize' | 'ns-resize' | 'move' {
+  const rates = edgeEndRates(layout, target, edgeIndex, axis)
+  const unit = (v: Pt): Pt => {
+    const len = Math.hypot(v[0], v[1])
+    return len === 0 ? [0, 0] : [v[0] / len, v[1] / len]
+  }
+  const dirs = rates === null ? [] : rates.map(unit)
+  if (dirs.length > 0 && dirs.every((u) => Math.abs(u[0]) > 0.92)) return 'ew-resize'
+  if (dirs.length > 0 && dirs.every((u) => Math.abs(u[1]) > 0.92)) return 'ns-resize'
+  return 'move'
 }
 
 /** 로컬 기준선(좌우 = 세로선 x=c, 상하 = 가로선 y=c): 점들의 범위보다 조금(10%, 최소 20cm) 길게 */

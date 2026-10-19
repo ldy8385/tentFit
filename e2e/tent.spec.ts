@@ -409,6 +409,19 @@ test.describe('텐트 편집 모드', () => {
     })
   })
 
+  test('비스듬한 변 끌기(2026-10-19): 사다리꼴 옆 변을 가로로 끌면 끝점이 윗·아랫변을 따라 가로로(윗·아랫변 수평 그대로)', async ({ page }) => {
+    await selectOuter(page)
+    // 오른쪽 위 꼭짓점(310, −160)을 (250, −160)으로 → 오른쪽 변 = (250, −160)→(310, 160) 빗변
+    await mouseDragHolding(page, await vertexClient(page, 'outer', 1), await worldToClient(page, 250, -160), async () => undefined)
+    await expect.poll(async () => await vertexWorld(page, 'outer', 1)).toEqual([250, -160])
+    // 빗변 위 (295, 80)(가운데 + 자리 밖)을 잡아 가로로 (326, 80)까지: 가로 31 → 격자 10cm로 30
+    await mouseDragHolding(page, await worldToClient(page, 295, 80), await worldToClient(page, 326, 80), async () => undefined)
+    await expect.poll(async () => (await getTent(page)).outer).toEqual({
+      kind: 'polygon',
+      points: [[-310, -160], [280, -160], [340, 160], [-310, 160]],
+    })
+  })
+
   test('「+」을 누르면 그 변 가운데에 꼭짓점이 생기고 새 꼭짓점이 선택된다', async ({ page }) => {
     await selectOuter(page)
     // 1번 변(오른쪽 위 → 오른쪽 아래)의 가운데 (310, 0)

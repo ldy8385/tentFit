@@ -332,7 +332,7 @@ export function setTargetVertex(stores: Stores, target: TentTarget, index: numbe
 export const EDGE_FLIP_MESSAGE = '변을 맞은편 너머로 옮길 수 없어요'
 
 /**
- * 변 끌기(소유자 요청 2026-10-16): 변 edgeIndex를 바깥쪽 법선 방향으로 offset(cm, 음수면 안쪽)만큼 평행 이동(기록 한 칸).
+ * 변 끌기(소유자 요청 2026-10-16): 변 edgeIndex를 바깥쪽 법선 방향으로 offset(cm, 음수면 안쪽)만큼 평행 이동(기록 한 칸, 끝점은 이웃 변을 따라 — edgeMoves).
  * 「자동 맞춤」이고 대칭이면 반대편 짝 변도 거울로. 꼬이거나·뒤집히거나·좌표 범위 밖이면 거부, 원·없는 번호면 그대로.
  */
 export function moveTargetEdge(stores: Stores, target: TentTarget, edgeIndex: number, offset: number): EditResult {

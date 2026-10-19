@@ -10,6 +10,7 @@ import {
   addInnerFromTemplate,
   deleteInner,
   deleteVertex,
+  edgeEndRates,
   edgeMoves,
   insertVertex,
   targetFlipped,
@@ -692,6 +693,70 @@ describe('edgeMoves', () => {
     const circ = layoutOf({ ...goldenTent([]), outer: { kind: 'circle', d: 300 } })
     delete circ.tent.outerTemplate
     expect(edgeMoves(circ, 'outer', 0, 20, null)).toBeNull()
+  })
+
+  // 이웃 변을 따라 밀기(소유자 요청 2026-10-19): 끝점이 이웃 변을 따라 미끄러져 이웃 변의 기울기는 그대로
+  // 사다리꼴: 꼭짓점 0(−100,−60) 1(100,−60) 2(140,60) 3(−140,60), 변 1 = 오른쪽 빗변
+  const trapezoid = () => {
+    const l = layoutOf({ ...goldenTent([]), outer: { kind: 'polygon', points: [[-100, -60], [100, -60], [140, 60], [-140, 60]] } })
+    delete l.tent.outerTemplate
+    return l
+  }
+  const expectMoves = (m: ReturnType<typeof edgeMoves>, expected: Array<{ index: number; world: Pt }>) => {
+    expect(m?.map((v) => v.index)).toEqual(expected.map((v) => v.index))
+    m?.forEach((v, i) => {
+      expect(v.world[0]).toBeCloseTo(at(expected, i).world[0], 6)
+      expect(v.world[1]).toBeCloseTo(at(expected, i).world[1], 6)
+    })
+  }
+
+  it('사다리꼴 빗변은 윗·아랫변을 따라 가로로(변까지 수직 거리 = offset)', () => {
+    // 수직 10cm = 가로 10 / cos(빗변 법선과 가로의 각) = 10·√(40²+120²)/120
+    const dx = (10 * Math.hypot(40, 120)) / 120
+    expectMoves(edgeMoves(trapezoid(), 'outer', 1, 10, null), [
+      { index: 1, world: [100 + dx, -60] },
+      { index: 2, world: [140 + dx, 60] },
+    ])
+  })
+
+  it('가로 변은 끝점이 빗변을 따라: 사다리꼴 윗변을 위로 30 → 양 끝이 빗변을 타고 10씩 안으로', () => {
+    expectMoves(edgeMoves(trapezoid(), 'outer', 0, 30, null), [
+      { index: 0, world: [-90, -90] },
+      { index: 1, world: [90, -90] },
+    ])
+  })
+
+  it('이웃 변이 끄는 변과 거의 일직선(15° 미만)이면 그 끝점은 수직으로', () => {
+    // 꼭짓점 1(100,0)은 윗변 위에 넣은 점(180°): 변 0을 위로 밀면 0은 왼쪽 변을 따라, 1은 수직으로
+    const straight = layoutOf({ ...goldenTent([]), outer: { kind: 'polygon', points: [[0, 0], [100, 0], [200, 0], [200, 100], [0, 100]] } })
+    delete straight.tent.outerTemplate
+    expectMoves(edgeMoves(straight, 'outer', 0, 10, null), [
+      { index: 0, world: [0, -10] },
+      { index: 1, world: [100, -10] },
+    ])
+    // 10°만 꺾여도 수직으로
+    const bent = layoutOf({ ...goldenTent([]), outer: { kind: 'polygon', points: [[0, 0], [100, 0], [200, 100 * Math.tan(Math.PI / 18)], [200, 100], [0, 100]] } })
+    delete bent.tent.outerTemplate
+    expect(at(edgeMoves(bent, 'outer', 0, 10, null)!, 1).world[0]).toBeCloseTo(100, 1)
+  })
+})
+
+describe('edgeEndRates', () => {
+  it('변이 바깥으로 1cm 갈 때 두 끝점의 이동(월드): 사다리꼴 빗변은 둘 다 가로, 돌린 이너는 월드 방향', () => {
+    const l = layoutOf({ ...goldenTent([]), outer: { kind: 'polygon', points: [[-100, -60], [100, -60], [140, 60], [-140, 60]] } })
+    delete l.tent.outerTemplate
+    const r = edgeEndRates(l, 'outer', 1, null)!
+    for (const v of r) {
+      expect(v[0]).toBeCloseTo(Math.hypot(40, 120) / 120, 9)
+      expect(v[1]).toBeCloseTo(0, 9)
+    }
+    // 이너 300×300 @(150,0)를 90° 돌림: 로컬 변 1(오른쪽)이 월드 아래쪽 → 두 끝점 모두 아래로
+    const rot = layoutOf(goldenTent([rectInner('in1', 300, 300, 150, 0, { rotation: 90 })]))
+    for (const v of edgeEndRates(rot, { innerId: 'in1' }, 1, null)!) {
+      expect(v[0]).toBeCloseTo(0, 9)
+      expect(v[1]).toBeCloseTo(1, 9)
+    }
+    expect(edgeEndRates(rot, 'outer', 9, null)).toBeNull()
   })
 })
 

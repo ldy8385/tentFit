@@ -31,7 +31,7 @@ import { LIMITS, normAngle, round1, type Item, type Layout, type Pt, type Shape 
 import { drawGridOrigin } from '../../core/polygonEdit'
 import type { SymAxis } from '../../core/symmetry'
 import { expandSelection } from '../../core/ops/groups'
-import { edgeNormal, targetWorldRing, type TentTarget } from '../../core/ops/tent'
+import { targetWorldRing, type TentTarget } from '../../core/ops/tent'
 import { applyTransform, moveItems } from '../../core/ops/items'
 import { worldRing } from '../../core/geom'
 import { buildSnapContext, snapMove, SNAP_PX, type Seg, type SnapContext, type SnapLock } from '../../core/snap'
@@ -50,6 +50,7 @@ import { itemsInRect, rectFromCorners } from './marquee'
 import { GridShape, ItemShape, TentContent, WarningMarks } from './nodes'
 import {
   classifyTentPress,
+  edgeDragCursor,
   pressGrabs,
   pressSelection,
   tentDragFor,
@@ -536,10 +537,7 @@ class BoardController {
     if (pointer !== 'touch' && this.hover && !this.space && ui.mode === 'tent' && ui.drawing === null && ui.tentTarget !== null && tentControlsEnabled(ui)) {
       const layout = this.stores.doc.getState().layout
       const hit = classifyTentPress(layout, ui.tentTarget, ui.view, this.local(e), pointer, ui.tentLock, ui.outerPending)
-      if (hit.kind === 'edge') {
-        const n = edgeNormal(layout, hit.target, hit.edgeIndex)
-        cursor = n === null ? 'move' : Math.abs(n[0]) > 0.92 ? 'ew-resize' : Math.abs(n[1]) > 0.92 ? 'ns-resize' : 'move'
-      }
+      if (hit.kind === 'edge') cursor = edgeDragCursor(layout, hit.target, hit.edgeIndex, ui.symmetryMode === 'mirror' ? this.symmetryAxis() : null)
     }
     if (cursor === this.edgeCursor) return
     this.edgeCursor = cursor

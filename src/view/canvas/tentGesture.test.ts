@@ -4,6 +4,7 @@ import type { View } from '../viewport'
 import {
   TENT_MOVE_EPS_CM,
   classifyTentPress,
+  edgeDragCursor,
   pressGrabs,
   pressSelection,
   sameTentTarget,
@@ -333,9 +334,11 @@ describe('tentDragStep — 상하좌우로만(axisLock)', () => {
   })
 })
 
-// 변 끌기(소유자 요청 2026-10-16): 고른 대상의 변을 잡아 변에 수직으로만 평행 이동
+// 변 끌기(소유자 요청 2026-10-16): 고른 대상의 변을 잡아 평행 이동. 2026-10-19부터 끝점은 이웃 변을 따라 미끄러짐
 describe('변 끌기', () => {
   const edgeDrag = (target: TentPressHit & { kind: 'edge' }, at: [number, number]) => tentDragFor(target, 3, 'mouse', at, VIEW1) as TentDrag
+  // 사다리꼴: 오른쪽 변 1 = (100,−100)→(200,100)
+  const TRAP = layoutOf({ name: '사다리꼴', outer: { kind: 'polygon', points: [[-100, -100], [100, -100], [200, 100], [-200, 100]] }, inners: [] })
 
   it('고른 대상의 변 위(꼭짓점·+ 자리 밖, 잡는 거리 안) = 변, 고르지 않았거나 멀면 예전대로', () => {
     // 외곽 1000×400: 윗변 y=−200(+ 는 (0,−200)), 마우스 잡는 거리 8px
@@ -379,12 +382,47 @@ describe('변 끌기', () => {
     expect(al.preview.guides.every((g) => g.a[0] === 350 && g.b[0] === 350)).toBe(true)
     // 줄이 멀면 격자선(x 433 → 430)
     expect(tentDragStep(LAYOUT, drag, [433, 0], VIEW1, { grid, alignTol: 5 }).commit).toMatchObject({ offset: -70 })
-    // 비스듬한 변: 사다리꼴 오른쪽 변
-    const trap = layoutOf({ name: '사다리꼴', outer: { kind: 'polygon', points: [[-100, -100], [100, -100], [200, 100], [-200, 100]] }, inners: [] })
+    // 비스듬한 변(2026-10-19): 사다리꼴 오른쪽 변은 끝점이 윗·아랫변을 따라 가로로 → 가로 이동량을 격자 간격 단위로
     const sd = tentDragFor({ kind: 'edge', target: 'outer', edgeIndex: 1 }, 3, 'mouse', [150, 0], VIEW1) as TentDrag
     const n = [200 / Math.hypot(100, 200), -100 / Math.hypot(100, 200)]
-    const step = tentDragStep(trap, sd, [150 + n[0]! * 23, 0 + n[1]! * 23], VIEW1, { grid: { origin: [0, 0], step: 10 } })
-    expect(step.commit).toMatchObject({ offset: 20 })
+    // 수직으로 23 = 가로 25.7 → 30
+    const step = tentDragStep(TRAP, sd, [150 + n[0]! * 23, 0 + n[1]! * 23], VIEW1, { grid: { origin: [0, 0], step: 10 } })
+    expect(step.commit).toMatchObject({ kind: 'edge', edgeIndex: 1 })
+    expect(step.commit?.kind === 'edge' ? step.commit.offset : NaN).toBeCloseTo(30 * n[0]!, 6)
+    expect(step.preview.tent.outer).toMatchObject({ points: [[-100, -100], [130, -100], [230, 100], [-200, 100]] })
+  })
+
+  it('비스듬한 변(2026-10-19): 끝점이 이웃 변을 따라 — 사다리꼴 오른쪽 변을 가로로 끌면 가로로 그만큼(윗·아랫변 수평 그대로)', () => {
+    const sd = tentDragFor({ kind: 'edge', target: 'outer', edgeIndex: 1 }, 3, 'mouse', [150, 0], VIEW1) as TentDrag
+    const r = tentDragStep(TRAP, sd, [167, 0], VIEW1)
+    expect(r.preview.invalid).toBe(false)
+    expect(r.preview.tent.outer).toMatchObject({ points: [[-100, -100], [117, -100], [217, 100], [-200, 100]] })
+    expect(tentDragStep(TRAP, sd, [133, 0], VIEW1).preview.tent.outer).toMatchObject({ points: [[-100, -100], [83, -100], [183, 100], [-200, 100]] })
+  })
+
+  it('맞춤(2026-10-19): 끝점 하나만 가로·세로로 미끄러지면 그 끝점 이동량을, 둘 다 비스듬하면 변의 이동량을 격자 간격 단위로', () => {
+    const grid = { origin: [0, 0] as [number, number], step: 10 }
+    // 오른쪽을 향한 오각형: 변 1(0,−100)→(100,0)의 시작점은 윗변을 따라 가로로, 끝점은 변 2를 따라(= 수직)
+    const penta = layoutOf({ name: '오각형', outer: { kind: 'polygon', points: [[-100, -100], [0, -100], [100, 0], [0, 100], [-100, 100]] }, inners: [] })
+    const pd = tentDragFor({ kind: 'edge', target: 'outer', edgeIndex: 1 }, 3, 'mouse', [50, -50], VIEW1) as TentDrag
+    // 가로 14 → 시작점 가로 14 → 10, 변까지 수직 거리 10/√2
+    const p = tentDragStep(penta, pd, [64, -50], VIEW1, { grid })
+    expect(p.commit?.kind === 'edge' ? p.commit.offset : NaN).toBeCloseTo(10 / Math.SQRT2, 6)
+    expect(p.preview.tent.outer).toMatchObject({ points: [[-100, -100], [10, -100], [105, -5], [0, 100], [-100, 100]] })
+    // 마름모: 두 끝점 모두 비스듬히 → 변까지 수직 거리 23 → 20
+    const diamond = layoutOf({ name: '마름모', outer: { kind: 'polygon', points: [[0, -100], [100, 0], [0, 100], [-100, 0]] }, inners: [] })
+    const dd = tentDragFor({ kind: 'edge', target: 'outer', edgeIndex: 0 }, 3, 'mouse', [50, -50], VIEW1) as TentDrag
+    const d = tentDragStep(diamond, dd, [50 + 23 / Math.SQRT2, -50 - 23 / Math.SQRT2], VIEW1, { grid })
+    expect(d.commit?.kind === 'edge' ? d.commit.offset : NaN).toBeCloseTo(20, 6)
+  })
+
+  it('PC 커서: 두 끝점이 가로로 움직이면 ↔, 세로면 ↕, 그 밖은 이동', () => {
+    expect(edgeDragCursor(LAYOUT, 'outer', 1, null)).toBe('ew-resize')
+    expect(edgeDragCursor(LAYOUT, 'outer', 0, null)).toBe('ns-resize')
+    // 사다리꼴 오른쪽 변은 비스듬해도 끝점이 가로로
+    expect(edgeDragCursor(TRAP, 'outer', 1, null)).toBe('ew-resize')
+    const diamond = layoutOf({ name: '마름모', outer: { kind: 'polygon', points: [[0, -100], [100, 0], [0, 100], [-100, 0]] }, inners: [] })
+    expect(edgeDragCursor(diamond, 'outer', 0, null)).toBe('move')
   })
 
   it('자동 맞춤: 대칭이면 짝 변도 미리보기에(기준선 표시), 「안내 표기」면 그 변만', () => {
